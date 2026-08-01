@@ -1,0 +1,256 @@
+{
+ "id": "sentiment-demo",
+ "format": "sentiment",
+ "language": "zh",
+ "provenance": "authored fixture: hand-written demo, NOT a recorded model run (unlike the UMR demos, which replay the real UMR 2.0 experiment)",
+ "sentences": [
+  {
+   "index": 1,
+   "text": "这家店的招牌菜非常好吃，但价格实在太贵了。",
+   "tokens": ["这家店", "的", "招牌菜", "非常", "好吃", "，", "但", "价格", "实在", "太贵", "了", "。"],
+   "annotation": {
+    "polarity": "mixed",
+    "confidence": 0.91,
+    "intensity": 4,
+    "triggers": ["非常", "太贵了"],
+    "aspects": [
+     {"term": "招牌菜", "polarity": "positive", "evidence": "非常好吃"},
+     {"term": "价格", "polarity": "negative", "evidence": "实在太贵了"}
+    ]
+   },
+   "tree": [
+    {
+     "skill": "polarity",
+     "span": "这家店的招牌菜非常好吃，但价格实在太贵了。",
+     "input": "Sentence: 这家店的招牌菜非常好吃，但价格实在太贵了。",
+     "output": {"polarity": "mixed", "confidence": 0.91, "note": "「但」连接两个方向相反的评价，且两者分量相当，无一方压倒——属于 mixed 而非单一极性。"},
+     "rationale": "「但」连接两个方向相反的评价，且两者分量相当，无一方压倒——属于 mixed 而非单一极性。",
+     "children": [
+      {
+       "skill": "aspect",
+       "span": "这家店的招牌菜非常好吃，但价格实在太贵了。",
+       "input": "Sentence: 这家店的招牌菜非常好吃，但价格实在太贵了。\nOverall polarity: mixed",
+       "output": {"aspects": [{"term": "招牌菜", "polarity": "positive", "evidence": "非常好吃"}, {"term": "价格", "polarity": "negative", "evidence": "实在太贵了"}], "note": "mixed 的整体极性在方面层分解为两个方向相反的具体评价对象，正好印证了上一层的判断。"},
+       "rationale": "mixed 的整体极性在方面层分解为两个方向相反的具体评价对象，正好印证了上一层的判断。",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "intensity",
+     "span": "这家店的招牌菜非常好吃，但价格实在太贵了。",
+     "input": "Sentence: 这家店的招牌菜非常好吃，但价格实在太贵了。",
+     "output": {"intensity": 4, "triggers": ["非常", "太贵了"], "note": "「非常」「实在太…了」两组强化结构叠加，属于强调级但未到极端。"},
+     "rationale": "「非常」「实在太…了」两组强化结构叠加，属于强调级但未到极端。",
+     "children": []
+    }
+   ]
+  },
+  {
+   "index": 2,
+   "text": "续航一天一充，屏幕素质在同价位里算顶级的。",
+   "tokens": ["续航", "一天", "一充", "，", "屏幕", "素质", "在", "同价位", "里", "算", "顶级", "的", "。"],
+   "annotation": {
+    "polarity": "positive",
+    "confidence": 0.84,
+    "intensity": 3,
+    "triggers": ["顶级"],
+    "aspects": [
+     {"term": "续航", "polarity": "neutral", "evidence": "一天一充"},
+     {"term": "屏幕素质", "polarity": "positive", "evidence": "同价位里算顶级的"}
+    ]
+   },
+   "tree": [
+    {
+     "skill": "polarity",
+     "span": "续航一天一充，屏幕素质在同价位里算顶级的。",
+     "input": "Sentence: 续航一天一充，屏幕素质在同价位里算顶级的。",
+     "output": {"polarity": "positive", "confidence": 0.84, "note": "「一天一充」是中性事实描述，整句的评价立场由「算顶级的」决定，因此整体正面而非 mixed。"},
+     "rationale": "「一天一充」是中性事实描述，整句的评价立场由「算顶级的」决定，因此整体正面而非 mixed。",
+     "children": [
+      {
+       "skill": "aspect",
+       "span": "续航一天一充，屏幕素质在同价位里算顶级的。",
+       "input": "Sentence: 续航一天一充，屏幕素质在同价位里算顶级的。\nOverall polarity: positive",
+       "output": {"aspects": [{"term": "续航", "polarity": "neutral", "evidence": "一天一充"}, {"term": "屏幕素质", "polarity": "positive", "evidence": "同价位里算顶级的"}], "note": "续航只陈述事实无评价词，标 neutral；「同价位里算顶级」是限定范围内的比较级褒扬，落在屏幕素质上。"},
+       "rationale": "续航只陈述事实无评价词，标 neutral；「同价位里算顶级」是限定范围内的比较级褒扬，落在屏幕素质上。",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "intensity",
+     "span": "续航一天一充，屏幕素质在同价位里算顶级的。",
+     "input": "Sentence: 续航一天一充，屏幕素质在同价位里算顶级的。",
+     "output": {"intensity": 3, "triggers": ["顶级"], "note": "「顶级」本身是强词，但被「在同价位里」「算」两重限定弱化，落在中位。"},
+     "rationale": "「顶级」本身是强词，但被「在同价位里」「算」两重限定弱化，落在中位。",
+     "children": []
+    }
+   ]
+  },
+  {
+   "index": 3,
+   "text": "客服态度差到家了，问三次都不回，再也不会买了。",
+   "tokens": ["客服", "态度", "差", "到家", "了", "，", "问", "三次", "都", "不回", "，", "再也", "不会", "买", "了", "。"],
+   "annotation": {
+    "polarity": "negative",
+    "confidence": 0.97,
+    "intensity": 5,
+    "triggers": ["差到家了", "再也不会"],
+    "aspects": [
+     {"term": "客服态度", "polarity": "negative", "evidence": "差到家了"},
+     {"term": "响应速度", "polarity": "negative", "evidence": "问三次都不回"}
+    ]
+   },
+   "tree": [
+    {
+     "skill": "polarity",
+     "span": "客服态度差到家了，问三次都不回，再也不会买了。",
+     "input": "Sentence: 客服态度差到家了，问三次都不回，再也不会买了。",
+     "output": {"polarity": "negative", "confidence": 0.97, "note": "三个分句方向一致，且以「再也不会买了」的行为结论收尾，负面立场无歧义。"},
+     "rationale": "三个分句方向一致，且以「再也不会买了」的行为结论收尾，负面立场无歧义。",
+     "children": [
+      {
+       "skill": "aspect",
+       "span": "客服态度差到家了，问三次都不回，再也不会买了。",
+       "input": "Sentence: 客服态度差到家了，问三次都不回，再也不会买了。\nOverall polarity: negative",
+       "output": {"aspects": [{"term": "客服态度", "polarity": "negative", "evidence": "差到家了"}, {"term": "响应速度", "polarity": "negative", "evidence": "问三次都不回"}], "note": "「响应速度」是隐含方面——原文没有这个词，但「问三次都不回」评价的正是它；按 skill 规定 term 应抄原文表述，此处属于边界情况，已在下方留待人工裁决。"},
+       "rationale": "「响应速度」是隐含方面——原文没有这个词，但「问三次都不回」评价的正是它；按 skill 规定 term 应抄原文表述，此处属于边界情况，已在下方留待人工裁决。",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "intensity",
+     "span": "客服态度差到家了，问三次都不回，再也不会买了。",
+     "input": "Sentence: 客服态度差到家了，问三次都不回，再也不会买了。",
+     "output": {"intensity": 5, "triggers": ["差到家了", "再也不会"], "note": "「差到家了」是极端表述，叠加「再也不会」的绝对化承诺，达到最高级。"},
+     "rationale": "「差到家了」是极端表述，叠加「再也不会」的绝对化承诺，达到最高级。",
+     "children": []
+    }
+   ]
+  },
+  {
+   "index": 4,
+   "text": "包装是纸盒的，里面有两层泡沫，说明书是中英双语。",
+   "tokens": ["包装", "是", "纸盒", "的", "，", "里面", "有", "两层", "泡沫", "，", "说明书", "是", "中英", "双语", "。"],
+   "annotation": {
+    "polarity": "neutral",
+    "confidence": 0.93,
+    "intensity": 1,
+    "triggers": [],
+    "aspects": []
+   },
+   "tree": [
+    {
+     "skill": "polarity",
+     "span": "包装是纸盒的，里面有两层泡沫，说明书是中英双语。",
+     "input": "Sentence: 包装是纸盒的，里面有两层泡沫，说明书是中英双语。",
+     "output": {"polarity": "neutral", "confidence": 0.93, "note": "全句为事实描述，没有任何评价性词汇，属于典型 neutral。"},
+     "rationale": "全句为事实描述，没有任何评价性词汇，属于典型 neutral。",
+     "children": [
+      {
+       "skill": "aspect",
+       "span": "包装是纸盒的，里面有两层泡沫，说明书是中英双语。",
+       "input": "Sentence: 包装是纸盒的，里面有两层泡沫，说明书是中英双语。\nOverall polarity: neutral",
+       "output": {"aspects": [], "note": "包装、说明书都只被提及未被评价，按 skill 规定「只输出带评价的方面」，返回空列表。"},
+       "rationale": "包装、说明书都只被提及未被评价，按 skill 规定「只输出带评价的方面」，返回空列表。",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "intensity",
+     "span": "包装是纸盒的，里面有两层泡沫，说明书是中英双语。",
+     "input": "Sentence: 包装是纸盒的，里面有两层泡沫，说明书是中英双语。",
+     "output": {"intensity": 1, "triggers": [], "note": "无情感词，强度取下限。"},
+     "rationale": "无情感词，强度取下限。",
+     "children": []
+    }
+   ]
+  },
+  {
+   "index": 5,
+   "text": "这价格买到这个做工，不能说不值。",
+   "tokens": ["这", "价格", "买到", "这个", "做工", "，", "不能", "说", "不值", "。"],
+   "annotation": {
+    "polarity": "positive",
+    "confidence": 0.68,
+    "intensity": 2,
+    "triggers": ["不能说不值"],
+    "aspects": [
+     {"term": "做工", "polarity": "positive", "evidence": "不能说不值"}
+    ]
+   },
+   "tree": [
+    {
+     "skill": "polarity",
+     "span": "这价格买到这个做工，不能说不值。",
+     "input": "Sentence: 这价格买到这个做工，不能说不值。",
+     "output": {"polarity": "positive", "confidence": 0.68, "note": "「不能说不值」是双重否定，按 skill 的「否定翻转」规则解为弱正面；置信度压低是因为双重否定在中文里常带保留态度。"},
+     "rationale": "「不能说不值」是双重否定，按 skill 的「否定翻转」规则解为弱正面；置信度压低是因为双重否定在中文里常带保留态度。",
+     "children": [
+      {
+       "skill": "aspect",
+       "span": "这价格买到这个做工，不能说不值。",
+       "input": "Sentence: 这价格买到这个做工，不能说不值。\nOverall polarity: positive",
+       "output": {"aspects": [{"term": "做工", "polarity": "positive", "evidence": "不能说不值"}], "note": "评价对象是「做工」相对「价格」的性价比；价格本身在此是比较基准而非被评价对象，故不单列。"},
+       "rationale": "评价对象是「做工」相对「价格」的性价比；价格本身在此是比较基准而非被评价对象，故不单列。",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "intensity",
+     "span": "这价格买到这个做工，不能说不值。",
+     "input": "Sentence: 这价格买到这个做工，不能说不值。",
+     "output": {"intensity": 2, "triggers": ["不能说不值"], "note": "双重否定本身即是弱化手段，说话人刻意避免直接称赞。"},
+     "rationale": "双重否定本身即是弱化手段，说话人刻意避免直接称赞。",
+     "children": []
+    }
+   ]
+  },
+  {
+   "index": 6,
+   "text": "物流快得很，第二天就到了，就是快递员脾气不太好。",
+   "tokens": ["物流", "快", "得很", "，", "第二天", "就", "到", "了", "，", "就是", "快递员", "脾气", "不太好", "。"],
+   "annotation": {
+    "polarity": "mixed",
+    "confidence": 0.79,
+    "intensity": 3,
+    "triggers": ["快得很", "不太好"],
+    "aspects": [
+     {"term": "物流", "polarity": "positive", "evidence": "快得很，第二天就到了"},
+     {"term": "快递员", "polarity": "negative", "evidence": "脾气不太好"}
+    ]
+   },
+   "tree": [
+    {
+     "skill": "polarity",
+     "span": "物流快得很，第二天就到了，就是快递员脾气不太好。",
+     "input": "Sentence: 物流快得很，第二天就到了，就是快递员脾气不太好。",
+     "output": {"polarity": "mixed", "confidence": 0.79, "note": "「就是」引出转折，前正后负；但负面部分被「不太」弱化，正面分量略大，mixed 与 positive 之间存在争议，置信度因此不高。"},
+     "rationale": "「就是」引出转折，前正后负；但负面部分被「不太」弱化，正面分量略大，mixed 与 positive 之间存在争议，置信度因此不高。",
+     "children": [
+      {
+       "skill": "aspect",
+       "span": "物流快得很，第二天就到了，就是快递员脾气不太好。",
+       "input": "Sentence: 物流快得很，第二天就到了，就是快递员脾气不太好。\nOverall polarity: mixed",
+       "output": {"aspects": [{"term": "物流", "polarity": "positive", "evidence": "快得很，第二天就到了"}, {"term": "快递员", "polarity": "negative", "evidence": "脾气不太好"}], "note": "物流（服务）与快递员（人）是两个可分离的评价对象，分别承载相反极性。"},
+       "rationale": "物流（服务）与快递员（人）是两个可分离的评价对象，分别承载相反极性。",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "intensity",
+     "span": "物流快得很，第二天就到了，就是快递员脾气不太好。",
+     "input": "Sentence: 物流快得很，第二天就到了，就是快递员脾气不太好。",
+     "output": {"intensity": 3, "triggers": ["快得很", "不太好"], "note": "「得很」是强化后缀，「不太」是弱化前缀，两者相抵落在中位。"},
+     "rationale": "「得很」是强化后缀，「不太」是弱化前缀，两者相抵落在中位。",
+     "children": []
+    }
+   ]
+  }
+ ]
+}

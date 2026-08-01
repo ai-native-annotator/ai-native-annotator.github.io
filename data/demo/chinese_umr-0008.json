@@ -1,0 +1,2303 @@
+{
+ "id": "chinese_umr-0008",
+ "format": "umr",
+ "language": "zh",
+ "provenance": "replay: recorded from the real UMR 2.0 experiment run",
+ "sentences": [
+  {
+   "index": 1,
+   "text": "3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。",
+   "tokens": [
+    "3",
+    "美元",
+    "金币",
+    "（",
+    "英语",
+    "：",
+    "three-dollar",
+    "piece",
+    "）",
+    "是",
+    "由",
+    "美国",
+    "铸币局",
+    "该",
+    "局",
+    "首席",
+    "雕刻师",
+    "詹姆斯",
+    "·",
+    "巴顿",
+    "·",
+    "朗埃克",
+    "设计",
+    "，",
+    "1853",
+    "年",
+    "2",
+    "月",
+    "21",
+    "日",
+    "获得",
+    "授权",
+    "，",
+    "于",
+    "1854",
+    "至",
+    "1889",
+    "年",
+    "间",
+    "生产",
+    "的",
+    "一种",
+    "金币",
+    "。"
+   ],
+   "graph": "(s1x / identity-91\n    :ARG1 (s1x2 / 金币\n        :mod (s1x3 / monetary-quantity\n            :quant 3\n            :unit (s1x4 / 美元))\n        :mod (s1x5 / name\n            :op1 \"three-dollar\"\n            :op2 \"piece\"\n            :lang (s1x6 / 英语)))\n    :ARG2 s1x2\n    :aspect state)",
+   "docAnnotation": "(s1s0 / sentence\n\t:temporal ((document-creation-time :overlap s1x))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s1x)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。",
+     "input": "Sentence (Chinese):\n3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。",
+     "input": "Full sentence (context): 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。\nClause to analyse: 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。\nCore predicate: 是 (kind: abstract)",
+     "output": {
+      "concept": "identity-91",
+      "relations": [
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "3 美元 金币 （ 英语 ： three-dollar piece ）",
+         "kind": "np"
+        }
+       ],
+       [
+        ":ARG2",
+        {
+         "expand": true,
+         "phrase": "由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币",
+         "kind": "np"
+        }
+       ],
+       [
+        ":aspect",
+        "state"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币",
+      "note": "是 here predicates class membership ('a kind of coin'), not a role, so identity-91 with ARG1 the coin being named and ARG2 the descriptive NP headed by 金币 (with its relative-clause modifiers) as the equated referent."
+     },
+     "rationale": "是 here predicates class membership ('a kind of coin'), not a role, so identity-91 with ARG1 the coin being named and ARG2 the descriptive NP headed by 金币 (with its relative-clause modifiers) as the equated referent.",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。",
+       "input": "Full sentence (context): 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。\nClause to analyse: 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。",
+       "output": {
+        "predicate_kind": "abstract",
+        "concept": "identity-91",
+        "lemmas": [],
+        "predicate_text": "是",
+        "note": "Main clause is a 是...的 classification: '3美元金币 是 一种金币' (X is a kind of Y), with the intervening 由...设计／获得授权／生产 material forming a 的-relative clause modifying 金币 rather than being the main predicate. Since the complement 一种金币 is a category label, not a role, this is class-membership identity-91 rather than have-role-91; the embedded verbs (设计/获得/生产) are subordinate modifiers, not the clause's core predicate."
+       },
+       "rationale": "Main clause is a 是...的 classification: '3美元金币 是 一种金币' (X is a kind of Y), with the intervening 由...设计／获得授权／生产 material forming a 的-relative clause modifying 金币 rather than being the main predicate. Since the complement 一种金币 is a category label, not a role, this is class-membership identity-91 rather than have-role-91; the embedded verbs (设计/获得/生产) are subordinate modifiers, not the clause's core predicate.",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "3 美元 金币 （ 英语 ： three-dollar piece ）",
+       "input": "Full sentence (context): 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。\nNoun phrase to analyse: 3 美元 金币 （ 英语 ： three-dollar piece ）",
+       "output": {
+        "concept": "金币",
+        "relations": [
+         [
+          ":mod",
+          {
+           "concept": "monetary-quantity",
+           "relations": [
+            [
+             ":quant",
+             3
+            ],
+            [
+             ":unit",
+             {
+              "concept": "美元"
+             }
+            ]
+           ],
+           "phrase": "3 美元",
+           "note": "denomination modifying the coin, as a money-quantity entity"
+          }
+         ],
+         [
+          ":mod",
+          {
+           "expand": true,
+           "phrase": "（ 英语 ： three-dollar piece ）",
+           "kind": "special",
+           "note": "parenthetical English-name gloss; needs a naming/alias construction not covered by this module"
+          }
+         ]
+        ],
+        "phrase": "3 美元 金币 （ 英语 ： three-dollar piece ）"
+       },
+       "rationale": "",
+       "children": [
+        {
+         "skill": "special_entity",
+         "span": "（ 英语 ： three-dollar piece ）",
+         "input": "Full sentence (context): 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。\nSpecial phrase to analyse: （ 英语 ： three-dollar piece ）",
+         "output": {
+          "concept": "name",
+          "relations": [
+           [
+            ":op1",
+            "\"three-dollar\""
+           ],
+           [
+            ":op2",
+            "\"piece\""
+           ],
+           [
+            ":lang",
+            {
+             "concept": "英语"
+            }
+           ]
+          ],
+          "phrase": "（ 英语 ： three-dollar piece ）",
+          "note": "Parenthetical gloss giving the coin's English name; 英语 heads the :lang relation marking the language of the quoted name, tokens 'three-dollar'/'piece' are :op1/:op2 of the name node."
+         },
+         "rationale": "Parenthetical gloss giving the coin's English name; 英语 heads the :lang relation marking the language of the quoted name, tokens 'three-dollar'/'piece' are :op1/:op2 of the name node.",
+         "children": []
+        }
+       ]
+      },
+      {
+       "skill": "np_phrase",
+       "span": "由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币",
+       "input": "Full sentence (context): 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。\nNoun phrase to analyse: 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币",
+       "output": {
+        "concept": "金币",
+        "relations": [
+         [
+          ":quant",
+          {
+           "concept": "一"
+          }
+         ],
+         [
+          ":unit",
+          {
+           "concept": "种"
+          }
+         ],
+         [
+          ":ARG1-of",
+          {
+           "concept": "设计-01",
+           "relations": [
+            [
+             ":ARG0",
+             {
+              "concept": "have-role-91",
+              "relations": [
+               [
+                ":ARG1",
+                {
+                 "concept": "individual-person",
+                 "relations": [
+                  [
+                   ":name",
+                   {
+                    "concept": "name",
+                    "relations": [
+                     [
+                      ":op1",
+                      "\"詹姆斯\""
+                     ],
+                     [
+                      ":op2",
+                      "\"·\""
+                     ],
+                     [
+                      ":op3",
+                      "\"巴顿\""
+                     ],
+                     [
+                      ":op4",
+                      "\"·\""
+                     ],
+                     [
+                      ":op5",
+                      "\"朗埃克\""
+                     ]
+                    ]
+                   }
+                  ]
+                 ],
+                 "phrase": "詹姆斯 · 巴顿 · 朗埃克"
+                }
+               ],
+               [
+                ":ARG2",
+                {
+                 "concept": "person",
+                 "relations": [
+                  [
+                   ":mod",
+                   {
+                    "concept": "首席"
+                   }
+                  ],
+                  [
+                   ":ARG0-of",
+                   {
+                    "concept": "雕刻-01"
+                   }
+                  ]
+                 ],
+                 "phrase": "首席 雕刻师"
+                }
+               ],
+               [
+                ":ARG3",
+                {
+                 "concept": "government-organization",
+                 "relations": [
+                  [
+                   ":name",
+                   {
+                    "concept": "name",
+                    "relations": [
+                     [
+                      ":op1",
+                      "\"美国\""
+                     ],
+                     [
+                      ":op2",
+                      "\"铸币局\""
+                     ]
+                    ]
+                   }
+                  ],
+                  [
+                   ":mod",
+                   {
+                    "concept": "this"
+                   }
+                  ]
+                 ],
+                 "phrase": "美国 铸币局 该 局",
+                 "note": "该局 is an anaphoric re-mention of 铸币局 within the same NP, rendered as a demonstrative :mod on the same organization rather than a duplicate node"
+                }
+               ]
+              ],
+              "phrase": "美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克",
+              "note": "apposition: role (chief engraver of the US Mint) + name, via have-role-91"
+             }
+            ],
+            [
+             ":aspect",
+             "performance"
+            ]
+           ],
+           "phrase": "由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计",
+           "note": "由-passive: 设计-01 ARG1 (the coin) is the head noun itself, expressed via :ARG1-of"
+          }
+         ],
+         [
+          ":ARG0-of",
+          {
+           "concept": "获得-01",
+           "relations": [
+            [
+             ":ARG1",
+             {
+              "concept": "授权-01",
+              "relations": [
+               [
+                ":aspect",
+                "state"
+               ]
+              ]
+             }
+            ],
+            [
+             ":temporal",
+             {
+              "concept": "date-entity",
+              "relations": [
+               [
+                ":year",
+                1853
+               ],
+               [
+                ":month",
+                2
+               ],
+               [
+                ":day",
+                21
+               ]
+              ]
+             }
+            ],
+            [
+             ":aspect",
+             "performance"
+            ]
+           ],
+           "phrase": "1853 年 2 月 21 日 获得 授权",
+           "note": "coin is ARG0 (recipient) of 获得-01, whose ARG1 is the nominal 授权"
+          }
+         ],
+         [
+          ":ARG1-of",
+          {
+           "concept": "生产-01",
+           "relations": [
+            [
+             ":temporal",
+             {
+              "concept": "间",
+              "relations": [
+               [
+                ":op1",
+                {
+                 "concept": "date-entity",
+                 "relations": [
+                  [
+                   ":year",
+                   1854
+                  ]
+                 ]
+                }
+               ],
+               [
+                ":op2",
+                {
+                 "concept": "date-entity",
+                 "relations": [
+                  [
+                   ":year",
+                   1889
+                  ]
+                 ]
+                }
+               ]
+              ],
+              "phrase": "1854 至 1889 年 间"
+             }
+            ],
+            [
+             ":aspect",
+             "process"
+            ]
+           ],
+           "phrase": "于 1854 至 1889 年 间 生产",
+           "note": "coin is ARG1 (patient) of 生产-01, produced over the 1854–1889 span"
+          }
+         ]
+        ],
+        "phrase": "由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币"
+       },
+       "rationale": "",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。",
+     "input": "Sentence: 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。\n\nNodes in the parsed graph:\n- e1: identity-91 | \"3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币\"\n- e2: 金币 | \"3 美元 金币 （ 英语 ： three-dollar piece ）\"\n- e3: monetary-quantity | \"3 美元\"\n- e4: 美元 | \"\"\n- e5: name | \"（ 英语 ： three-dollar piece ）\"\n- e6: 英语 | \"\"\n- e7: 金币 | \"由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币\"\n- e8: 一 | \"\"\n- e9: 种 | \"\"\n- e10: 设计-01 | \"由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计\"\n- e11: have-role-91 | \"美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克\"\n- e12: individual-person | \"詹姆斯 · 巴顿 · 朗埃克\"\n- e13: name | \"\"\n- e14: person | \"首席 雕刻师\"\n- e15: 首席 | \"\"\n- e16: 雕刻-01 | \"\"\n- e17: government-organization | \"美国 铸币局 该 局\"\n- e18: name | \"\"\n- e19: this | \"\"\n- e20: 获得-01 | \"1853 年 2 月 21 日 获得 授权\"\n- e21: 授权-01 | \"\"\n- e22: date-entity | \"\"\n- e23: 生产-01 | \"于 1854 至 1889 年 间 生产\"\n- e24: 间 | \"1854 至 1889 年 间\"\n- e25: date-entity | \"\"\n- e26: date-entity | \"\"",
+     "output": {
+      "merge": [
+       [
+        "e2",
+        "e7"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。",
+     "input": "Current sentence (snt1): 3 美元 金币 （ 英语 ： three-dollar piece ） 是 由 美国 铸币局 该 局 首席 雕刻师 詹姆斯 · 巴顿 · 朗埃克 设计 ， 1853 年 2 月 21 日 获得 授权 ， 于 1854 至 1889 年 间 生产 的 一种 金币 。\n\nCurrent sentence variables:\n- s1x: identity-91 (aspect=state, modstr=fullaff)\n- s1x2: 金币\n- s1x3: monetary-quantity\n- s1x4: 美元\n- s1x5: name\n- s1x6: 英语\n\nRegistry of previous sentences' variables:\n(none — this is the first sentence)\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's1x']]",
+     "output": {
+      "temporal": [],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s1x"
+       ]
+      ],
+      "coref": []
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 8
+  },
+  {
+   "index": 2,
+   "text": "硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像 ， 背面 的 中间 是 面值 和 年份 ， 周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环 。",
+   "tokens": [
+    "硬币",
+    "正面",
+    "刻有",
+    "头戴",
+    "美洲",
+    "原住民",
+    "公主",
+    "头饰",
+    "的",
+    "自由",
+    "女神",
+    "头像",
+    "，",
+    "背面",
+    "的",
+    "中间",
+    "是",
+    "面值",
+    "和",
+    "年份",
+    "，",
+    "周围",
+    "有",
+    "玉米",
+    "、",
+    "小麦",
+    "、",
+    "棉花",
+    "和",
+    "烟草",
+    "组成",
+    "的",
+    "花环",
+    "。"
+   ],
+   "graph": "(s2x / and\n    :op1 (s2x2 / 刻有-01\n        :ARG1 (s2x3 / 正面\n            :part-of (s2x4 / 硬币))\n        :ARG2 (s2x5 / 头像\n            :mod (s2x6 / 女神\n                :mod (s2x7 / 自由)\n                :ARG0-of (s2x8 / 头戴-01\n                    :ARG1 (s2x9 / 头饰\n                        :poss (s2x10 / 公主\n                            :mod (s2x11 / 原住民\n                                :place (s2x12 / world-region\n                                    :name (s2x13 / name\n                                        :op1 \"美洲\")))))\n                    :aspect state)))\n        :aspect state)\n    :op2 (s2x14 / identity-91\n        :ARG1 (s2x15 / 中间\n            :part-of (s2x16 / 背面))\n        :ARG2 (s2x17 / and\n            :op1 (s2x18 / 面值)\n            :op2 (s2x19 / 年份))\n        :aspect state)\n    :op3 (s2x20 / exist-91\n        :ARG1 (s2x21 / 周围)\n        :ARG2 (s2x22 / 花环\n            :ARG1-of (s2x23 / 组成-01\n                :ARG0 (s2x24 / and\n                    :op1 (s2x25 / 玉米)\n                    :op2 (s2x26 / 小麦)\n                    :op3 (s2x27 / 棉花)\n                    :op4 (s2x28 / 烟草))\n                :aspect state))\n        :aspect state))",
+   "docAnnotation": "(s2s0 / sentence\n\t:temporal ((document-creation-time :after s2x2)\n\t\t(document-creation-time :overlap s2x14)\n\t\t(document-creation-time :overlap s2x20))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s2x2)\n\t\t(author :full-affirmative s2x14)\n\t\t(author :full-affirmative s2x20))\n\t:coref ((s1x2 :same-entity s2x4)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像 ， 背面 的 中间 是 面值 和 年份 ， 周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环 。",
+     "input": "Sentence (Chinese):\n硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像 ， 背面 的 中间 是 面值 和 年份 ， 周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环 。",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "concept": "and",
+       "relations": [
+        [
+         ":op1",
+         {
+          "expand": true,
+          "phrase": "硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像",
+          "kind": "clause"
+         }
+        ],
+        [
+         ":op2",
+         {
+          "expand": true,
+          "phrase": "背面 的 中间 是 面值 和 年份",
+          "kind": "clause"
+         }
+        ],
+        [
+         ":op3",
+         {
+          "expand": true,
+          "phrase": "周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环",
+          "kind": "clause"
+         }
+        ]
+       ],
+       "note": "Three coordinated descriptive clauses about different parts of the coin (front / back-middle / back-surrounding), listed with comma juncture; plain coordination, no contrast or subordination."
+      }
+     },
+     "rationale": "Three coordinated descriptive clauses about different parts of the coin (front / back-middle / back-surrounding), listed with comma juncture; plain coordination, no contrast or subordination.",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像 ， 背面 的 中间 是 面值 和 年份 ， 周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环 。",
+     "input": "Sentence: 硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像 ， 背面 的 中间 是 面值 和 年份 ， 周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环 。\n\nNodes in the parsed graph:\n- e1: and | \"\"\n- e2: 刻有-01 | \"硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像\"\n- e3: 正面 | \"硬币 正面\"\n- e4: 硬币 | \"\"\n- e5: 头像 | \"头戴 美洲 原住民 公主 头饰 的 自由 女神 头像\"\n- e6: 女神 | \"头戴 美洲 原住民 公主 头饰 的 自由 女神\"\n- e7: 自由 | \"\"\n- e8: 头戴-01 | \"头戴 美洲 原住民 公主 头饰\"\n- e9: 头饰 | \"美洲 原住民 公主 头饰\"\n- e10: 公主 | \"美洲 原住民 公主\"\n- e11: 原住民 | \"美洲 原住民\"\n- e12: world-region | \"\"\n- e13: name | \"\"\n- e14: identity-91 | \"背面 的 中间 是 面值 和 年份\"\n- e15: 中间 | \"背面 的 中间\"\n- e16: 背面 | \"\"\n- e17: and | \"面值 和 年份\"\n- e18: 面值 | \"\"\n- e19: 年份 | \"\"\n- e20: exist-91 | \"周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环\"\n- e21: 周围 | \"周围\"\n- e22: 花环 | \"玉米 、 小麦 、 棉花 和 烟草 组成 的 花环\"\n- e23: 组成-01 | \"\"\n- e24: and | \"\"\n- e25: 玉米 | \"\"\n- e26: 小麦 | \"\"\n- e27: 棉花 | \"\"\n- e28: 烟草 | \"\"",
+     "output": {
+      "merge": []
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像 ， 背面 的 中间 是 面值 和 年份 ， 周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环 。",
+     "input": "Current sentence (snt2): 硬币 正面 刻有 头戴 美洲 原住民 公主 头饰 的 自由 女神 头像 ， 背面 的 中间 是 面值 和 年份 ， 周围 有 玉米 、 小麦 、 棉花 和 烟草 组成 的 花环 。\n\nCurrent sentence variables:\n- s2x: and\n- s2x2: 刻有-01 (aspect=None, modstr=None)\n- s2x3: 正面\n- s2x4: 硬币\n- s2x5: 头像\n- s2x6: 女神\n- s2x7: 自由\n- s2x8: 头戴-01 (aspect=state, modstr=fullaff)\n- s2x9: 头饰\n- s2x10: 公主\n- s2x11: 原住民\n- s2x12: world-region\n- s2x13: name\n- s2x14: identity-91 (aspect=state, modstr=fullaff)\n- s2x15: 中间\n- s2x16: 背面\n- s2x17: and\n- s2x18: 面值\n- s2x19: 年份\n- s2x20: exist-91 (aspect=state, modstr=fullaff)\n- s2x21: 周围\n- s2x22: 花环\n- s2x23: 组成-01 (aspect=state, modstr=fullaff)\n- s2x24: and\n- s2x25: 玉米\n- s2x26: 小麦\n- s2x27: 棉花\n- s2x28: 烟草\n\nRegistry of previous sentences' variables:\n- snt1: s1x: identity-91\n- snt1: s1x2: 金币\n- snt1: s1x3: monetary-quantity\n- snt1: s1x4: 美元\n- snt1: s1x5: name\n- snt1: s1x6: 英语\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's2x2'], ['author', ':full-affirmative', 's2x14'], ['author', ':full-affirmative', 's2x20']]",
+     "output": {
+      "temporal": [],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s2x2"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s2x14"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s2x20"
+       ]
+      ],
+      "coref": [
+       [
+        "s1x2",
+        ":same-entity",
+        "s2x4"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 14
+  },
+  {
+   "index": 3,
+   "text": "1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ， 以便 人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。",
+   "tokens": [
+    "1851",
+    "年",
+    "，",
+    "联邦",
+    "国会",
+    "授权",
+    "发行",
+    "银质",
+    "3",
+    "美分",
+    "硬币",
+    "，",
+    "以便",
+    "人们",
+    "今后",
+    "在",
+    "购买",
+    "3",
+    "美分",
+    "邮票",
+    "时",
+    "不",
+    "再",
+    "需要",
+    "使用",
+    "很",
+    "不得人心",
+    "的",
+    "铜质",
+    "分币",
+    "。"
+   ],
+   "graph": "(s3x / 发行-01\n    :ARG0 (s3x2 / 国会\n        :mod (s3x3 / 联邦))\n    :ARG1 (s3x4 / 硬币\n        :consist-of (s3x5 / 银)\n        :mod (s3x6 / monetary-quantity\n            :quant 3\n            :unit (s3x7 / 美分)))\n    :temporal (s3x8 / date-entity\n        :year 1851)\n    :modpred \"授权\"\n    :aspect performance\n    :purpose (s3x9 / 需要-04\n        :ARG0 (s3x10 / 人们)\n        :ARG1 (s3x11 / 使用-01\n            :ARG1 (s3x12 / 分币\n                :mod (s3x13 / 铜质)\n                :ARG0-of (s3x14 / 得人心-01\n                    :polarity -\n                    :degree (s3x15 / 很)\n                    :aspect performance))\n            :aspect process\n            :modpred -)\n        :temporal (s3x16 / 今后)\n        :temporal (s3x17 / 购买-01\n            :ARG1 (s3x18 / 邮票\n                :mod (s3x19 / monetary-quantity\n                    :quant 3\n                    :unit (s3x20 / 美分)))\n            :aspect habitual)\n        :mod (s3x21 / 再)\n        :polarity -\n        :aspect state))",
+   "docAnnotation": "(s3s0 / sentence\n\t:temporal ((document-creation-time :after s3x)\n\t\t(document-creation-time :after s3x9)\n\t\t(document-creation-time :after s3x11)\n\t\t(document-creation-time :overlap s3x17))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s3x)\n\t\t(author :full-affirmative s3x9)\n\t\t(author :full-affirmative s3x11)\n\t\t(author :neutral-affirmative s3x17)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ， 以便 人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。",
+     "input": "Sentence (Chinese):\n1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ， 以便 人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "expand": true,
+       "phrase": "1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ，",
+       "kind": "clause",
+       "sub": [
+        [
+         ":purpose",
+         {
+          "expand": true,
+          "phrase": "人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。",
+          "kind": "clause"
+         }
+        ]
+       ],
+       "note": "以便 introduces a purpose clause subordinate to the main clause about Congress authorizing the coin; not coordination, so main clause is top with :purpose role."
+      }
+     },
+     "rationale": "以便 introduces a purpose clause subordinate to the main clause about Congress authorizing the coin; not coordination, so main clause is top with :purpose role.",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ， 以便 人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。",
+     "input": "Sentence: 1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ， 以便 人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。\n\nNodes in the parsed graph:\n- e1: 发行-01 | \"1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ，\"\n- e2: 国会 | \"联邦 国会\"\n- e3: 联邦 | \"\"\n- e4: 硬币 | \"银质 3 美分 硬币\"\n- e5: 银 | \"\"\n- e6: monetary-quantity | \"\"\n- e7: 美分 | \"\"\n- e8: date-entity | \"1851 年\"\n- e9: 需要-04 | \"人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。\"\n- e10: 人们 | \"人们\"\n- e11: 使用-01 | \"使用 很 不得人心 的 铜质 分币\"\n- e12: 分币 | \"很 不得人心 的 铜质 分币\"\n- e13: 铜质 | \"\"\n- e14: 得人心-01 | \"\"\n- e15: 很 | \"\"\n- e16: 今后 | \"今后\"\n- e17: 购买-01 | \"在 购买 3 美分 邮票 时\"\n- e18: 邮票 | \"3 美分 邮票\"\n- e19: monetary-quantity | \"\"\n- e20: 美分 | \"\"\n- e21: 再 | \"再\"",
+     "output": {
+      "merge": []
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ， 以便 人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。",
+     "input": "Current sentence (snt3): 1851 年 ， 联邦 国会 授权 发行 银质 3 美分 硬币 ， 以便 人们 今后 在 购买 3 美分 邮票 时 不 再 需要 使用 很 不得人心 的 铜质 分币 。\n\nCurrent sentence variables:\n- s3x: 发行-01 (aspect=performance, modstr=fullaff)\n- s3x2: 国会\n- s3x3: 联邦\n- s3x4: 硬币\n- s3x5: 银\n- s3x6: monetary-quantity\n- s3x7: 美分\n- s3x8: date-entity\n- s3x9: 需要-04 (aspect=performance, modstr=fullaff)\n- s3x10: 人们\n- s3x11: 使用-01 (aspect=performance, modstr=fullaff)\n- s3x12: 分币\n- s3x13: 铜质\n- s3x14: 得人心-01 (aspect=performance, modstr=fullaff)\n- s3x15: 很\n- s3x16: 今后\n- s3x17: 购买-01 (aspect=habitual, modstr=neutaff)\n- s3x18: 邮票\n- s3x19: monetary-quantity\n- s3x20: 美分\n- s3x21: 再\n\nRegistry of previous sentences' variables:\n- snt1: s1x: identity-91\n- snt1: s1x2: 金币\n- snt1: s1x3: monetary-quantity\n- snt1: s1x4: 美元\n- snt1: s1x5: name\n- snt1: s1x6: 英语\n- snt2: s2x: and\n- snt2: s2x2: 刻有-01\n- snt2: s2x3: 正面\n- snt2: s2x4: 硬币\n- snt2: s2x5: 头像\n- snt2: s2x6: 女神\n- snt2: s2x7: 自由\n- snt2: s2x8: 头戴-01\n- snt2: s2x9: 头饰\n- snt2: s2x10: 公主\n- snt2: s2x11: 原住民\n- snt2: s2x12: world-region\n- snt2: s2x13: name\n- snt2: s2x14: identity-91\n- snt2: s2x15: 中间\n- snt2: s2x16: 背面\n- snt2: s2x17: and\n- snt2: s2x18: 面值\n- snt2: s2x19: 年份\n- snt2: s2x20: exist-91\n- snt2: s2x21: 周围\n- snt2: s2x22: 花环\n- snt2: s2x23: 组成-01\n- snt2: s2x24: and\n- snt2: s2x25: 玉米\n- snt2: s2x26: 小麦\n- snt2: s2x27: 棉花\n- snt2: s2x28: 烟草\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's3x'], ['author', ':full-affirmative', 's3x9'], ['author', ':full-affirmative', 's3x11'], ['author', ':neutral-affirmative', 's3x17']]",
+     "output": {
+      "temporal": [
+       [
+        "s3x8",
+        ":contained",
+        "s3x"
+       ],
+       [
+        "s3x",
+        ":before",
+        "s3x17"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s3x"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s3x9"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s3x11"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s3x17"
+       ]
+      ],
+      "coref": []
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 16
+  },
+  {
+   "index": 4,
+   "text": "两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+   "tokens": [
+    "两年",
+    "后",
+    "，",
+    "国会",
+    "又",
+    "通过",
+    "法案",
+    "授权",
+    "发行",
+    "3",
+    "美元",
+    "金币",
+    "。"
+   ],
+   "graph": "(s4x / 授权-01\n    :ARG0 s4x7\n    :ARG1 (s4x2 / 发行-01\n        :ARG1 (s4x3 / 金币\n            :mod (s4x4 / monetary-quantity\n                :quant 3\n                :unit (s4x5 / 美元)))\n        :aspect process\n        :modpred -)\n    :instrument (s4x6 / 通过-01\n        :ARG0 (s4x7 / 国会)\n        :ARG1 (s4x8 / 法案)\n        :mod (s4x9 / 又)\n        :aspect performance)\n    :temporal (s4x10 / after\n        :op1 (s4x11 / now)\n        :duration (s4x12 / temporal-quantity\n            :quant 2\n            :unit (s4x13 / 年)))\n    :mod s4x9\n    :aspect performance)",
+   "docAnnotation": "(s4s0 / sentence\n\t:temporal ((document-creation-time :overlap s4x)\n\t\t(document-creation-time :overlap s4x2)\n\t\t(document-creation-time :after s4x6))\n\t:modal ((root :modal author)\n\t\t(author :neutral-affirmative s4x)\n\t\t(author :neutral-affirmative s4x2)\n\t\t(author :full-affirmative s4x6))\n\t:coref ((s3x2 :same-entity s4x7)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+     "input": "Sentence (Chinese):\n两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+     "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nClause to analyse: 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nCore predicate: 授权 (kind: verb)",
+     "output": {
+      "concept": "授权-01",
+      "relations": [
+       [
+        ":ARG0",
+        {
+         "expand": true,
+         "phrase": "国会",
+         "kind": "np"
+        }
+       ],
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "发行 3 美元 金币",
+         "kind": "clause"
+        }
+       ],
+       [
+        ":instrument",
+        {
+         "expand": true,
+         "phrase": "通过 法案",
+         "kind": "clause"
+        }
+       ],
+       [
+        ":temporal",
+        {
+         "expand": true,
+         "phrase": "两年 后",
+         "kind": "special"
+        }
+       ],
+       [
+        ":mod",
+        {
+         "expand": true,
+         "phrase": "又",
+         "kind": "atomic"
+        }
+       ],
+       [
+        ":aspect",
+        "performance"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+      "note": "授权-01 fits: only a thing-authorized (ARG1, the issuance of $3 gold coins) is given, no separate authorized party; 国会 is ARG0, 通过法案 is the means by which authorization was granted (:instrument), 两年后 sets the temporal frame."
+     },
+     "rationale": "授权-01 fits: only a thing-authorized (ARG1, the issuance of $3 gold coins) is given, no separate authorized party; 国会 is ARG0, 通过法案 is the means by which authorization was granted (:instrument), 两年后 sets the temporal frame.",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+       "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nClause to analyse: 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+       "output": {
+        "predicate_kind": "verb",
+        "concept": null,
+        "lemmas": [
+         "授权"
+        ],
+        "predicate_text": "授权",
+        "note": "Main clause verb: 国会 (ARG0) 授权 (authorize) the event of 发行3美元金币 (ARG1, a purpose/complement clause). 通过法案 is the means by which 授权 is accomplished (国会通过法案 授权...), but 授权 is the semantic head governing the licensing relation; 发行 heads its embedded complement clause. 两年后 is a temporal adjunct, not the predicate."
+       },
+       "rationale": "Main clause verb: 国会 (ARG0) 授权 (authorize) the event of 发行3美元金币 (ARG1, a purpose/complement clause). 通过法案 is the means by which 授权 is accomplished (国会通过法案 授权...), but 授权 is the semantic head governing the licensing relation; 发行 heads its embedded complement clause. 两年后 is a temporal adjunct, not the predicate.",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "国会",
+       "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nNoun phrase to analyse: 国会",
+       "output": {
+        "concept": "国会",
+        "relations": [],
+        "phrase": "国会",
+        "note": "Bare institution noun with no attached name span or modifiers; kept as a lexicalized atomic concept rather than decomposed into government-organization + name."
+       },
+       "rationale": "Bare institution noun with no attached name span or modifiers; kept as a lexicalized atomic concept rather than decomposed into government-organization + name.",
+       "children": []
+      },
+      {
+       "skill": "arguments",
+       "span": "发行 3 美元 金币",
+       "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nClause to analyse: 发行 3 美元 金币\nCore predicate: 发行 (kind: verb)",
+       "output": {
+        "concept": "发行-01",
+        "relations": [
+         [
+          ":ARG1",
+          {
+           "expand": true,
+           "phrase": "3 美元 金币",
+           "kind": "np"
+          }
+         ],
+         [
+          ":aspect",
+          "process"
+         ],
+         [
+          ":modstr",
+          "neutaff"
+         ],
+         [
+          ":modpred",
+          "-"
+         ]
+        ],
+        "phrase": "发行 3 美元 金币",
+        "note": "ARG0 (issuer) is a dropped subject coreferent with 国会 in the matrix clause, left out per PRO-drop guidance since the antecedent isn't in this clause; event is irrealis, licensed by 授权 (authorize), hence neutaff/modpred and process aspect rather than performance."
+       },
+       "rationale": "ARG0 (issuer) is a dropped subject coreferent with 国会 in the matrix clause, left out per PRO-drop guidance since the antecedent isn't in this clause; event is irrealis, licensed by 授权 (authorize), hence neutaff/modpred and process aspect rather than performance.",
+       "children": [
+        {
+         "skill": "predicate",
+         "span": "发行 3 美元 金币",
+         "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nClause to analyse: 发行 3 美元 金币",
+         "output": {
+          "predicate_kind": "verb",
+          "concept": null,
+          "lemmas": [
+           "发行"
+          ],
+          "predicate_text": "发行",
+          "note": "发行 '(the government) issue/put into circulation coinage' is the main verb of this clause, taking 金币 (modified by quantity 3美元) as its theme/ARG1; not an abstract predication, and not aspectual."
+         },
+         "rationale": "发行 '(the government) issue/put into circulation coinage' is the main verb of this clause, taking 金币 (modified by quantity 3美元) as its theme/ARG1; not an abstract predication, and not aspectual.",
+         "children": []
+        },
+        {
+         "skill": "np_phrase",
+         "span": "3 美元 金币",
+         "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nNoun phrase to analyse: 3 美元 金币",
+         "output": {
+          "concept": "金币",
+          "relations": [
+           [
+            ":mod",
+            {
+             "expand": true,
+             "phrase": "3 美元",
+             "kind": "special"
+            }
+           ]
+          ],
+          "phrase": "3 美元 金币",
+          "note": "金币 is the head; 3美元 denotes the coin's face-value denomination, deferred to the special-entity module as a monetary quantity rather than a count of coins."
+         },
+         "rationale": "金币 is the head; 3美元 denotes the coin's face-value denomination, deferred to the special-entity module as a monetary quantity rather than a count of coins.",
+         "children": [
+          {
+           "skill": "special_entity",
+           "span": "3 美元",
+           "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nSpecial phrase to analyse: 3 美元",
+           "output": {
+            "concept": "monetary-quantity",
+            "relations": [
+             [
+              ":quant",
+              3
+             ],
+             [
+              ":unit",
+              {
+               "concept": "美元"
+              }
+             ]
+            ],
+            "phrase": "3 美元"
+           },
+           "rationale": "",
+           "children": []
+          }
+         ]
+        }
+       ]
+      },
+      {
+       "skill": "arguments",
+       "span": "通过 法案",
+       "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nClause to analyse: 通过 法案\nCore predicate: 通过 (kind: verb)",
+       "output": {
+        "concept": "通过-01",
+        "relations": [
+         [
+          ":ARG0",
+          {
+           "expand": true,
+           "phrase": "国会",
+           "kind": "np"
+          }
+         ],
+         [
+          ":ARG1",
+          {
+           "expand": true,
+           "phrase": "法案",
+           "kind": "np"
+          }
+         ],
+         [
+          ":mod",
+          {
+           "expand": true,
+           "phrase": "又",
+           "kind": "atomic"
+          }
+         ],
+         [
+          ":aspect",
+          "performance"
+         ],
+         [
+          ":modstr",
+          "fullaff"
+         ]
+        ],
+        "phrase": "国会 又 通过 法案",
+        "note": "sense -01 'agent passes/adopts theme (a bill)' fits; ARG0 国会 recovered from the surrounding clause since it is the subject of 通过."
+       },
+       "rationale": "sense -01 'agent passes/adopts theme (a bill)' fits; ARG0 国会 recovered from the surrounding clause since it is the subject of 通过.",
+       "children": [
+        {
+         "skill": "predicate",
+         "span": "通过 法案",
+         "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nClause to analyse: 通过 法案",
+         "output": {
+          "predicate_kind": "verb",
+          "concept": null,
+          "lemmas": [
+           "通过"
+          ],
+          "predicate_text": "通过",
+          "note": "通过 here means 'pass/adopt (a bill)', a transitive action verb with 国会 as ARG0 and 法案 as ARG1; not an aspectual or abstract predication."
+         },
+         "rationale": "通过 here means 'pass/adopt (a bill)', a transitive action verb with 国会 as ARG0 and 法案 as ARG1; not an aspectual or abstract predication.",
+         "children": []
+        },
+        {
+         "skill": "np_phrase",
+         "span": "国会",
+         "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nNoun phrase to analyse: 国会",
+         "output": {
+          "concept": "国会",
+          "relations": [],
+          "phrase": "国会",
+          "note": "Bare institution noun with no attached name span or modifiers; kept as a lexicalized atomic concept rather than decomposed into government-organization + name."
+         },
+         "rationale": "Bare institution noun with no attached name span or modifiers; kept as a lexicalized atomic concept rather than decomposed into government-organization + name.",
+         "children": []
+        },
+        {
+         "skill": "np_phrase",
+         "span": "法案",
+         "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nNoun phrase to analyse: 法案",
+         "output": {
+          "concept": "法案",
+          "phrase": "法案"
+         },
+         "rationale": "",
+         "children": []
+        },
+        {
+         "skill": "(stop)",
+         "span": "又",
+         "input": "又",
+         "output": {
+          "concept": "又",
+          "kind": "atomic"
+         },
+         "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+         "children": []
+        }
+       ]
+      },
+      {
+       "skill": "special_entity",
+       "span": "两年 后",
+       "input": "Full sentence (context): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\nSpecial phrase to analyse: 两年 后",
+       "output": {
+        "concept": "after",
+        "relations": [
+         [
+          ":op1",
+          {
+           "concept": "now"
+          }
+         ],
+         [
+          ":duration",
+          {
+           "concept": "temporal-quantity",
+           "relations": [
+            [
+             ":quant",
+             2
+            ],
+            [
+             ":unit",
+             {
+              "concept": "年"
+             }
+            ]
+           ],
+           "phrase": "两年"
+          }
+         ]
+        ],
+        "phrase": "两年 后",
+        "note": "Relative time expression modeled as after(now, duration=2 years), following the 三天后 pattern; 两 realized as bare quant 2."
+       },
+       "rationale": "Relative time expression modeled as after(now, duration=2 years), following the 三天后 pattern; 两 realized as bare quant 2.",
+       "children": []
+      },
+      {
+       "skill": "(stop)",
+       "span": "又",
+       "input": "又",
+       "output": {
+        "concept": "又",
+        "kind": "atomic"
+       },
+       "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+     "input": "Sentence: 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\n\nNodes in the parsed graph:\n- e1: 授权-01 | \"两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\"\n- e2: 国会 | \"国会\"\n- e3: 发行-01 | \"发行 3 美元 金币\"\n- e4: 金币 | \"3 美元 金币\"\n- e5: monetary-quantity | \"3 美元\"\n- e6: 美元 | \"\"\n- e7: 通过-01 | \"国会 又 通过 法案\"\n- e8: 国会 | \"国会\"\n- e9: 法案 | \"法案\"\n- e10: 又 | \"又\"\n- e11: after | \"两年 后\"\n- e12: now | \"\"\n- e13: temporal-quantity | \"两年\"\n- e14: 年 | \"\"\n- e15: 又 | \"又\"",
+     "output": {
+      "merge": [
+       [
+        "e8",
+        "e2"
+       ],
+       [
+        "e10",
+        "e15"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。",
+     "input": "Current sentence (snt4): 两年 后 ， 国会 又 通过 法案 授权 发行 3 美元 金币 。\n\nCurrent sentence variables:\n- s4x: 授权-01 (aspect=process, modstr=neutaff)\n- s4x2: 发行-01 (aspect=process, modstr=neutaff)\n- s4x3: 金币\n- s4x4: monetary-quantity\n- s4x5: 美元\n- s4x6: 通过-01 (aspect=performance, modstr=fullaff)\n- s4x7: 国会\n- s4x8: 法案\n- s4x9: 又\n- s4x10: after\n- s4x11: now\n- s4x12: temporal-quantity\n- s4x13: 年\n\nRegistry of previous sentences' variables:\n- snt1: s1x: identity-91\n- snt1: s1x2: 金币\n- snt1: s1x3: monetary-quantity\n- snt1: s1x4: 美元\n- snt1: s1x5: name\n- snt1: s1x6: 英语\n- snt2: s2x: and\n- snt2: s2x2: 刻有-01\n- snt2: s2x3: 正面\n- snt2: s2x4: 硬币\n- snt2: s2x5: 头像\n- snt2: s2x6: 女神\n- snt2: s2x7: 自由\n- snt2: s2x8: 头戴-01\n- snt2: s2x9: 头饰\n- snt2: s2x10: 公主\n- snt2: s2x11: 原住民\n- snt2: s2x12: world-region\n- snt2: s2x13: name\n- snt2: s2x14: identity-91\n- snt2: s2x15: 中间\n- snt2: s2x16: 背面\n- snt2: s2x17: and\n- snt2: s2x18: 面值\n- snt2: s2x19: 年份\n- snt2: s2x20: exist-91\n- snt2: s2x21: 周围\n- snt2: s2x22: 花环\n- snt2: s2x23: 组成-01\n- snt2: s2x24: and\n- snt2: s2x25: 玉米\n- snt2: s2x26: 小麦\n- snt2: s2x27: 棉花\n- snt2: s2x28: 烟草\n- snt3: s3x: 发行-01\n- snt3: s3x2: 国会\n- snt3: s3x3: 联邦\n- snt3: s3x4: 硬币\n- snt3: s3x5: 银\n- snt3: s3x6: monetary-quantity\n- snt3: s3x7: 美分\n- snt3: s3x8: date-entity\n- snt3: s3x9: 需要-04\n- snt3: s3x10: 人们\n- snt3: s3x11: 使用-01\n- snt3: s3x12: 分币\n- snt3: s3x13: 铜质\n- snt3: s3x14: 得人心-01\n- snt3: s3x15: 很\n- snt3: s3x16: 今后\n- snt3: s3x17: 购买-01\n- snt3: s3x18: 邮票\n- snt3: s3x19: monetary-quantity\n- snt3: s3x20: 美分\n- snt3: s3x21: 再\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':neutral-affirmative', 's4x'], ['author', ':neutral-affirmative', 's4x2'], ['author', ':full-affirmative', 's4x6']]",
+     "output": {
+      "temporal": [
+       [
+        "s3x",
+        ":after",
+        "s4x6"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s4x"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s4x2"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s4x6"
+       ]
+      ],
+      "coref": [
+       [
+        "s3x2",
+        ":same-entity",
+        "s4x7"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 14
+  },
+  {
+   "index": 5,
+   "text": "部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+   "tokens": [
+    "部分",
+    "来源",
+    "认为",
+    "，",
+    "这种",
+    "金币",
+    "是",
+    "为了",
+    "方便",
+    "人们",
+    "大量",
+    "购买",
+    "邮票",
+    "。"
+   ],
+   "graph": "(s5x / 认为-01\n    :ARG0 (s5x2 / 来源\n        :mod (s5x3 / 部分)\n        :refer-number plural)\n    :ARG1 (s5x4 / have-purpose-91\n        :ARG1 (s5x5 / 金币\n            :mod (s5x6 / this))\n        :ARG2 (s5x7 / 方便-02\n            :ARG1 (s5x8 / 购买-01\n                :ARG0 (s5x9 / 人们)\n                :ARG1 (s5x10 / 邮票)\n                :manner (s5x11 / 大量)\n                :aspect process)\n            :aspect state)\n        :aspect state)\n    :aspect state)",
+   "docAnnotation": "(s5s0 / sentence\n\t:temporal ((document-creation-time :overlap s5x)\n\t\t(document-creation-time :overlap s5x4)\n\t\t(document-creation-time :overlap s5x7))\n\t:modal ((root :modal author)\n\t\t(author :neutral-affirmative s5x)\n\t\t(author :neutral-affirmative s5x4)\n\t\t(author :neutral-affirmative s5x7))\n\t:coref ((s4x3 :same-entity s5x5)\n\t\t(s3x18 :same-entity s5x10)\n\t\t(s3x10 :same-entity s5x9)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+     "input": "Sentence (Chinese):\n部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+     "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nClause to analyse: 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nCore predicate: 认为 (kind: verb)",
+     "output": {
+      "concept": "认为-01",
+      "relations": [
+       [
+        ":ARG0",
+        {
+         "expand": true,
+         "phrase": "部分 来源",
+         "kind": "np"
+        }
+       ],
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "这种 金币 是 为了 方便 人们 大量 购买 邮票",
+         "kind": "clause"
+        }
+       ],
+       [
+        ":aspect",
+        "state"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+      "note": "认为-01 'regard as true' fits: ARG0 the sources holding the belief, ARG1 the believed clause."
+     },
+     "rationale": "认为-01 'regard as true' fits: ARG0 the sources holding the belief, ARG1 the believed clause.",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+       "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nClause to analyse: 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+       "output": {
+        "predicate_kind": "verb",
+        "concept": null,
+        "lemmas": [
+         "认为"
+        ],
+        "predicate_text": "认为",
+        "note": "Main clause head is the cognition verb 认为 ('believe/consider'), taking 部分来源 as ARG0 and the embedded clause 这种金币是为了方便人们大量购买邮票 as ARG1 (a separate embedded predication, not the matrix predicate)."
+       },
+       "rationale": "Main clause head is the cognition verb 认为 ('believe/consider'), taking 部分来源 as ARG0 and the embedded clause 这种金币是为了方便人们大量购买邮票 as ARG1 (a separate embedded predication, not the matrix predicate).",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "部分 来源",
+       "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nNoun phrase to analyse: 部分 来源",
+       "output": {
+        "concept": "来源",
+        "relations": [
+         [
+          ":mod",
+          {
+           "concept": "部分"
+          }
+         ],
+         [
+          ":refer-number",
+          "plural"
+         ]
+        ],
+        "phrase": "部分 来源",
+        "note": "来源 'sources' is the head noun; 部分 modifies it as a partitive quantifier ('some/part of the sources'); plural since it denotes multiple sources collectively holding an opinion."
+       },
+       "rationale": "来源 'sources' is the head noun; 部分 modifies it as a partitive quantifier ('some/part of the sources'); plural since it denotes multiple sources collectively holding an opinion.",
+       "children": []
+      },
+      {
+       "skill": "arguments",
+       "span": "这种 金币 是 为了 方便 人们 大量 购买 邮票",
+       "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nClause to analyse: 这种 金币 是 为了 方便 人们 大量 购买 邮票\nCore predicate: 是 为了 (kind: abstract)",
+       "output": {
+        "concept": "have-purpose-91",
+        "relations": [
+         [
+          ":ARG1",
+          {
+           "expand": true,
+           "phrase": "这种 金币",
+           "kind": "np"
+          }
+         ],
+         [
+          ":ARG2",
+          {
+           "expand": true,
+           "phrase": "方便 人们 大量 购买 邮票",
+           "kind": "clause"
+          }
+         ],
+         [
+          ":aspect",
+          "state"
+         ],
+         [
+          ":modstr",
+          "fullaff"
+         ]
+        ],
+        "phrase": "这种 金币 是 为了 方便 人们 大量 购买 邮票",
+        "note": "是...为了 construction states the purpose behind the coin's existence; ARG1 is the entity (金币), ARG2 is the purpose clause; complement of 认为 stays fullaff since unhedged."
+       },
+       "rationale": "是...为了 construction states the purpose behind the coin's existence; ARG1 is the entity (金币), ARG2 is the purpose clause; complement of 认为 stays fullaff since unhedged.",
+       "children": [
+        {
+         "skill": "predicate",
+         "span": "这种 金币 是 为了 方便 人们 大量 购买 邮票",
+         "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nClause to analyse: 这种 金币 是 为了 方便 人们 大量 购买 邮票",
+         "output": {
+          "predicate_kind": "abstract",
+          "concept": "have-purpose-91",
+          "lemmas": [],
+          "predicate_text": "是 为了",
+          "note": "'这种金币是为了...' asserts that the coin's existence/issuance serves a purpose expressed by the 为了-clause ('方便人们大量购买邮票'); this X是为了Y pattern reifies the purpose relation as have-purpose-91 (ARG1=这种金币, ARG2=purpose clause headed by 方便-01), rather than treating 是 as identity-91 or 为了 as a verb."
+         },
+         "rationale": "'这种金币是为了...' asserts that the coin's existence/issuance serves a purpose expressed by the 为了-clause ('方便人们大量购买邮票'); this X是为了Y pattern reifies the purpose relation as have-purpose-91 (ARG1=这种金币, ARG2=purpose clause headed by 方便-01), rather than treating 是 as identity-91 or 为了 as a verb.",
+         "children": []
+        },
+        {
+         "skill": "np_phrase",
+         "span": "这种 金币",
+         "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nNoun phrase to analyse: 这种 金币",
+         "output": {
+          "concept": "金币",
+          "relations": [
+           [
+            ":mod",
+            {
+             "concept": "this"
+            }
+           ]
+          ],
+          "phrase": "这种 金币"
+         },
+         "rationale": "",
+         "children": []
+        },
+        {
+         "skill": "arguments",
+         "span": "方便 人们 大量 购买 邮票",
+         "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nClause to analyse: 方便 人们 大量 购买 邮票\nCore predicate: 方便 (kind: verb)",
+         "output": {
+          "concept": "方便-02",
+          "relations": [
+           [
+            ":ARG1",
+            {
+             "expand": true,
+             "phrase": "人们 大量 购买 邮票",
+             "kind": "clause"
+            }
+           ],
+           [
+            ":aspect",
+            "state"
+           ],
+           [
+            ":modstr",
+            "fullaff"
+           ]
+          ],
+          "phrase": "方便 人们 大量 购买 邮票",
+          "note": "方便-02 (faciliator/event) fits '为了方便X做Y'; ARG0 facilitator is 这种金币 in the outer clause, not part of this sub-clause span, so left unfilled; ARG1 is the whole enabled event."
+         },
+         "rationale": "方便-02 (faciliator/event) fits '为了方便X做Y'; ARG0 facilitator is 这种金币 in the outer clause, not part of this sub-clause span, so left unfilled; ARG1 is the whole enabled event.",
+         "children": [
+          {
+           "skill": "predicate",
+           "span": "方便 人们 大量 购买 邮票",
+           "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nClause to analyse: 方便 人们 大量 购买 邮票",
+           "output": {
+            "predicate_kind": "verb",
+            "concept": null,
+            "lemmas": [
+             "方便"
+            ],
+            "predicate_text": "方便",
+            "note": "方便 here is a verb meaning 'to make convenient for/facilitate' (为了方便人们大量购买邮票 = 'in order to facilitate people's large-scale purchase of stamps'), taking an implicit ARG0 (这种金币), ARG1/beneficiary 人们, and the purpose clause 大量购买邮票 as its complement/theme; 大量购买 is a subordinate serial verb clause under 方便, with 购买 as its own predicate but not the core one here."
+           },
+           "rationale": "方便 here is a verb meaning 'to make convenient for/facilitate' (为了方便人们大量购买邮票 = 'in order to facilitate people's large-scale purchase of stamps'), taking an implicit ARG0 (这种金币), ARG1/beneficiary 人们, and the purpose clause 大量购买邮票 as its complement/theme; 大量购买 is a subordinate serial verb clause under 方便, with 购买 as its own predicate but not the core one here.",
+           "children": []
+          },
+          {
+           "skill": "arguments",
+           "span": "人们 大量 购买 邮票",
+           "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nClause to analyse: 人们 大量 购买 邮票\nCore predicate: 购买 (kind: verb)",
+           "output": {
+            "concept": "购买-01",
+            "relations": [
+             [
+              ":ARG0",
+              {
+               "expand": true,
+               "phrase": "人们",
+               "kind": "atomic"
+              }
+             ],
+             [
+              ":ARG1",
+              {
+               "expand": true,
+               "phrase": "邮票",
+               "kind": "atomic"
+              }
+             ],
+             [
+              ":manner",
+              {
+               "expand": true,
+               "phrase": "大量",
+               "kind": "atomic"
+              }
+             ],
+             [
+              ":aspect",
+              "process"
+             ],
+             [
+              ":modstr",
+              "neutaff"
+             ]
+            ],
+            "phrase": "人们 大量 购买 邮票",
+            "note": "sense -01 'buyer purchases commodity' fits; 大量 marks manner/extent of purchasing; embedded under 为了 purpose clause so treated as irrealis (neutaff) generic-capability event (process, no perfective marker)."
+           },
+           "rationale": "sense -01 'buyer purchases commodity' fits; 大量 marks manner/extent of purchasing; embedded under 为了 purpose clause so treated as irrealis (neutaff) generic-capability event (process, no perfective marker).",
+           "children": [
+            {
+             "skill": "predicate",
+             "span": "人们 大量 购买 邮票",
+             "input": "Full sentence (context): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\nClause to analyse: 人们 大量 购买 邮票",
+             "output": {
+              "predicate_kind": "verb",
+              "concept": null,
+              "lemmas": [
+               "购买"
+              ],
+              "predicate_text": "购买",
+              "note": "Main verb of the clause '人们大量购买邮票' (people buy stamps in large quantity); 人们 is ARG0, 邮票 is ARG1, 大量 is a quantity/manner modifier on the buying event, not the predicate itself."
+             },
+             "rationale": "Main verb of the clause '人们大量购买邮票' (people buy stamps in large quantity); 人们 is ARG0, 邮票 is ARG1, 大量 is a quantity/manner modifier on the buying event, not the predicate itself.",
+             "children": []
+            },
+            {
+             "skill": "(stop)",
+             "span": "人们",
+             "input": "人们",
+             "output": {
+              "concept": "人们",
+              "kind": "atomic"
+             },
+             "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+             "children": []
+            },
+            {
+             "skill": "(stop)",
+             "span": "邮票",
+             "input": "邮票",
+             "output": {
+              "concept": "邮票",
+              "kind": "atomic"
+             },
+             "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+             "children": []
+            },
+            {
+             "skill": "(stop)",
+             "span": "大量",
+             "input": "大量",
+             "output": {
+              "concept": "大量",
+              "kind": "atomic"
+             },
+             "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+             "children": []
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+     "input": "Sentence: 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\n\nNodes in the parsed graph:\n- e1: 认为-01 | \"部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\"\n- e2: 来源 | \"部分 来源\"\n- e3: 部分 | \"\"\n- e4: have-purpose-91 | \"这种 金币 是 为了 方便 人们 大量 购买 邮票\"\n- e5: 金币 | \"这种 金币\"\n- e6: this | \"\"\n- e7: 方便-02 | \"方便 人们 大量 购买 邮票\"\n- e8: 购买-01 | \"人们 大量 购买 邮票\"\n- e9: 人们 | \"人们\"\n- e10: 邮票 | \"邮票\"\n- e11: 大量 | \"大量\"",
+     "output": {
+      "merge": []
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。",
+     "input": "Current sentence (snt5): 部分 来源 认为 ， 这种 金币 是 为了 方便 人们 大量 购买 邮票 。\n\nCurrent sentence variables:\n- s5x: 认为-01 (aspect=process, modstr=neutaff)\n- s5x2: 来源\n- s5x3: 部分\n- s5x4: have-purpose-91 (aspect=process, modstr=neutaff)\n- s5x5: 金币\n- s5x6: this\n- s5x7: 方便-02 (aspect=process, modstr=neutaff)\n- s5x8: 购买-01 (aspect=process, modstr=neutaff)\n- s5x9: 人们\n- s5x10: 邮票\n- s5x11: 大量\n\nRegistry of previous sentences' variables:\n- snt1: s1x: identity-91\n- snt1: s1x2: 金币\n- snt1: s1x3: monetary-quantity\n- snt1: s1x4: 美元\n- snt1: s1x5: name\n- snt1: s1x6: 英语\n- snt2: s2x: and\n- snt2: s2x2: 刻有-01\n- snt2: s2x3: 正面\n- snt2: s2x4: 硬币\n- snt2: s2x5: 头像\n- snt2: s2x6: 女神\n- snt2: s2x7: 自由\n- snt2: s2x8: 头戴-01\n- snt2: s2x9: 头饰\n- snt2: s2x10: 公主\n- snt2: s2x11: 原住民\n- snt2: s2x12: world-region\n- snt2: s2x13: name\n- snt2: s2x14: identity-91\n- snt2: s2x15: 中间\n- snt2: s2x16: 背面\n- snt2: s2x17: and\n- snt2: s2x18: 面值\n- snt2: s2x19: 年份\n- snt2: s2x20: exist-91\n- snt2: s2x21: 周围\n- snt2: s2x22: 花环\n- snt2: s2x23: 组成-01\n- snt2: s2x24: and\n- snt2: s2x25: 玉米\n- snt2: s2x26: 小麦\n- snt2: s2x27: 棉花\n- snt2: s2x28: 烟草\n- snt3: s3x: 发行-01\n- snt3: s3x2: 国会\n- snt3: s3x3: 联邦\n- snt3: s3x4: 硬币\n- snt3: s3x5: 银\n- snt3: s3x6: monetary-quantity\n- snt3: s3x7: 美分\n- snt3: s3x8: date-entity\n- snt3: s3x9: 需要-04\n- snt3: s3x10: 人们\n- snt3: s3x11: 使用-01\n- snt3: s3x12: 分币\n- snt3: s3x13: 铜质\n- snt3: s3x14: 得人心-01\n- snt3: s3x15: 很\n- snt3: s3x16: 今后\n- snt3: s3x17: 购买-01\n- snt3: s3x18: 邮票\n- snt3: s3x19: monetary-quantity\n- snt3: s3x20: 美分\n- snt3: s3x21: 再\n- snt4: s4x: 授权-01\n- snt4: s4x2: 发行-01\n- snt4: s4x3: 金币\n- snt4: s4x4: monetary-quantity\n- snt4: s4x5: 美元\n- snt4: s4x6: 通过-01\n- snt4: s4x7: 国会\n- snt4: s4x8: 法案\n- snt4: s4x9: 又\n- snt4: s4x10: after\n- snt4: s4x11: now\n- snt4: s4x12: temporal-quantity\n- snt4: s4x13: 年\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':neutral-affirmative', 's5x'], ['author', ':neutral-affirmative', 's5x4'], ['author', ':neutral-affirmative', 's5x7']]",
+     "output": {
+      "temporal": [
+       [
+        "document-creation-time",
+        ":overlap",
+        "s5x"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s5x"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s5x4"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s5x7"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s5x8"
+       ]
+      ],
+      "coref": [
+       [
+        "s4x3",
+        ":same-entity",
+        "s5x5"
+       ],
+       [
+        "s3x18",
+        ":same-entity",
+        "s5x10"
+       ],
+       [
+        "s3x10",
+        ":same-entity",
+        "s5x9"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 13
+  },
+  {
+   "index": 6,
+   "text": "朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别 ， 不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格 。",
+   "tokens": [
+    "朗埃克",
+    "在",
+    "设计",
+    "金币",
+    "时",
+    "想",
+    "了",
+    "多种",
+    "办法",
+    "确保",
+    "新币",
+    "和",
+    "2.5",
+    "美元",
+    "金币",
+    "有",
+    "显著",
+    "区别",
+    "，",
+    "不但",
+    "采用",
+    "的",
+    "坯饼",
+    "更",
+    "薄",
+    "，",
+    "而且",
+    "设计",
+    "图案",
+    "也",
+    "是",
+    "别具一格",
+    "。"
+   ],
+   "graph": "(s6x / and\n    :op1 (s6x2 / 想-04\n        :ARG0 (s6x3 / individual-person\n            :name (s6x4 / name\n                :op1 \"朗埃克\"))\n        :temporal (s6x5 / 设计-01\n            :ARG0 s6x3\n            :ARG1 (s6x6 / 金币)\n            :aspect process)\n        :ARG1 (s6x7 / 办法\n            :quant (s6x8 / 多)\n            :unit (s6x9 / 种)\n            :purpose (s6x10 / 确保-01\n                :ARG0 s6x3\n                :ARG1 (s6x11 / have-degree-91\n                    :ARG1 (s6x12 / and\n                        :op1 s6x6\n                        :op2 (s6x13 / 金币\n                            :mod (s6x14 / monetary-quantity\n                                :quant 2.5\n                                :unit (s6x15 / 美元))))\n                    :ARG2 (s6x16 / 区别)\n                    :ARG3 (s6x17 / 显著)\n                    :aspect state)\n                :aspect performance))\n        :aspect performance)\n    :op2 (s6x18 / correlate-91\n        :ARG1 (s6x19 / 薄-01\n            :ARG0 (s6x20 / 坯饼\n                :ARG1-of (s6x21 / 采用-01\n                    :aspect performance))\n            :degree (s6x22 / 更)\n            :aspect state)\n        :ARG2 (s6x23 / have-mod-91\n            :ARG1 (s6x24 / 图案\n                :mod (s6x25 / 设计))\n            :ARG2 (s6x26 / 别具一格)\n            :mod (s6x27 / 也)\n            :aspect state)\n        :aspect state))",
+   "docAnnotation": "(s6s0 / sentence\n\t:temporal ((document-creation-time :overlap s6x2)\n\t\t(document-creation-time :overlap s6x5)\n\t\t(document-creation-time :after s6x18)\n\t\t(document-creation-time :after s6x19))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s6x2)\n\t\t(author :full-affirmative s6x5)\n\t\t(author :full-affirmative s6x18)\n\t\t(author :full-affirmative s6x19)\n\t\t(author :full-affirmative s6x23))\n\t:coref ((s1x2 :same-entity s6x13)\n\t\t(s5x5 :same-entity s6x6)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别 ， 不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格 。",
+     "input": "Sentence (Chinese):\n朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别 ， 不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格 。",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "concept": "and",
+       "relations": [
+        [
+         ":op1",
+         {
+          "expand": true,
+          "phrase": "朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别",
+          "kind": "clause"
+         }
+        ],
+        [
+         ":op2",
+         {
+          "expand": true,
+          "phrase": "不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格",
+          "kind": "clause"
+         }
+        ]
+       ],
+       "note": "Main clause states Longacre thought of multiple ways to make the coins distinct; the comma-joined 不但...而且 clause elaborates what those ways were via its own paired additive coordination (two sub-clauses about the blank and the design), so it is kept as one op2 span for a later module to expand."
+      }
+     },
+     "rationale": "Main clause states Longacre thought of multiple ways to make the coins distinct; the comma-joined 不但...而且 clause elaborates what those ways were via its own paired additive coordination (two sub-clauses about the blank and the design), so it is kept as one op2 span for a later module to expand.",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别 ， 不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格 。",
+     "input": "Sentence: 朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别 ， 不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格 。\n\nNodes in the parsed graph:\n- e1: and | \"\"\n- e2: 想-04 | \"朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别\"\n- e3: individual-person | \"朗埃克\"\n- e4: name | \"\"\n- e5: 设计-01 | \"在 设计 金币 时\"\n- e6: 朗埃克 | \"朗埃克\"\n- e7: 金币 | \"金币\"\n- e8: 办法 | \"多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别\"\n- e9: 多 | \"\"\n- e10: 种 | \"\"\n- e11: 确保-01 | \"确保 新币 和 2.5 美元 金币 有 显著 区别\"\n- e12: 朗埃克 | \"朗埃克\"\n- e13: have-degree-91 | \"新币 和 2.5 美元 金币 有 显著 区别\"\n- e14: and | \"新币 和 2.5 美元 金币\"\n- e15: 币 | \"新币\"\n- e16: 新 | \"\"\n- e17: 金币 | \"2.5 美元 金币\"\n- e18: monetary-quantity | \"\"\n- e19: 美元 | \"\"\n- e20: 区别 | \"区别\"\n- e21: 显著 | \"显著\"\n- e22: correlate-91 | \"不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格\"\n- e23: 薄-01 | \"采用 的 坯饼 更 薄\"\n- e24: 坯饼 | \"采用 的 坯饼\"\n- e25: 采用-01 | \"\"\n- e26: 更 | \"更\"\n- e27: have-mod-91 | \"设计 图案 也 是 别具一格\"\n- e28: 图案 | \"设计 图案\"\n- e29: 设计 | \"\"\n- e30: 别具一格 | \"别具一格\"\n- e31: 也 | \"也\"",
+     "output": {
+      "merge": [
+       [
+        "e3",
+        "e6"
+       ],
+       [
+        "e3",
+        "e12"
+       ],
+       [
+        "e7",
+        "e15"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别 ， 不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格 。",
+     "input": "Current sentence (snt6): 朗埃克 在 设计 金币 时 想 了 多种 办法 确保 新币 和 2.5 美元 金币 有 显著 区别 ， 不但 采用 的 坯饼 更 薄 ， 而且 设计 图案 也 是 别具一格 。\n\nCurrent sentence variables:\n- s6x: and\n- s6x2: 想-04 (aspect=process, modstr=fullaff)\n- s6x3: individual-person\n- s6x4: name\n- s6x5: 设计-01 (aspect=process, modstr=fullaff)\n- s6x6: 金币\n- s6x7: 办法\n- s6x8: 多\n- s6x9: 种\n- s6x10: 确保-01 (aspect=None, modstr=None)\n- s6x11: have-degree-91 (aspect=state, modstr=None)\n- s6x12: and\n- s6x13: 金币\n- s6x14: monetary-quantity\n- s6x15: 美元\n- s6x16: 区别\n- s6x17: 显著\n- s6x18: correlate-91 (aspect=performance, modstr=fullaff)\n- s6x19: 薄-01 (aspect=performance, modstr=fullaff)\n- s6x20: 坯饼\n- s6x21: 采用-01 (aspect=performance, modstr=fullaff)\n- s6x22: 更\n- s6x23: have-mod-91 (aspect=state, modstr=fullaff)\n- s6x24: 图案\n- s6x25: 设计\n- s6x26: 别具一格\n- s6x27: 也\n\nRegistry of previous sentences' variables:\n- snt1: s1x: identity-91\n- snt1: s1x2: 金币\n- snt1: s1x3: monetary-quantity\n- snt1: s1x4: 美元\n- snt1: s1x5: name\n- snt1: s1x6: 英语\n- snt2: s2x: and\n- snt2: s2x2: 刻有-01\n- snt2: s2x3: 正面\n- snt2: s2x4: 硬币\n- snt2: s2x5: 头像\n- snt2: s2x6: 女神\n- snt2: s2x7: 自由\n- snt2: s2x8: 头戴-01\n- snt2: s2x9: 头饰\n- snt2: s2x10: 公主\n- snt2: s2x11: 原住民\n- snt2: s2x12: world-region\n- snt2: s2x13: name\n- snt2: s2x14: identity-91\n- snt2: s2x15: 中间\n- snt2: s2x16: 背面\n- snt2: s2x17: and\n- snt2: s2x18: 面值\n- snt2: s2x19: 年份\n- snt2: s2x20: exist-91\n- snt2: s2x21: 周围\n- snt2: s2x22: 花环\n- snt2: s2x23: 组成-01\n- snt2: s2x24: and\n- snt2: s2x25: 玉米\n- snt2: s2x26: 小麦\n- snt2: s2x27: 棉花\n- snt2: s2x28: 烟草\n- snt3: s3x: 发行-01\n- snt3: s3x2: 国会\n- snt3: s3x3: 联邦\n- snt3: s3x4: 硬币\n- snt3: s3x5: 银\n- snt3: s3x6: monetary-quantity\n- snt3: s3x7: 美分\n- snt3: s3x8: date-entity\n- snt3: s3x9: 需要-04\n- snt3: s3x10: 人们\n- snt3: s3x11: 使用-01\n- snt3: s3x12: 分币\n- snt3: s3x13: 铜质\n- snt3: s3x14: 得人心-01\n- snt3: s3x15: 很\n- snt3: s3x16: 今后\n- snt3: s3x17: 购买-01\n- snt3: s3x18: 邮票\n- snt3: s3x19: monetary-quantity\n- snt3: s3x20: 美分\n- snt3: s3x21: 再\n- snt4: s4x: 授权-01\n- snt4: s4x2: 发行-01\n- snt4: s4x3: 金币\n- snt4: s4x4: monetary-quantity\n- snt4: s4x5: 美元\n- snt4: s4x6: 通过-01\n- snt4: s4x7: 国会\n- snt4: s4x8: 法案\n- snt4: s4x9: 又\n- snt4: s4x10: after\n- snt4: s4x11: now\n- snt4: s4x12: temporal-quantity\n- snt4: s4x13: 年\n- snt5: s5x: 认为-01\n- snt5: s5x2: 来源\n- snt5: s5x3: 部分\n- snt5: s5x4: have-purpose-91\n- snt5: s5x5: 金币\n- snt5: s5x6: this\n- snt5: s5x7: 方便-02\n- snt5: s5x8: 购买-01\n- snt5: s5x9: 人们\n- snt5: s5x10: 邮票\n- snt5: s5x11: 大量\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's6x2'], ['author', ':full-affirmative', 's6x5'], ['author', ':full-affirmative', 's6x18'], ['author', ':full-affirmative', 's6x19'], ['author', ':full-affirmative', 's6x23']]",
+     "output": {
+      "temporal": [
+       [
+        "s6x5",
+        ":overlap",
+        "s6x2"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s6x2"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s6x5"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s6x18"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s6x19"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s6x23"
+       ]
+      ],
+      "coref": [
+       [
+        "s1x2",
+        ":same-entity",
+        "s6x13"
+       ],
+       [
+        "s5x5",
+        ":same-entity",
+        "s6x6"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 22
+  },
+  {
+   "index": 7,
+   "text": "金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚 ， 但 其 流通 程度 非常 有限 。",
+   "tokens": [
+    "金币",
+    "投产",
+    "后",
+    "的",
+    "第一",
+    "年",
+    "就",
+    "出产",
+    "了",
+    "超过",
+    "10",
+    "万",
+    "枚",
+    "，",
+    "但",
+    "其",
+    "流通",
+    "程度",
+    "非常",
+    "有限",
+    "。"
+   ],
+   "graph": "(s7x / but-91\n    :ARG1 (s7x2 / 出产-01\n        :ARG1 (s7x3 / more-than\n            :op1 (s7x4 / quantity\n                :quant 100000\n                :unit (s7x5 / 枚)))\n        :temporal (s7x6 / 年\n            :ord (s7x7 / ordinal-entity\n                :value 1)\n            :mod (s7x8 / 后\n                :op1 (s7x9 / 投产-01\n                    :ARG1 (s7x10 / 金币)\n                    :aspect performance)))\n        :mod (s7x11 / 就)\n        :aspect performance)\n    :ARG2 (s7x12 / 有限-01\n        :ARG0 (s7x13 / 程度\n            :mod (s7x14 / 流通-01\n                :ARG0 (s7x15 / 其\n                    :refer-person 3rd\n                    :refer-number singn)\n                :aspect performance))\n        :degree (s7x16 / 非常)\n        :aspect state)\n    :aspect state)",
+   "docAnnotation": "(s7s0 / sentence\n\t:temporal ((document-creation-time :after s7x2)\n\t\t(document-creation-time :after s7x12))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s7x2)\n\t\t(author :full-affirmative s7x12))\n\t:coref ((s6x13 :same-entity s7x10)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚 ， 但 其 流通 程度 非常 有限 。",
+     "input": "Sentence (Chinese):\n金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚 ， 但 其 流通 程度 非常 有限 。",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "concept": "but-91",
+       "relations": [
+        [
+         ":ARG1",
+         {
+          "expand": true,
+          "phrase": "金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚",
+          "kind": "clause"
+         }
+        ],
+        [
+         ":ARG2",
+         {
+          "expand": true,
+          "phrase": "其 流通 程度 非常 有限",
+          "kind": "clause"
+         }
+        ]
+       ],
+       "note": "但 marks pure contrast between two clauses; but-91 with :ARG1/:ARG2 per gold pattern."
+      }
+     },
+     "rationale": "但 marks pure contrast between two clauses; but-91 with :ARG1/:ARG2 per gold pattern.",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚 ， 但 其 流通 程度 非常 有限 。",
+     "input": "Sentence: 金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚 ， 但 其 流通 程度 非常 有限 。\n\nNodes in the parsed graph:\n- e1: but-91 | \"\"\n- e2: 出产-01 | \"金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚\"\n- e3: more-than | \"超过 10 万 枚\"\n- e4: quantity | \"10 万 枚\"\n- e5: 枚 | \"枚\"\n- e6: 年 | \"金币 投产 后 的 第一 年\"\n- e7: ordinal-entity | \"\"\n- e8: 后 | \"金币 投产 后\"\n- e9: 投产-01 | \"金币 投产\"\n- e10: 金币 | \"\"\n- e11: 就 | \"就\"\n- e12: 有限-01 | \"其 流通 程度 非常 有限\"\n- e13: 程度 | \"其 流通 程度\"\n- e14: 流通-01 | \"流通\"\n- e15: 其 | \"其\"\n- e16: 非常 | \"非常\"",
+     "output": {
+      "merge": []
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚 ， 但 其 流通 程度 非常 有限 。",
+     "input": "Current sentence (snt7): 金币 投产 后 的 第一 年 就 出产 了 超过 10 万 枚 ， 但 其 流通 程度 非常 有限 。\n\nCurrent sentence variables:\n- s7x: but-91 (aspect=performance, modstr=None)\n- s7x2: 出产-01 (aspect=performance, modstr=fulla)\n- s7x3: more-than\n- s7x4: quantity\n- s7x5: 枚\n- s7x6: 年\n- s7x7: ordinal-entity\n- s7x8: 后\n- s7x9: 投产-01 (aspect=performance, modstr=fullaff)\n- s7x10: 金币\n- s7x11: 就\n- s7x12: 有限-01 (aspect=performance, modstr=fullaff)\n- s7x13: 程度\n- s7x14: 流通-01 (aspect=performance, modstr=fullaff)\n- s7x15: 其\n- s7x16: 非常\n\nRegistry of previous sentences' variables:\n- snt1: s1x: identity-91\n- snt1: s1x2: 金币\n- snt1: s1x3: monetary-quantity\n- snt1: s1x4: 美元\n- snt1: s1x5: name\n- snt1: s1x6: 英语\n- snt2: s2x: and\n- snt2: s2x2: 刻有-01\n- snt2: s2x3: 正面\n- snt2: s2x4: 硬币\n- snt2: s2x5: 头像\n- snt2: s2x6: 女神\n- snt2: s2x7: 自由\n- snt2: s2x8: 头戴-01\n- snt2: s2x9: 头饰\n- snt2: s2x10: 公主\n- snt2: s2x11: 原住民\n- snt2: s2x12: world-region\n- snt2: s2x13: name\n- snt2: s2x14: identity-91\n- snt2: s2x15: 中间\n- snt2: s2x16: 背面\n- snt2: s2x17: and\n- snt2: s2x18: 面值\n- snt2: s2x19: 年份\n- snt2: s2x20: exist-91\n- snt2: s2x21: 周围\n- snt2: s2x22: 花环\n- snt2: s2x23: 组成-01\n- snt2: s2x24: and\n- snt2: s2x25: 玉米\n- snt2: s2x26: 小麦\n- snt2: s2x27: 棉花\n- snt2: s2x28: 烟草\n- snt3: s3x: 发行-01\n- snt3: s3x2: 国会\n- snt3: s3x3: 联邦\n- snt3: s3x4: 硬币\n- snt3: s3x5: 银\n- snt3: s3x6: monetary-quantity\n- snt3: s3x7: 美分\n- snt3: s3x8: date-entity\n- snt3: s3x9: 需要-04\n- snt3: s3x10: 人们\n- snt3: s3x11: 使用-01\n- snt3: s3x12: 分币\n- snt3: s3x13: 铜质\n- snt3: s3x14: 得人心-01\n- snt3: s3x15: 很\n- snt3: s3x16: 今后\n- snt3: s3x17: 购买-01\n- snt3: s3x18: 邮票\n- snt3: s3x19: monetary-quantity\n- snt3: s3x20: 美分\n- snt3: s3x21: 再\n- snt4: s4x: 授权-01\n- snt4: s4x2: 发行-01\n- snt4: s4x3: 金币\n- snt4: s4x4: monetary-quantity\n- snt4: s4x5: 美元\n- snt4: s4x6: 通过-01\n- snt4: s4x7: 国会\n- snt4: s4x8: 法案\n- snt4: s4x9: 又\n- snt4: s4x10: after\n- snt4: s4x11: now\n- snt4: s4x12: temporal-quantity\n- snt4: s4x13: 年\n- snt5: s5x: 认为-01\n- snt5: s5x2: 来源\n- snt5: s5x3: 部分\n- snt5: s5x4: have-purpose-91\n- snt5: s5x5: 金币\n- snt5: s5x6: this\n- snt5: s5x7: 方便-02\n- snt5: s5x8: 购买-01\n- snt5: s5x9: 人们\n- snt5: s5x10: 邮票\n- snt5: s5x11: 大量\n- snt6: s6x: and\n- snt6: s6x2: 想-04\n- snt6: s6x3: individual-person\n- snt6: s6x4: name\n- snt6: s6x5: 设计-01\n- snt6: s6x6: 金币\n- snt6: s6x7: 办法\n- snt6: s6x8: 多\n- snt6: s6x9: 种\n- snt6: s6x10: 确保-01\n- snt6: s6x11: have-degree-91\n- snt6: s6x12: and\n- snt6: s6x13: 金币\n- snt6: s6x14: monetary-quantity\n- snt6: s6x15: 美元\n- snt6: s6x16: 区别\n- snt6: s6x17: 显著\n- snt6: s6x18: correlate-91\n- snt6: s6x19: 薄-01\n- snt6: s6x20: 坯饼\n- snt6: s6x21: 采用-01\n- snt6: s6x22: 更\n- snt6: s6x23: have-mod-91\n- snt6: s6x24: 图案\n- snt6: s6x25: 设计\n- snt6: s6x26: 别具一格\n- snt6: s6x27: 也\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's7x2'], ['author', ':full-affirmative', 's7x12']]",
+     "output": {
+      "temporal": [
+       [
+        "s7x9",
+        ":before",
+        "s7x2"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s7x2"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s7x9"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s7x12"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s7x14"
+       ]
+      ],
+      "coref": [
+       [
+        "s6x13",
+        ":same-entity",
+        "s7x10"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 10
+  },
+  {
+   "index": 8,
+   "text": "虽然 美国 西岸 部分 地区 不 接受 纸币 ， 只能 使用 金币 和 银币 ， 但 东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。",
+   "tokens": [
+    "虽然",
+    "美国",
+    "西岸",
+    "部分",
+    "地区",
+    "不",
+    "接受",
+    "纸币",
+    "，",
+    "只能",
+    "使用",
+    "金币",
+    "和",
+    "银币",
+    "，",
+    "但",
+    "东部",
+    "的",
+    "情况",
+    "截然",
+    "不同",
+    "，",
+    "特别",
+    "是",
+    "在",
+    "经济",
+    "因",
+    "内战",
+    "爆发",
+    "而",
+    "陷入",
+    "动荡",
+    "后",
+    "，",
+    "3",
+    "美元",
+    "金币",
+    "基本上",
+    "在",
+    "东部",
+    "的",
+    "商品",
+    "交易",
+    "中",
+    "难得",
+    "一见",
+    "，",
+    "并且",
+    "此后",
+    "再也",
+    "没有",
+    "出现",
+    "过",
+    "大范围",
+    "流通",
+    "。"
+   ],
+   "graph": "(s8x / and-unexpected\n    :op1 (s8x2 / 接受-01\n        :ARG0 (s8x3 / 地区\n            :mod (s8x4 / 部分)\n            :place (s8x5 / 西岸\n                :part-of (s8x6 / country\n                    :name (s8x7 / name\n                        :op1 \"美国\"))))\n        :ARG1 (s8x8 / 纸币)\n        :polarity -\n        :aspect state)\n    :op2 (s8x9 / 截然不同-01\n        :ARG0 (s8x10 / 情况\n            :location (s8x11 / 东部))\n        :mod (s8x12 / 难得一见-01\n            :ARG0 (s8x13 / 金币\n                :mod (s8x14 / monetary-quantity\n                    :quant 3\n                    :unit (s8x15 / 美元)))\n            :temporal (s8x16 / 陷入-01\n                :ARG0 (s8x17 / 经济)\n                :ARG1 (s8x18 / 动荡)\n                :cause (s8x19 / 爆发-01\n                    :ARG1 (s8x20 / 内战)\n                    :aspect performance)\n                :mod (s8x21 / 特别)\n                :aspect performance)\n            :place (s8x22 / 交易-01\n                :ARG1 (s8x23 / 商品)\n                :location s8x11\n                :aspect state)\n            :mod (s8x24 / 基本上)\n            :mod (s8x25 / 出现-01\n                :ARG1 (s8x26 / 流通-01\n                    :mod (s8x27 / 范围\n                        :mod (s8x28 / 大))\n                    :aspect state)\n                :temporal (s8x29 / 此后)\n                :mod (s8x30 / 并且)\n                :mod (s8x31 / 再也)\n                :polarity -\n                :aspect state)\n            :aspect state)\n        :aspect state))",
+   "docAnnotation": "(s8s0 / sentence\n\t:temporal ((document-creation-time :overlap s8x2)\n\t\t(document-creation-time :after s8x9)\n\t\t(document-creation-time :after s8x12)\n\t\t(s8x12 :before s8x25))\n\t:modal ((root :modal author)\n\t\t(author :full-negative s8x2)\n\t\t(author :full-affirmative s8x9)\n\t\t(author :full-affirmative s8x12))\n\t:coref ((s7x10 :same-entity s8x13)\n\t\t(s7x14 :same-event s8x26)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "虽然 美国 西岸 部分 地区 不 接受 纸币 ， 只能 使用 金币 和 银币 ， 但 东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。",
+     "input": "Sentence (Chinese):\n虽然 美国 西岸 部分 地区 不 接受 纸币 ， 只能 使用 金币 和 银币 ， 但 东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "concept": "and-unexpected",
+       "relations": [
+        [
+         ":op1",
+         {
+          "expand": true,
+          "phrase": "美国 西岸 部分 地区 不 接受 纸币 ， 只能 使用 金币 和 银币 ，",
+          "kind": "clause"
+         }
+        ],
+        [
+         ":op2",
+         {
+          "expand": true,
+          "phrase": "东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。",
+          "kind": "clause"
+         }
+        ]
+       ],
+       "note": "虽然...但... concession pattern (unexpected co-occurrence); connectives 虽然/但 dropped as they are expressed by the concept. op2 itself contains further internal coordination (特别是... and 并且...) to be resolved by recursive expansion."
+      }
+     },
+     "rationale": "虽然...但... concession pattern (unexpected co-occurrence); connectives 虽然/但 dropped as they are expressed by the concept. op2 itself contains further internal coordination (特别是... and 并且...) to be resolved by recursive expansion.",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "虽然 美国 西岸 部分 地区 不 接受 纸币 ， 只能 使用 金币 和 银币 ， 但 东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。",
+     "input": "Sentence: 虽然 美国 西岸 部分 地区 不 接受 纸币 ， 只能 使用 金币 和 银币 ， 但 东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。\n\nNodes in the parsed graph:\n- e1: and-unexpected | \"\"\n- e2: 接受-01 | \"美国 西岸 部分 地区 不 接受 纸币\"\n- e3: 地区 | \"美国 西岸 部分 地区\"\n- e4: 部分 | \"部分\"\n- e5: 西岸 | \"美国 西岸\"\n- e6: country | \"美国\"\n- e7: name | \"美国\"\n- e8: 纸币 | \"纸币\"\n- e9: 截然不同-01 | \"东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。\"\n- e10: 情况 | \"东部 的 情况\"\n- e11: 东部 | \"\"\n- e12: 难得一见-01 | \"特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通\"\n- e13: 金币 | \"3 美元 金币\"\n- e14: monetary-quantity | \"3 美元\"\n- e15: 美元 | \"\"\n- e16: 陷入-01 | \"特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后\"\n- e17: 经济 | \"经济\"\n- e18: 动荡 | \"动荡\"\n- e19: 爆发-01 | \"内战 爆发\"\n- e20: 内战 | \"内战\"\n- e21: 特别 | \"特别 是\"\n- e22: 交易-01 | \"在 东部 的 商品 交易 中\"\n- e23: 商品 | \"\"\n- e24: 东部 | \"\"\n- e25: 基本上 | \"基本上\"\n- e26: 出现-01 | \"并且 此后 再也 没有 出现 过 大范围 流通\"\n- e27: 流通-01 | \"大范围 流通\"\n- e28: 范围 | \"大范围\"\n- e29: 大 | \"大\"\n- e30: 此后 | \"此后\"\n- e31: 并且 | \"并且\"\n- e32: 再也 | \"再也\"",
+     "output": {
+      "merge": [
+       [
+        "e11",
+        "e24"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "虽然 美国 西岸 部分 地区 不 接受 纸币 ， 只能 使用 金币 和 银币 ， 但 东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。",
+     "input": "Current sentence (snt8): 虽然 美国 西岸 部分 地区 不 接受 纸币 ， 只能 使用 金币 和 银币 ， 但 东部 的 情况 截然 不同 ， 特别 是 在 经济 因 内战 爆发 而 陷入 动荡 后 ， 3 美元 金币 基本上 在 东部 的 商品 交易 中 难得 一见 ， 并且 此后 再也 没有 出现 过 大范围 流通 。\n\nCurrent sentence variables:\n- s8x: and-unexpected\n- s8x2: 接受-01 (aspect=state, modstr=fullneg)\n- s8x3: 地区\n- s8x4: 部分\n- s8x5: 西岸\n- s8x6: country\n- s8x7: name\n- s8x8: 纸币\n- s8x9: 截然不同-01 (aspect=None, modstr=None)\n- s8x10: 情况\n- s8x11: 东部\n- s8x12: 难得一见-01 (aspect=performance, modstr=None)\n- s8x13: 金币\n- s8x14: monetary-quantity\n- s8x15: 美元\n- s8x16: 陷入-01 (aspect=performance, modstr=fullaff)\n- s8x17: 经济\n- s8x18: 动荡\n- s8x19: 爆发-01 (aspect=performance, modstr=fullaff)\n- s8x20: 内战\n- s8x21: 特别\n- s8x22: 交易-01 (aspect=state, modstr=fullaff)\n- s8x23: 商品\n- s8x24: 基本上\n- s8x25: 出现-01 (aspect=state, modstr=fullaff)\n- s8x26: 流通-01 (aspect=state, modstr=fullaff)\n- s8x27: 范围\n- s8x28: 大\n- s8x29: 此后\n- s8x30: 并且\n- s8x31: 再也\n\nRegistry of previous sentences' variables:\n- snt1: s1x3: monetary-quantity\n- snt1: s1x4: 美元\n- snt1: s1x5: name\n- snt1: s1x6: 英语\n- snt2: s2x: and\n- snt2: s2x2: 刻有-01\n- snt2: s2x3: 正面\n- snt2: s2x4: 硬币\n- snt2: s2x5: 头像\n- snt2: s2x6: 女神\n- snt2: s2x7: 自由\n- snt2: s2x8: 头戴-01\n- snt2: s2x9: 头饰\n- snt2: s2x10: 公主\n- snt2: s2x11: 原住民\n- snt2: s2x12: world-region\n- snt2: s2x13: name\n- snt2: s2x14: identity-91\n- snt2: s2x15: 中间\n- snt2: s2x16: 背面\n- snt2: s2x17: and\n- snt2: s2x18: 面值\n- snt2: s2x19: 年份\n- snt2: s2x20: exist-91\n- snt2: s2x21: 周围\n- snt2: s2x22: 花环\n- snt2: s2x23: 组成-01\n- snt2: s2x24: and\n- snt2: s2x25: 玉米\n- snt2: s2x26: 小麦\n- snt2: s2x27: 棉花\n- snt2: s2x28: 烟草\n- snt3: s3x: 发行-01\n- snt3: s3x2: 国会\n- snt3: s3x3: 联邦\n- snt3: s3x4: 硬币\n- snt3: s3x5: 银\n- snt3: s3x6: monetary-quantity\n- snt3: s3x7: 美分\n- snt3: s3x8: date-entity\n- snt3: s3x9: 需要-04\n- snt3: s3x10: 人们\n- snt3: s3x11: 使用-01\n- snt3: s3x12: 分币\n- snt3: s3x13: 铜质\n- snt3: s3x14: 得人心-01\n- snt3: s3x15: 很\n- snt3: s3x16: 今后\n- snt3: s3x17: 购买-01\n- snt3: s3x18: 邮票\n- snt3: s3x19: monetary-quantity\n- snt3: s3x20: 美分\n- snt3: s3x21: 再\n- snt4: s4x: 授权-01\n- snt4: s4x2: 发行-01\n- snt4: s4x3: 金币\n- snt4: s4x4: monetary-quantity\n- snt4: s4x5: 美元\n- snt4: s4x6: 通过-01\n- snt4: s4x7: 国会\n- snt4: s4x8: 法案\n- snt4: s4x9: 又\n- snt4: s4x10: after\n- snt4: s4x11: now\n- snt4: s4x12: temporal-quantity\n- snt4: s4x13: 年\n- snt5: s5x: 认为-01\n- snt5: s5x2: 来源\n- snt5: s5x3: 部分\n- snt5: s5x4: have-purpose-91\n- snt5: s5x5: 金币\n- snt5: s5x6: this\n- snt5: s5x7: 方便-02\n- snt5: s5x8: 购买-01\n- snt5: s5x9: 人们\n- snt5: s5x10: 邮票\n- snt5: s5x11: 大量\n- snt6: s6x: and\n- snt6: s6x2: 想-04\n- snt6: s6x3: individual-person\n- snt6: s6x4: name\n- snt6: s6x5: 设计-01\n- snt6: s6x6: 金币\n- snt6: s6x7: 办法\n- snt6: s6x8: 多\n- snt6: s6x9: 种\n- snt6: s6x10: 确保-01\n- snt6: s6x11: have-degree-91\n- snt6: s6x12: and\n- snt6: s6x13: 金币\n- snt6: s6x14: monetary-quantity\n- snt6: s6x15: 美元\n- snt6: s6x16: 区别\n- snt6: s6x17: 显著\n- snt6: s6x18: correlate-91\n- snt6: s6x19: 薄-01\n- snt6: s6x20: 坯饼\n- snt6: s6x21: 采用-01\n- snt6: s6x22: 更\n- snt6: s6x23: have-mod-91\n- snt6: s6x24: 图案\n- snt6: s6x25: 设计\n- snt6: s6x26: 别具一格\n- snt6: s6x27: 也\n- snt7: s7x: but-91\n- snt7: s7x2: 出产-01\n- snt7: s7x3: more-than\n- snt7: s7x4: quantity\n- snt7: s7x5: 枚\n- snt7: s7x6: 年\n- snt7: s7x7: ordinal-entity\n- snt7: s7x8: 后\n- snt7: s7x9: 投产-01\n- snt7: s7x10: 金币\n- snt7: s7x11: 就\n- snt7: s7x12: 有限-01\n- snt7: s7x13: 程度\n- snt7: s7x14: 流通-01\n- snt7: s7x15: 其\n- snt7: s7x16: 非常\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-negative', 's8x2'], ['author', ':full-affirmative', 's8x9'], ['author', ':full-affirmative', 's8x12']]",
+     "output": {
+      "temporal": [
+       [
+        "s8x16",
+        ":before",
+        "s8x12"
+       ],
+       [
+        "s8x12",
+        ":before",
+        "s8x25"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-negative",
+        "s8x2"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s8x9"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s8x12"
+       ]
+      ],
+      "coref": [
+       [
+        "s7x10",
+        ":same-entity",
+        "s8x13"
+       ],
+       [
+        "s7x14",
+        ":same-event",
+        "s8x26"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 20
+  },
+  {
+   "index": 9,
+   "text": "3 美元 金币 于 1889 年 停产 ， 国会 在 次年 中止 其 发行 授权 。",
+   "tokens": [
+    "3",
+    "美元",
+    "金币",
+    "于",
+    "1889",
+    "年",
+    "停产",
+    "，",
+    "国会",
+    "在",
+    "次年",
+    "中止",
+    "其",
+    "发行",
+    "授权",
+    "。"
+   ],
+   "graph": "(s9x / consecutive\n    :op1 (s9x2 / 停产-01\n        :ARG0 (s9x3 / 金币\n            :mod (s9x4 / monetary-quantity\n                :quant 3\n                :unit (s9x5 / 美元)))\n        :temporal (s9x6 / date-entity\n            :year 1889)\n        :aspect performance)\n    :op2 (s9x7 / 中止-01\n        :ARG0 (s9x8 / 国会)\n        :temporal (s9x9 / after\n            :op1 s9x6\n            :duration (s9x10 / temporal-quantity\n                :quant 1\n                :unit (s9x11 / 年)))\n        :ARG1 (s9x12 / 授权-01\n            :ARG1 (s9x13 / 发行-01\n                :ARG1 (s9x14 / 其\n                    :refer-person 3rd\n                    :refer-number singular)\n                :aspect performance)\n            :aspect performance)\n        :aspect performance))",
+   "docAnnotation": "(s9s0 / sentence\n\t:temporal ((document-creation-time :after s9x2)\n\t\t(document-creation-time :after s9x7)\n\t\t(document-creation-time :after s9x12))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s9x2)\n\t\t(author :full-affirmative s9x7)\n\t\t(author :full-affirmative s9x12))\n\t:coref ((s8x13 :same-entity s9x3)\n\t\t(s8x14 :same-entity s9x4)\n\t\t(s8x15 :same-entity s9x5)\n\t\t(s4x7 :same-entity s9x8)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "3 美元 金币 于 1889 年 停产 ， 国会 在 次年 中止 其 发行 授权 。",
+     "input": "Sentence (Chinese):\n3 美元 金币 于 1889 年 停产 ， 国会 在 次年 中止 其 发行 授权 。",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "concept": "consecutive",
+       "relations": [
+        [
+         ":op1",
+         {
+          "expand": true,
+          "phrase": "3 美元 金币 于 1889 年 停产",
+          "kind": "clause"
+         }
+        ],
+        [
+         ":op2",
+         {
+          "expand": true,
+          "phrase": "国会 在 次年 中止 其 发行 授权",
+          "kind": "clause"
+         }
+        ]
+       ],
+       "note": "Two sequential events on related topics with no explicit connective: the coin stopped production in 1889, then Congress terminated its issuance authorization the following year — pure temporal succession, so consecutive."
+      }
+     },
+     "rationale": "Two sequential events on related topics with no explicit connective: the coin stopped production in 1889, then Congress terminated its issuance authorization the following year — pure temporal succession, so consecutive.",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "3 美元 金币 于 1889 年 停产 ， 国会 在 次年 中止 其 发行 授权 。",
+     "input": "Sentence: 3 美元 金币 于 1889 年 停产 ， 国会 在 次年 中止 其 发行 授权 。\n\nNodes in the parsed graph:\n- e1: consecutive | \"\"\n- e2: 停产-01 | \"3 美元 金币 于 1889 年 停产\"\n- e3: 金币 | \"3 美元 金币\"\n- e4: monetary-quantity | \"3 美元\"\n- e5: 美元 | \"\"\n- e6: date-entity | \"1889 年\"\n- e7: 中止-01 | \"国会 在 次年 中止 其 发行 授权\"\n- e8: 国会 | \"国会\"\n- e9: after | \"次年\"\n- e10: date-entity | \"1889 年\"\n- e11: temporal-quantity | \"次年\"\n- e12: 年 | \"\"\n- e13: 授权-01 | \"其 发行 授权\"\n- e14: 发行-01 | \"发行\"\n- e15: 其 | \"其\"",
+     "output": {
+      "merge": [
+       [
+        "e6",
+        "e10"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "3 美元 金币 于 1889 年 停产 ， 国会 在 次年 中止 其 发行 授权 。",
+     "input": "Current sentence (snt9): 3 美元 金币 于 1889 年 停产 ， 国会 在 次年 中止 其 发行 授权 。\n\nCurrent sentence variables:\n- s9x: consecutive\n- s9x2: 停产-01 (aspect=performance, modstr=fullaff)\n- s9x3: 金币\n- s9x4: monetary-quantity\n- s9x5: 美元\n- s9x6: date-entity\n- s9x7: 中止-01 (aspect=performa, modstr=None)\n- s9x8: 国会\n- s9x9: after\n- s9x10: temporal-quantity\n- s9x11: 年\n- s9x12: 授权-01 (aspect=performance, modstr=fullaff)\n- s9x13: 发行-01 (aspect=performance, modstr=fullaff)\n- s9x14: 其\n\nRegistry of previous sentences' variables:\n- snt2: s2x28: 烟草\n- snt3: s3x: 发行-01\n- snt3: s3x2: 国会\n- snt3: s3x3: 联邦\n- snt3: s3x4: 硬币\n- snt3: s3x5: 银\n- snt3: s3x6: monetary-quantity\n- snt3: s3x7: 美分\n- snt3: s3x8: date-entity\n- snt3: s3x9: 需要-04\n- snt3: s3x10: 人们\n- snt3: s3x11: 使用-01\n- snt3: s3x12: 分币\n- snt3: s3x13: 铜质\n- snt3: s3x14: 得人心-01\n- snt3: s3x15: 很\n- snt3: s3x16: 今后\n- snt3: s3x17: 购买-01\n- snt3: s3x18: 邮票\n- snt3: s3x19: monetary-quantity\n- snt3: s3x20: 美分\n- snt3: s3x21: 再\n- snt4: s4x: 授权-01\n- snt4: s4x2: 发行-01\n- snt4: s4x3: 金币\n- snt4: s4x4: monetary-quantity\n- snt4: s4x5: 美元\n- snt4: s4x6: 通过-01\n- snt4: s4x7: 国会\n- snt4: s4x8: 法案\n- snt4: s4x9: 又\n- snt4: s4x10: after\n- snt4: s4x11: now\n- snt4: s4x12: temporal-quantity\n- snt4: s4x13: 年\n- snt5: s5x: 认为-01\n- snt5: s5x2: 来源\n- snt5: s5x3: 部分\n- snt5: s5x4: have-purpose-91\n- snt5: s5x5: 金币\n- snt5: s5x6: this\n- snt5: s5x7: 方便-02\n- snt5: s5x8: 购买-01\n- snt5: s5x9: 人们\n- snt5: s5x10: 邮票\n- snt5: s5x11: 大量\n- snt6: s6x: and\n- snt6: s6x2: 想-04\n- snt6: s6x3: individual-person\n- snt6: s6x4: name\n- snt6: s6x5: 设计-01\n- snt6: s6x6: 金币\n- snt6: s6x7: 办法\n- snt6: s6x8: 多\n- snt6: s6x9: 种\n- snt6: s6x10: 确保-01\n- snt6: s6x11: have-degree-91\n- snt6: s6x12: and\n- snt6: s6x13: 金币\n- snt6: s6x14: monetary-quantity\n- snt6: s6x15: 美元\n- snt6: s6x16: 区别\n- snt6: s6x17: 显著\n- snt6: s6x18: correlate-91\n- snt6: s6x19: 薄-01\n- snt6: s6x20: 坯饼\n- snt6: s6x21: 采用-01\n- snt6: s6x22: 更\n- snt6: s6x23: have-mod-91\n- snt6: s6x24: 图案\n- snt6: s6x25: 设计\n- snt6: s6x26: 别具一格\n- snt6: s6x27: 也\n- snt7: s7x: but-91\n- snt7: s7x2: 出产-01\n- snt7: s7x3: more-than\n- snt7: s7x4: quantity\n- snt7: s7x5: 枚\n- snt7: s7x6: 年\n- snt7: s7x7: ordinal-entity\n- snt7: s7x8: 后\n- snt7: s7x9: 投产-01\n- snt7: s7x10: 金币\n- snt7: s7x11: 就\n- snt7: s7x12: 有限-01\n- snt7: s7x13: 程度\n- snt7: s7x14: 流通-01\n- snt7: s7x15: 其\n- snt7: s7x16: 非常\n- snt8: s8x: and-unexpected\n- snt8: s8x2: 接受-01\n- snt8: s8x3: 地区\n- snt8: s8x4: 部分\n- snt8: s8x5: 西岸\n- snt8: s8x6: country\n- snt8: s8x7: name\n- snt8: s8x8: 纸币\n- snt8: s8x9: 截然不同-01\n- snt8: s8x10: 情况\n- snt8: s8x11: 东部\n- snt8: s8x12: 难得一见-01\n- snt8: s8x13: 金币\n- snt8: s8x14: monetary-quantity\n- snt8: s8x15: 美元\n- snt8: s8x16: 陷入-01\n- snt8: s8x17: 经济\n- snt8: s8x18: 动荡\n- snt8: s8x19: 爆发-01\n- snt8: s8x20: 内战\n- snt8: s8x21: 特别\n- snt8: s8x22: 交易-01\n- snt8: s8x23: 商品\n- snt8: s8x24: 基本上\n- snt8: s8x25: 出现-01\n- snt8: s8x26: 流通-01\n- snt8: s8x27: 范围\n- snt8: s8x28: 大\n- snt8: s8x29: 此后\n- snt8: s8x30: 并且\n- snt8: s8x31: 再也\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's9x2'], ['author', ':full-affirmative', 's9x7'], ['author', ':full-affirmative', 's9x12']]",
+     "output": {
+      "temporal": [
+       [
+        "s9x6",
+        ":contained",
+        "s9x2"
+       ],
+       [
+        "s9x2",
+        ":before",
+        "s9x7"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s9x2"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s9x7"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s9x12"
+       ]
+      ],
+      "coref": [
+       [
+        "s8x13",
+        ":same-entity",
+        "s9x3"
+       ],
+       [
+        "s8x14",
+        ":same-entity",
+        "s9x4"
+       ],
+       [
+        "s8x15",
+        ":same-entity",
+        "s9x5"
+       ],
+       [
+        "s4x7",
+        ":same-entity",
+        "s9x8"
+       ],
+       [
+        "s4x",
+        ":same-event",
+        "s9x12"
+       ],
+       [
+        "s4x2",
+        ":same-event",
+        "s9x13"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 13
+  },
+  {
+   "index": 10,
+   "text": "这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ， 但 最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版 ， 确认 存在 的 仅有 一枚 。",
+   "tokens": [
+    "这种",
+    "硬币",
+    "存在",
+    "多种",
+    "年份",
+    "版本",
+    "，",
+    "其中",
+    "许多",
+    "版本",
+    "的",
+    "铸造量",
+    "都",
+    "很",
+    "少",
+    "，",
+    "但",
+    "最为",
+    "罕见",
+    "的",
+    "品种",
+    "还是",
+    "旧金山",
+    "铸币局",
+    "1870",
+    "年",
+    "打造",
+    "的",
+    "1870-S",
+    "版",
+    "，",
+    "确认",
+    "存在",
+    "的",
+    "仅有",
+    "一枚",
+    "。"
+   ],
+   "graph": "(s10x / but-91\n    :ARG1 (s10x2 / exist-91\n        :ARG1 (s10x3 / 硬币\n            :mod (s10x4 / this))\n        :ARG2 (s10x5 / 版本\n            :mod (s10x6 / 年份)\n            :quant (s10x7 / 多)\n            :unit (s10x8 / 种))\n        :elaboration (s10x9 / 少-01\n            :ARG0 (s10x10 / 铸造量\n                :poss s10x5)\n            :degree (s10x11 / 很)\n            :mod (s10x12 / 都)\n            :aspect state)\n        :aspect state)\n    :ARG2 (s10x13 / identity-91\n        :ARG1 (s10x14 / 品种\n            :ARG1-of (s10x15 / have-degree-91\n                :ARG2 (s10x16 / 罕见-01\n                    :aspect performance)\n                :ARG3 (s10x17 / most)\n                :aspect state))\n        :ARG2 (s10x18 / 版\n            :ARG1-of (s10x19 / 打造-01\n                :ARG0 (s10x20 / government-organization\n                    :name (s10x21 / name\n                        :op1 \"旧金山\"\n                        :op2 \"铸币局\"))\n                :temporal (s10x22 / date-entity\n                    :year 1870)\n                :aspect performance)\n            :mod \"1870-S\")\n        :aspect state)\n    :aspect state)",
+   "docAnnotation": "(s10s0 / sentence\n\t:temporal ((document-creation-time :overlap s10x2)\n\t\t(document-creation-time :overlap s10x9)\n\t\t(document-creation-time :after s10x13)\n\t\t(s10x22 :contained s10x19))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s10x2)\n\t\t(author :full-affirmative s10x9)\n\t\t(author :full-affirmative s10x13))\n\t:coref ((s9x3 :same-entity s10x3)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ， 但 最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版 ， 确认 存在 的 仅有 一枚 。",
+     "input": "Sentence (Chinese):\n这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ， 但 最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版 ， 确认 存在 的 仅有 一枚 。",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "concept": "but-91",
+       "relations": [
+        [
+         ":ARG1",
+         {
+          "expand": true,
+          "phrase": "这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ，",
+          "kind": "clause"
+         }
+        ],
+        [
+         ":ARG2",
+         {
+          "expand": true,
+          "phrase": "最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版 ， 确认 存在 的 仅有 一枚 。",
+          "kind": "clause"
+         }
+        ]
+       ],
+       "note": "但 contrasts the general fact (many year versions with low mintage) against the specific highlighted rarest variety (the 1870-S); both full clauses are present in the sentence, so but-91 takes ARG1 (pre-但) and ARG2 (post-但), with 但 itself dropped as the connective."
+      }
+     },
+     "rationale": "但 contrasts the general fact (many year versions with low mintage) against the specific highlighted rarest variety (the 1870-S); both full clauses are present in the sentence, so but-91 takes ARG1 (pre-但) and ARG2 (post-但), with 但 itself dropped as the connective.",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ， 但 最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版 ， 确认 存在 的 仅有 一枚 。",
+     "input": "Sentence: 这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ， 但 最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版 ， 确认 存在 的 仅有 一枚 。\n\nNodes in the parsed graph:\n- e1: but-91 | \"\"\n- e2: exist-91 | \"这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ，\"\n- e3: 硬币 | \"这种 硬币\"\n- e4: this | \"\"\n- e5: 版本 | \"多种 年份 版本\"\n- e6: 年份 | \"\"\n- e7: 多 | \"\"\n- e8: 种 | \"\"\n- e9: 少-01 | \"其中 许多 版本 的 铸造量 都 很 少\"\n- e10: 铸造量 | \"其中 许多 版本 的 铸造量\"\n- e11: 版本 | \"其中 许多 版本\"\n- e12: 许多 | \"\"\n- e13: 其中 | \"\"\n- e14: 很 | \"很\"\n- e15: 都 | \"都\"\n- e16: identity-91 | \"最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版\"\n- e17: 品种 | \"最为 罕见 的 品种\"\n- e18: have-degree-91 | \"最为 罕见\"\n- e19: 罕见-01 | \"\"\n- e20: most | \"\"\n- e21: 版 | \"旧金山 铸币局 1870 年 打造 的 1870-S 版\"\n- e22: 打造-01 | \"\"\n- e23: government-organization | \"\"\n- e24: name | \"\"\n- e25: date-entity | \"\"",
+     "output": {
+      "merge": [
+       [
+        "e5",
+        "e11"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ， 但 最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版 ， 确认 存在 的 仅有 一枚 。",
+     "input": "Current sentence (snt10): 这种 硬币 存在 多种 年份 版本 ， 其中 许多 版本 的 铸造量 都 很 少 ， 但 最为 罕见 的 品种 还是 旧金山 铸币局 1870 年 打造 的 1870-S 版 ， 确认 存在 的 仅有 一枚 。\n\nCurrent sentence variables:\n- s10x: but-91 (aspect=state, modstr=None)\n- s10x2: exist-91 (aspect=state, modstr=fullaff)\n- s10x3: 硬币\n- s10x4: this\n- s10x5: 版本\n- s10x6: 年份\n- s10x7: 多\n- s10x8: 种\n- s10x9: 少-01 (aspect=state, modstr=fullaff)\n- s10x10: 铸造量\n- s10x11: 很\n- s10x12: 都\n- s10x13: identity-91 (aspect=performance, modstr=fullaff)\n- s10x14: 品种\n- s10x15: have-degree-91 (aspect=performance, modstr=fullaff)\n- s10x16: 罕见-01 (aspect=performance, modstr=fullaff)\n- s10x17: most\n- s10x18: 版\n- s10x19: 打造-01 (aspect=performance, modstr=fullaff)\n- s10x20: government-organization\n- s10x21: name\n- s10x22: date-entity\n\nRegistry of previous sentences' variables:\n- snt3: s3x14: 得人心-01\n- snt3: s3x15: 很\n- snt3: s3x16: 今后\n- snt3: s3x17: 购买-01\n- snt3: s3x18: 邮票\n- snt3: s3x19: monetary-quantity\n- snt3: s3x20: 美分\n- snt3: s3x21: 再\n- snt4: s4x: 授权-01\n- snt4: s4x2: 发行-01\n- snt4: s4x3: 金币\n- snt4: s4x4: monetary-quantity\n- snt4: s4x5: 美元\n- snt4: s4x6: 通过-01\n- snt4: s4x7: 国会\n- snt4: s4x8: 法案\n- snt4: s4x9: 又\n- snt4: s4x10: after\n- snt4: s4x11: now\n- snt4: s4x12: temporal-quantity\n- snt4: s4x13: 年\n- snt5: s5x: 认为-01\n- snt5: s5x2: 来源\n- snt5: s5x3: 部分\n- snt5: s5x4: have-purpose-91\n- snt5: s5x5: 金币\n- snt5: s5x6: this\n- snt5: s5x7: 方便-02\n- snt5: s5x8: 购买-01\n- snt5: s5x9: 人们\n- snt5: s5x10: 邮票\n- snt5: s5x11: 大量\n- snt6: s6x: and\n- snt6: s6x2: 想-04\n- snt6: s6x3: individual-person\n- snt6: s6x4: name\n- snt6: s6x5: 设计-01\n- snt6: s6x6: 金币\n- snt6: s6x7: 办法\n- snt6: s6x8: 多\n- snt6: s6x9: 种\n- snt6: s6x10: 确保-01\n- snt6: s6x11: have-degree-91\n- snt6: s6x12: and\n- snt6: s6x13: 金币\n- snt6: s6x14: monetary-quantity\n- snt6: s6x15: 美元\n- snt6: s6x16: 区别\n- snt6: s6x17: 显著\n- snt6: s6x18: correlate-91\n- snt6: s6x19: 薄-01\n- snt6: s6x20: 坯饼\n- snt6: s6x21: 采用-01\n- snt6: s6x22: 更\n- snt6: s6x23: have-mod-91\n- snt6: s6x24: 图案\n- snt6: s6x25: 设计\n- snt6: s6x26: 别具一格\n- snt6: s6x27: 也\n- snt7: s7x: but-91\n- snt7: s7x2: 出产-01\n- snt7: s7x3: more-than\n- snt7: s7x4: quantity\n- snt7: s7x5: 枚\n- snt7: s7x6: 年\n- snt7: s7x7: ordinal-entity\n- snt7: s7x8: 后\n- snt7: s7x9: 投产-01\n- snt7: s7x10: 金币\n- snt7: s7x11: 就\n- snt7: s7x12: 有限-01\n- snt7: s7x13: 程度\n- snt7: s7x14: 流通-01\n- snt7: s7x15: 其\n- snt7: s7x16: 非常\n- snt8: s8x: and-unexpected\n- snt8: s8x2: 接受-01\n- snt8: s8x3: 地区\n- snt8: s8x4: 部分\n- snt8: s8x5: 西岸\n- snt8: s8x6: country\n- snt8: s8x7: name\n- snt8: s8x8: 纸币\n- snt8: s8x9: 截然不同-01\n- snt8: s8x10: 情况\n- snt8: s8x11: 东部\n- snt8: s8x12: 难得一见-01\n- snt8: s8x13: 金币\n- snt8: s8x14: monetary-quantity\n- snt8: s8x15: 美元\n- snt8: s8x16: 陷入-01\n- snt8: s8x17: 经济\n- snt8: s8x18: 动荡\n- snt8: s8x19: 爆发-01\n- snt8: s8x20: 内战\n- snt8: s8x21: 特别\n- snt8: s8x22: 交易-01\n- snt8: s8x23: 商品\n- snt8: s8x24: 基本上\n- snt8: s8x25: 出现-01\n- snt8: s8x26: 流通-01\n- snt8: s8x27: 范围\n- snt8: s8x28: 大\n- snt8: s8x29: 此后\n- snt8: s8x30: 并且\n- snt8: s8x31: 再也\n- snt9: s9x: consecutive\n- snt9: s9x2: 停产-01\n- snt9: s9x3: 金币\n- snt9: s9x4: monetary-quantity\n- snt9: s9x5: 美元\n- snt9: s9x6: date-entity\n- snt9: s9x7: 中止-01\n- snt9: s9x8: 国会\n- snt9: s9x9: after\n- snt9: s9x10: temporal-quantity\n- snt9: s9x11: 年\n- snt9: s9x12: 授权-01\n- snt9: s9x13: 发行-01\n- snt9: s9x14: 其\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's10x2'], ['author', ':full-affirmative', 's10x9'], ['author', ':full-affirmative', 's10x13']]",
+     "output": {
+      "temporal": [
+       [
+        "s10x22",
+        ":contained",
+        "s10x19"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s10x2"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s10x9"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s10x13"
+       ]
+      ],
+      "coref": [
+       [
+        "s9x3",
+        ":same-entity",
+        "s10x3"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 14
+  }
+ ]
+}

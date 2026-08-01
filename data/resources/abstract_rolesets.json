@@ -1,0 +1,627 @@
+{
+ "have-actor-91": {
+  "description": "reification of :actor",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "actor"
+  }
+ },
+ "have-undergoer-91": {
+  "description": "reification of :undergoer",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "undergoer"
+  }
+ },
+ "have-theme-91": {
+  "description": "reification of :theme",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "theme"
+  }
+ },
+ "have-experiencer-91": {
+  "description": "reification of :experiencer",
+  "roles": {
+   "ARG1": "event/state",
+   "ARG2": "experiencer"
+  }
+ },
+ "have-force-91": {
+  "description": "reification of :force",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "force"
+  }
+ },
+ "have-causer-91": {
+  "description": "reification of :causer",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "causer"
+  }
+ },
+ "have-stimulus-91": {
+  "description": "reification of :stimulus",
+  "roles": {
+   "ARG1": "event/state",
+   "ARG2": "stimulus"
+  }
+ },
+ "have-companion-91": {
+  "description": "reification of :companion",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "companion"
+  }
+ },
+ "have-affectee-91": {
+  "description": "reification of :affectee",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "affectee"
+  }
+ },
+ "have-recipient-91": {
+  "description": "reification of :recipient",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "recipient"
+  }
+ },
+ "have-temporal-91": {
+  "description": "reification of :temporal",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "temporal"
+  }
+ },
+ "have-instrument-91": {
+  "description": "reification of :instrument",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "instrument"
+  }
+ },
+ "have-manner-91": {
+  "description": "reification of :manner",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "manner"
+  }
+ },
+ "have-place-91": {
+  "description": "reification of :place",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "location"
+  }
+ },
+ "have-direction-91": {
+  "description": "reification of :direction",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "direction"
+  }
+ },
+ "have-path-91": {
+  "description": "reification of :path",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "path"
+  }
+ },
+ "have-goal-91": {
+  "description": "reification of :goal",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "goal"
+  }
+ },
+ "have-start-91": {
+  "description": "reification of :start",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "start"
+  }
+ },
+ "have-source-91": {
+  "description": "reification of :souce",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "source"
+  }
+ },
+ "have-extent-91": {
+  "description": "reification of :extent",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "extent"
+  }
+ },
+ "have-quant-91": {
+  "description": "reification of :quant",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "quantity (numerical or not, how much/how many)",
+   "ARG3": "degree mention modifying quantity, thing quantified (e.g., more, fewer, too, so, at least, not quite, almost)",
+   "ARG4": "compared to",
+   "ARG5": "superlative, reference to superset",
+   "ARG6": "consequence, result of quantity"
+  }
+ },
+ "have-degree-92": {
+  "description": "reification of :degree",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "intensifier, downtoner, or equal"
+  }
+ },
+ "have-frequency-91": {
+  "description": "reification of :frequency",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "frequency"
+  }
+ },
+ "have-duration-91": {
+  "description": "reification of :duration",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "duration"
+  }
+ },
+ "have-purpose-91": {
+  "description": "reification of :purpose",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "purpose"
+  }
+ },
+ "have-cause-91": {
+  "description": "reification of :cause",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "cause"
+  }
+ },
+ "have-reason-91": {
+  "description": "reification of :reason",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "reason"
+  }
+ },
+ "have-part-91": {
+  "description": "reification of :part",
+  "roles": {
+   "ARG1": "entity",
+   "ARG2": "part"
+  }
+ },
+ "have-group-91": {
+  "description": "reification of :group",
+  "roles": {
+   "ARG1": "entity",
+   "ARG2": "group"
+  }
+ },
+ "have-material-91": {
+  "description": "reification of :material",
+  "roles": {
+   "ARG1": "entity",
+   "ARG2": "material"
+  }
+ },
+ "have-topic-91": {
+  "description": "reification of :topic",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "topic"
+  }
+ },
+ "have-vocative-91": {
+  "description": "reification of :vocative",
+  "roles": {
+   "ARG1": "proposition",
+   "ARG2": "vocative"
+  }
+ },
+ "have-medium-91": {
+  "description": "reification of :medium",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "medium"
+  }
+ },
+ "have-age-91": {
+  "description": "reification of :age",
+  "roles": {
+   "ARG1": "entity",
+   "ARG2": "age"
+  }
+ },
+ "have-example-91": {
+  "description": "reification of :example",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "example"
+  }
+ },
+ "have-mod-91": {
+  "description": "reification of :mod, non-verbal clause predicate for property predication",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "modifier"
+  }
+ },
+ "have-other-role-91": {
+  "description": "reification of :other-role",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "other role"
+  }
+ },
+ "have-ord-91": {
+  "description": "reification of :ord",
+  "roles": {
+   "ARG1": "event/entity",
+   "ARG2": "ordinal (numeral)"
+  }
+ },
+ "have-range-91": {
+  "description": "reification of :range",
+  "roles": {
+   "ARG1": "ordinal-entity",
+   "ARG2": "overall description of the range",
+   "ARG3": "range start"
+  }
+ },
+ "have-name-91": {
+  "description": "reification of :name",
+  "roles": {
+   "ARG1": "entity",
+   "ARG2": "name (e.g., (n / name))"
+  }
+ },
+ "have-value-91": {
+  "description": "reification of :value",
+  "roles": {
+   "ARG1": "entity",
+   "ARG2": "value (string or numeral)"
+  }
+ },
+ "have-unit-91": {
+  "description": "reification of :unit",
+  "roles": {
+   "ARG1": "entity",
+   "ARG2": "unit of measurement"
+  }
+ },
+ "have-polarity-91": {
+  "description": "reification of :polarity",
+  "roles": {
+   "ARG1": "event",
+   "ARG2": "'+' or '-'"
+  }
+ },
+ "have-list-item-91": {
+  "description": "reification of :list-item",
+  "roles": {
+   "ARG1": "proposition",
+   "ARG2": "number in list (e.g., 1, IV, a), etc.)"
+  }
+ },
+ "have-mode-91": {
+  "description": "reification of :mode",
+  "roles": {
+   "ARG1": "proposition",
+   "ARG2": "Imperative, Interrogative, or Expressive"
+  }
+ },
+ "be-polite-91": {
+  "description": "reification of :polite",
+  "roles": {
+   "ARG1": "possessor",
+   "ARG2": "possessum"
+  }
+ },
+ "but-91": {
+  "description": "reification of parent concept in discourse relation lattice (generic for unexpected-co-occurrence-91 and contrast-91)",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "contrastive clause"
+  }
+ },
+ "unexpected-co-occurrence-91": {
+  "description": "reification of parent concept in discourse relation lattice (generic for :concession, :concessive-condition)",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "conditional"
+  }
+ },
+ "contrast-91": {
+  "description": "for pure contrast",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "concessive condition"
+  }
+ },
+ "have-apprehensive-91": {
+  "description": "reification of :apprehensive",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "apprehensive"
+  }
+ },
+ "have-condition-91": {
+  "description": "reification of :condition",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "condition"
+  }
+ },
+ "have-pure-addition-91": {
+  "description": "reification of :pure-addition",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "additive"
+  }
+ },
+ "instead-of-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "this",
+   ":ARG2": "instead of that"
+  }
+ },
+ "have-concession-91": {
+  "description": "reification of :concession",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "condition"
+  }
+ },
+ "have-concessive-condition-91": {
+  "description": "reification of :concessive-condition",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "concessive condition"
+  }
+ },
+ "subtract-91": {
+  "description": "",
+  "roles": {
+   "ARG1": "main clause",
+   "ARG2": "exception"
+  }
+ },
+ "have-91": {
+  "description": "reification of :poss, non-verbal clause predicate for thetic possession",
+  "roles": {
+   "ARG1": "possessor",
+   "ARG2": "possessum"
+  }
+ },
+ "belong-91": {
+  "description": "non-verbal clause predicate for predicative possession",
+  "roles": {
+   ":ARG1": "possessum",
+   ":ARG2": "possessor"
+  }
+ },
+ "exist-91": {
+  "description": "non-verbal clause predicate for thetic location",
+  "roles": {
+   ":ARG1": "location",
+   ":ARG2": "theme"
+  }
+ },
+ "have-location-91": {
+  "description": "non-verbal clause predicate for predicative location",
+  "roles": {
+   ":ARG1": "entity",
+   ":ARG2": "location"
+  }
+ },
+ "have-role-91": {
+  "description": "non-verbal clause predicate for object predication",
+  "roles": {
+   ":ARG1": "first entity",
+   ":ARG2": "optional second entity",
+   ":ARG3": "object category for ARG1",
+   ":ARG4": "optional object category for ARG2"
+  }
+ },
+ "have-rel-role-92": {
+  "description": "for interpersonal relationships",
+  "roles": {
+   ":ARG1": "entity A",
+   ":ARG2": "entity B",
+   ":ARG3": "role of entity A",
+   ":ARG4": "role of entity B",
+   ":ARG5": "case or contract"
+  }
+ },
+ "have-org-role-92": {
+  "description": "for person/organization relationships",
+  "roles": {
+   ":ARG1": "office holder",
+   ":ARG2": "organization",
+   ":ARG3": "role or title of office held",
+   ":ARG4": "description of responsibility"
+  }
+ },
+ "identity-91": {
+  "description": "non-verbal clause predicate for",
+  "roles": {
+   ":ARG1": "theme",
+   ":ARG2": "equated referent"
+  }
+ },
+ "byline-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "news organization",
+   ":ARG2": "author",
+   ":ARG3": "photographer, illustrator",
+   ":ARG4": "translator",
+   ":ARG5": "means"
+  }
+ },
+ "cite-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "publication",
+   ":ARG2": "citation string"
+  }
+ },
+ "correlate-91": {
+  "description": "specific type of correlation expressed by 'the X-er, the Y-er' construction",
+  "roles": {
+   ":ARG1": "X; first item changing in relation to another",
+   ":ARG2": "Y; second item ARG1 is changing in relation to"
+  }
+ },
+ "course-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "topic",
+   ":ARG2": "number",
+   ":ARG3": "section",
+   ":ARG4": "institution",
+   ":ARG5": "instructor"
+  }
+ },
+ "distribution-range-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "center, mean",
+   ":ARG2": "lower bound",
+   ":ARG3": "upper bound",
+   ":ARG4": "radius, distance from center to bounds",
+   ":ARG5": "confidence that value is in range, typically a percentage, e.g. 95%",
+   ":ARG6": "deviation covered by range, e.g. standard-deviation, standard-error-of-the-mean",
+   ":ARG7": "type of distribution, e.g. normal-distribution"
+  }
+ },
+ "have-degree-91": {
+  "description": "for comparative/superlative/sufficiency constructions",
+  "roles": {
+   ":ARG1": "entity characterized",
+   ":ARG2": "attribute (e.g., tall)",
+   ":ARG3": "degree itself (e.g., more, most, less, least, times, equal, enough, too, so, at-least)",
+   ":ARG4": "compared-to",
+   ":ARG5": "superlative, reference to superset",
+   ":ARG6": "reference, threshold of sufficiency"
+  }
+ },
+ "hyperlink-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "text being hyperlinked",
+   ":ARG3": "url-entity"
+  }
+ },
+ "include-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "subset",
+   ":ARG2": "superset",
+   ":ARG3": "relative size of subset compared to superset"
+  }
+ },
+ "infer-91": {
+  "description": "",
+  "roles": {
+   ":ARG0": "inference-maker",
+   ":ARG1": "belief",
+   ":ARG2": "source of belief"
+  }
+ },
+ "publication-91": {
+  "description": "",
+  "roles": {
+   ":ARG0": "author(s)",
+   ":ARG1": "title",
+   ":ARG2": "abstract",
+   ":ARG3": "full text",
+   ":ARG4": "venue (journal, conference, etc.)",
+   ":ARG5": "volume",
+   ":ARG6": "issue",
+   ":ARG7": "pages",
+   ":ARG8": "id (e.g., PubMed)",
+   ":ARG9": "editor(s)"
+  }
+ },
+ "resemble-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "the copy",
+   ":ARG2": "the original"
+  }
+ },
+ "rate-entity-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "quantity (with an implied default of 1)",
+   ":ARG2": "per quantity",
+   ":ARG3": "regular interval between events",
+   ":ARG4": "entity on which recurring event happens"
+  }
+ },
+ "score-on-scale-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "score",
+   ":ARG2": "worst score on scale",
+   ":ARG3": "best score on scale"
+  }
+ },
+ "statistical-test-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "finding",
+   ":ARG2": "p-value (probability of null-hypothesis)",
+   ":ARG3": "r-squared (coefficient of determination)",
+   ":ARG4": "significance test (e.g., t-test, Chi-square test, Fisher's exact test)",
+   ":ARG5": "alternative hypothesis (vs...)"
+  }
+ },
+ "street-address-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "street number",
+   ":ARG2": "street",
+   ":ARG3": "unit (apartment, suite, etc.)",
+   ":ARG4": "city",
+   ":ARG5": "state, province, district",
+   ":ARG6": "zip code",
+   ":ARG7": "country"
+  }
+ },
+ "mean-91": {
+  "description": "",
+  "roles": {
+   ":ARG0": "agent",
+   ":ARG1": "element containing meaning",
+   ":ARG2": "meaning",
+   ":ARG3": "perceiver, beneficiary"
+  }
+ },
+ "have-experiece-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "experiencer",
+   ":ARG2": "experience",
+   ":ARG3": "stimulus"
+  }
+ },
+ "weather-91": {
+  "description": "",
+  "roles": {
+   ":ARG1": "location",
+   ":ARG2": "environmental condition"
+  }
+ }
+}

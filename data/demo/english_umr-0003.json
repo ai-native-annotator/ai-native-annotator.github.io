@@ -1,0 +1,1818 @@
+{
+ "id": "english_umr-0003",
+ "format": "umr",
+ "language": "en",
+ "provenance": "replay: recorded from the real UMR 2.0 experiment run",
+ "sentences": [
+  {
+   "index": 1,
+   "text": "Edmund Pope tasted freedom today for the first time in more than eight months .",
+   "tokens": [
+    "Edmund",
+    "Pope",
+    "tasted",
+    "freedom",
+    "today",
+    "for",
+    "the",
+    "first",
+    "time",
+    "in",
+    "more",
+    "than",
+    "eight",
+    "months",
+    "."
+   ],
+   "graph": "(s1x / taste-01\n    :ARG0 (s1x2 / person\n        :name (s1x3 / name\n            :op1 \"Edmund\"\n            :op2 \"Pope\"))\n    :ARG1 (s1x4 / freedom)\n    :temporal (s1x5 / today)\n    :temporal (s1x6 / ordinal-entity\n        :value 1\n        :duration (s1x7 / more-than\n            :op1 (s1x8 / temporal-quantity\n                :quant 8\n                :unit (s1x9 / month))))\n    :aspect performance)",
+   "docAnnotation": "(s1s0 / sentence\n\t:temporal ((document-creation-time :after s1x))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s1x)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "Edmund Pope tasted freedom today for the first time in more than eight months .",
+     "input": "Sentence (English):\nEdmund Pope tasted freedom today for the first time in more than eight months .",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "Edmund Pope tasted freedom today for the first time in more than eight months .",
+     "input": "Full sentence (context): Edmund Pope tasted freedom today for the first time in more than eight months .\nClause to analyse: Edmund Pope tasted freedom today for the first time in more than eight months .\nCore predicate: tasted (kind: verb)",
+     "output": {
+      "concept": "taste-01",
+      "relations": [
+       [
+        ":ARG0",
+        {
+         "expand": true,
+         "phrase": "Edmund Pope",
+         "kind": "np"
+        }
+       ],
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "freedom",
+         "kind": "atomic"
+        }
+       ],
+       [
+        ":temporal",
+        {
+         "expand": true,
+         "phrase": "today",
+         "kind": "special"
+        }
+       ],
+       [
+        ":temporal",
+        {
+         "expand": true,
+         "phrase": "for the first time in more than eight months",
+         "kind": "special"
+        }
+       ],
+       [
+        ":aspect",
+        "performance"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "Edmund Pope tasted freedom today for the first time in more than eight months .",
+      "note": "sense -01 'taster experiences food/thing' fits; ARG0 taster, ARG1 freedom as the thing tasted (metaphorical food); today and the first-time-in-months phrase are temporal modifiers."
+     },
+     "rationale": "sense -01 'taster experiences food/thing' fits; ARG0 taster, ARG1 freedom as the thing tasted (metaphorical food); today and the first-time-in-months phrase are temporal modifiers.",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "Edmund Pope tasted freedom today for the first time in more than eight months .",
+       "input": "Full sentence (context): Edmund Pope tasted freedom today for the first time in more than eight months .\nClause to analyse: Edmund Pope tasted freedom today for the first time in more than eight months .",
+       "output": {
+        "predicate_kind": "verb",
+        "concept": null,
+        "lemmas": [
+         "taste"
+        ],
+        "predicate_text": "tasted",
+        "note": "Main verb of the clause; 'tasted freedom' is a metaphorical experiencer predication (taste-01: experience/perceive), not one of the abstract reified relations."
+       },
+       "rationale": "Main verb of the clause; 'tasted freedom' is a metaphorical experiencer predication (taste-01: experience/perceive), not one of the abstract reified relations.",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "Edmund Pope",
+       "input": "Full sentence (context): Edmund Pope tasted freedom today for the first time in more than eight months .\nNoun phrase to analyse: Edmund Pope",
+       "output": {
+        "concept": "person",
+        "relations": [
+         [
+          ":name",
+          {
+           "concept": "name",
+           "relations": [
+            [
+             ":op1",
+             "\"Edmund\""
+            ],
+            [
+             ":op2",
+             "\"Pope\""
+            ]
+           ]
+          }
+         ]
+        ],
+        "phrase": "Edmund Pope",
+        "note": "Named person entity; head is person with full name under a name node."
+       },
+       "rationale": "Named person entity; head is person with full name under a name node.",
+       "children": []
+      },
+      {
+       "skill": "(stop)",
+       "span": "freedom",
+       "input": "freedom",
+       "output": {
+        "concept": "freedom",
+        "kind": "atomic"
+       },
+       "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+       "children": []
+      },
+      {
+       "skill": "special_entity",
+       "span": "today",
+       "input": "Full sentence (context): Edmund Pope tasted freedom today for the first time in more than eight months .\nSpecial phrase to analyse: today",
+       "output": {
+        "concept": "today",
+        "phrase": "today"
+       },
+       "rationale": "",
+       "children": []
+      },
+      {
+       "skill": "special_entity",
+       "span": "for the first time in more than eight months",
+       "input": "Full sentence (context): Edmund Pope tasted freedom today for the first time in more than eight months .\nSpecial phrase to analyse: for the first time in more than eight months",
+       "output": {
+        "concept": "ordinal-entity",
+        "relations": [
+         [
+          ":value",
+          1
+         ],
+         [
+          ":duration",
+          {
+           "concept": "more-than",
+           "relations": [
+            [
+             ":op1",
+             {
+              "concept": "temporal-quantity",
+              "relations": [
+               [
+                ":quant",
+                8
+               ],
+               [
+                ":unit",
+                {
+                 "concept": "month"
+                }
+               ]
+              ],
+              "phrase": "eight months"
+             }
+            ]
+           ],
+           "phrase": "more than eight months"
+          }
+         ]
+        ],
+        "phrase": "for the first time in more than eight months",
+        "note": "ordinal-entity :value 1 encodes 'the first time'; its :duration holds the more-than bound temporal-quantity for 'more than eight months', mirroring the more-than/bound pattern from the shared skill."
+       },
+       "rationale": "ordinal-entity :value 1 encodes 'the first time'; its :duration holds the more-than bound temporal-quantity for 'more than eight months', mirroring the more-than/bound pattern from the shared skill.",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "Edmund Pope tasted freedom today for the first time in more than eight months .",
+     "input": "Sentence: Edmund Pope tasted freedom today for the first time in more than eight months .\n\nNodes in the parsed graph:\n- e1: taste-01 | \"Edmund Pope tasted freedom today for the first time in more than eight months .\"\n- e2: person | \"Edmund Pope\"\n- e3: name | \"\"\n- e4: freedom | \"freedom\"\n- e5: today | \"today\"\n- e6: ordinal-entity | \"for the first time in more than eight months\"\n- e7: more-than | \"more than eight months\"\n- e8: temporal-quantity | \"eight months\"\n- e9: month | \"\"",
+     "output": {
+      "merge": []
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "Edmund Pope tasted freedom today for the first time in more than eight months .",
+     "input": "Current sentence (snt1): Edmund Pope tasted freedom today for the first time in more than eight months .\n\nCurrent sentence variables:\n- s1x: taste-01 (aspect=performance, modstr=fulla)\n- s1x2: person\n- s1x3: name\n- s1x4: freedom\n- s1x5: today\n- s1x6: ordinal-entity\n- s1x7: more-than\n- s1x8: temporal-quantity\n- s1x9: month\n\nRegistry of previous sentences' variables:\n(none — this is the first sentence)\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's1x']]",
+     "output": {
+      "temporal": [
+       [
+        "s1x5",
+        ":contained",
+        "s1x"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s1x"
+       ]
+      ],
+      "coref": []
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 8
+  },
+  {
+   "index": 2,
+   "text": "Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+   "tokens": [
+    "Pope",
+    "is",
+    "the",
+    "American",
+    "businessman",
+    "who",
+    "was",
+    "convicted",
+    "last",
+    "week",
+    "on",
+    "spying",
+    "charges",
+    "and",
+    "sentenced",
+    "to",
+    "20",
+    "years",
+    "in",
+    "a",
+    "Russian",
+    "prison",
+    "."
+   ],
+   "graph": "(s2x / have-role-91\n    :ARG1 (s2x2 / pope)\n    :ARG3 (s2x3 / businessman\n        :mod (s2x4 / country\n            :name (s2x5 / name\n                :op1 \"United\"\n                :op2 \"States\")\n            :wiki \"United_States\")\n        :ARG1-of (s2x6 / and\n            :op1 (s2x7 / convict-01\n                :ARG1 s2x3\n                :ARG2 (s2x8 / charge\n                    :mod (s2x9 / spy-01\n                        :aspect performance))\n                :time (s2x10 / before\n                    :op1 (s2x11 / now)\n                    :duration (s2x12 / temporal-quantity\n                        :quant 1\n                        :unit (s2x13 / week)))\n                :aspect performance)\n            :op2 (s2x14 / sentence-01\n                :ARG1 s2x3\n                :ARG2 (s2x15 / temporal-quantity\n                    :quant 20\n                    :unit (s2x16 / year))\n                :location (s2x17 / prison\n                    :mod (s2x18 / country\n                        :name (s2x19 / name\n                            :op1 \"Russia\")\n                        :wiki \"Russia\"))\n                :aspect performance)))\n    :aspect state)",
+   "docAnnotation": "(s2s0 / sentence\n\t:temporal ((document-creation-time :after s2x)\n\t\t(s2x7 :before s2x14))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s2x)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+     "input": "Sentence (English):\nPope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+     "input": "Full sentence (context): Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .\nClause to analyse: Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .\nCore predicate: is the American businessman (kind: abstract)",
+     "output": {
+      "concept": "have-role-91",
+      "relations": [
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "Pope",
+         "kind": "atomic"
+        }
+       ],
+       [
+        ":ARG3",
+        {
+         "expand": true,
+         "phrase": "American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison",
+         "kind": "np"
+        }
+       ],
+       [
+        ":aspect",
+        "state"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+      "note": "copular role predication (X is a businessman) uses have-role-91; ARG1 is the named entity, ARG3 is the profession/category NP, which carries the relative clause describing Pope's conviction and sentencing as an internal modifier for later expansion."
+     },
+     "rationale": "copular role predication (X is a businessman) uses have-role-91; ARG1 is the named entity, ARG3 is the profession/category NP, which carries the relative clause describing Pope's conviction and sentencing as an internal modifier for later expansion.",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+       "input": "Full sentence (context): Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .\nClause to analyse: Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+       "output": {
+        "predicate_kind": "abstract",
+        "concept": "have-role-91",
+        "lemmas": [],
+        "predicate_text": "is the American businessman",
+        "note": "Copular sentence assigning Pope the role/category of 'American businessman' — role predication, per have-role-91 for professions/roles."
+       },
+       "rationale": "Copular sentence assigning Pope the role/category of 'American businessman' — role predication, per have-role-91 for professions/roles.",
+       "children": []
+      },
+      {
+       "skill": "(stop)",
+       "span": "Pope",
+       "input": "Pope",
+       "output": {
+        "concept": "Pope",
+        "kind": "atomic"
+       },
+       "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison",
+       "input": "Full sentence (context): Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .\nNoun phrase to analyse: American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison",
+       "output": {
+        "concept": "businessman",
+        "id": "b1",
+        "relations": [
+         [
+          ":mod",
+          {
+           "concept": "country",
+           "relations": [
+            [
+             ":name",
+             {
+              "concept": "name",
+              "relations": [
+               [
+                ":op1",
+                "\"United\""
+               ],
+               [
+                ":op2",
+                "\"States\""
+               ]
+              ]
+             }
+            ],
+            [
+             ":wiki",
+             "\"United_States\""
+            ]
+           ],
+           "phrase": "American"
+          }
+         ],
+         [
+          ":ARG1-of",
+          {
+           "concept": "and",
+           "relations": [
+            [
+             ":op1",
+             {
+              "concept": "convict-01",
+              "relations": [
+               [
+                ":ARG1",
+                {
+                 "ref": "b1"
+                }
+               ],
+               [
+                ":ARG2",
+                {
+                 "concept": "charge",
+                 "relations": [
+                  [
+                   ":mod",
+                   {
+                    "concept": "spy-01",
+                    "phrase": "spying"
+                   }
+                  ]
+                 ],
+                 "phrase": "spying charges"
+                }
+               ],
+               [
+                ":time",
+                {
+                 "expand": true,
+                 "phrase": "last week",
+                 "kind": "special"
+                }
+               ],
+               [
+                ":aspect",
+                "performance"
+               ]
+              ],
+              "phrase": "was convicted last week on spying charges"
+             }
+            ],
+            [
+             ":op2",
+             {
+              "concept": "sentence-01",
+              "relations": [
+               [
+                ":ARG1",
+                {
+                 "ref": "b1"
+                }
+               ],
+               [
+                ":ARG2",
+                {
+                 "concept": "temporal-quantity",
+                 "relations": [
+                  [
+                   ":quant",
+                   20
+                  ],
+                  [
+                   ":unit",
+                   {
+                    "concept": "year"
+                   }
+                  ]
+                 ],
+                 "phrase": "20 years"
+                }
+               ],
+               [
+                ":location",
+                {
+                 "concept": "prison",
+                 "relations": [
+                  [
+                   ":mod",
+                   {
+                    "concept": "country",
+                    "relations": [
+                     [
+                      ":name",
+                      {
+                       "concept": "name",
+                       "relations": [
+                        [
+                         ":op1",
+                         "\"Russia\""
+                        ]
+                       ]
+                      }
+                     ],
+                     [
+                      ":wiki",
+                      "\"Russia\""
+                     ]
+                    ],
+                    "phrase": "Russian"
+                   }
+                  ]
+                 ],
+                 "phrase": "a Russian prison"
+                }
+               ],
+               [
+                ":aspect",
+                "performance"
+               ]
+              ],
+              "phrase": "sentenced to 20 years in a Russian prison"
+             }
+            ]
+           ],
+           "phrase": "was convicted last week on spying charges and sentenced to 20 years in a Russian prison"
+          }
+         ]
+        ],
+        "phrase": "American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison",
+        "note": "businessman kept lexicalized as head; two coordinated relative-clause predicates (convict-01, sentence-01) joined under 'and', both taking b1 as ARG1; American/Russian rendered as country mods; 'last week' left as a pending date special-entity leaf; '20 years' built as a temporal-quantity."
+       },
+       "rationale": "businessman kept lexicalized as head; two coordinated relative-clause predicates (convict-01, sentence-01) joined under 'and', both taking b1 as ARG1; American/Russian rendered as country mods; 'last week' left as a pending date special-entity leaf; '20 years' built as a temporal-quantity.",
+       "children": [
+        {
+         "skill": "special_entity",
+         "span": "last week",
+         "input": "Full sentence (context): Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .\nSpecial phrase to analyse: last week",
+         "output": {
+          "concept": "before",
+          "relations": [
+           [
+            ":op1",
+            {
+             "concept": "now"
+            }
+           ],
+           [
+            ":duration",
+            {
+             "concept": "temporal-quantity",
+             "relations": [
+              [
+               ":quant",
+               1
+              ],
+              [
+               ":unit",
+               {
+                "concept": "week"
+               }
+              ]
+             ]
+            }
+           ]
+          ],
+          "phrase": "last week",
+          "note": "Relative past time anchored to speech time now, one week prior, following the after-relative-to-now pattern used for '三天后' but with before."
+         },
+         "rationale": "Relative past time anchored to speech time now, one week prior, following the after-relative-to-now pattern used for '三天后' but with before.",
+         "children": []
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+     "input": "Sentence: Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .\n\nNodes in the parsed graph:\n- e1: have-role-91 | \"Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .\"\n- e2: pope | \"Pope\"\n- b1: businessman | \"American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison\"\n- e4: country | \"American\"\n- e5: name | \"\"\n- e6: and | \"was convicted last week on spying charges and sentenced to 20 years in a Russian prison\"\n- e7: convict-01 | \"was convicted last week on spying charges\"\n- e8: charge | \"spying charges\"\n- e9: spy-01 | \"spying\"\n- e10: before | \"last week\"\n- e11: now | \"\"\n- e12: temporal-quantity | \"\"\n- e13: week | \"\"\n- e14: sentence-01 | \"sentenced to 20 years in a Russian prison\"\n- e15: temporal-quantity | \"20 years\"\n- e16: year | \"\"\n- e17: prison | \"a Russian prison\"\n- e18: country | \"Russian\"\n- e19: name | \"\"",
+     "output": {
+      "merge": []
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .",
+     "input": "Current sentence (snt2): Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .\n\nCurrent sentence variables:\n- s2x: have-role-91 (aspect=None, modstr=None)\n- s2x2: pope\n- s2x3: businessman\n- s2x4: country\n- s2x5: name\n- s2x6: and\n- s2x7: convict-01 (aspect=performance, modstr=fullaff)\n- s2x8: charge\n- s2x9: spy-01 (aspect=performance, modstr=fullaff)\n- s2x10: before\n- s2x11: now\n- s2x12: temporal-quantity\n- s2x13: week\n- s2x14: sentence-01 (aspect=performance, modstr=None)\n- s2x15: temporal-quantity\n- s2x16: year\n- s2x17: prison\n- s2x18: country\n- s2x19: name\n\nRegistry of previous sentences' variables:\n- snt1: s1x: taste-01\n- snt1: s1x2: person\n- snt1: s1x3: name\n- snt1: s1x4: freedom\n- snt1: s1x5: today\n- snt1: s1x6: ordinal-entity\n- snt1: s1x7: more-than\n- snt1: s1x8: temporal-quantity\n- snt1: s1x9: month\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's2x']]",
+     "output": {
+      "temporal": [
+       [
+        "s2x7",
+        ":before",
+        "s2x14"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s2x"
+       ]
+      ],
+      "coref": []
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 7
+  },
+  {
+   "index": 3,
+   "text": "He denied any wrongdoing .",
+   "tokens": [
+    "He",
+    "denied",
+    "any",
+    "wrongdoing",
+    "."
+   ],
+   "graph": "(s3x / deny-01\n    :ARG0 (s3x2 / he)\n    :aspect performance)",
+   "docAnnotation": "(s3s0 / sentence\n\t:temporal ((document-creation-time :after s3x))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s3x))\n\t:coref ((s2x3 :same-entity s3x2)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "He denied any wrongdoing .",
+     "input": "Sentence (English):\nHe denied any wrongdoing .",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "He denied any wrongdoing .",
+     "input": "Full sentence (context): He denied any wrongdoing .\nClause to analyse: He denied any wrongdoing .\nCore predicate: denied (kind: verb)",
+     "output": {
+      "concept": "deny-01",
+      "relations": [
+       [
+        ":ARG0",
+        {
+         "expand": true,
+         "phrase": "He",
+         "kind": "atomic"
+        }
+       ],
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "any wrongdoing",
+         "kind": "np"
+        }
+       ],
+       [
+        ":aspect",
+        "performance"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "He denied any wrongdoing .",
+      "note": "deny-01 'refuse to admit' fits; the denial itself is an asserted past fact (fullaff/performance), with ARG1 as the thing denied."
+     },
+     "rationale": "deny-01 'refuse to admit' fits; the denial itself is an asserted past fact (fullaff/performance), with ARG1 as the thing denied.",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "He denied any wrongdoing .",
+       "input": "Full sentence (context): He denied any wrongdoing .\nClause to analyse: He denied any wrongdoing .",
+       "output": {
+        "predicate_kind": "verb",
+        "concept": null,
+        "lemmas": [
+         "deny"
+        ],
+        "predicate_text": "denied",
+        "note": "Main verb of the clause; 'denied' is a telic past-tense event predicate (deny-01: refuse to admit truth of), taking ARG0 'He' and ARG1 'any wrongdoing'. Not an abstract eventive concept from the list."
+       },
+       "rationale": "Main verb of the clause; 'denied' is a telic past-tense event predicate (deny-01: refuse to admit truth of), taking ARG0 'He' and ARG1 'any wrongdoing'. Not an abstract eventive concept from the list.",
+       "children": []
+      },
+      {
+       "skill": "(stop)",
+       "span": "He",
+       "input": "He",
+       "output": {
+        "concept": "He",
+        "kind": "atomic"
+       },
+       "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "any wrongdoing",
+       "input": "Full sentence (context): He denied any wrongdoing .\nNoun phrase to analyse: any wrongdoing",
+       "output": {
+        "concept": "do-02",
+        "relations": [
+         [
+          ":ARG1",
+          {
+           "concept": "thing",
+           "relations": [
+            [
+             ":mod",
+             {
+              "concept": "wrong"
+             }
+            ]
+           ]
+          }
+         ],
+         [
+          ":mod",
+          {
+           "concept": "any"
+          }
+         ],
+         [
+          ":aspect",
+          "activity"
+         ]
+        ],
+        "phrase": "any wrongdoing",
+        "note": "Deverbal noun 'wrongdoing' decomposed as do-02 with ARG1 a wrong thing; 'any' kept as a quantifying mod since it is not a plain article."
+       },
+       "rationale": "Deverbal noun 'wrongdoing' decomposed as do-02 with ARG1 a wrong thing; 'any' kept as a quantifying mod since it is not a plain article.",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "He denied any wrongdoing .",
+     "input": "Sentence: He denied any wrongdoing .\n\nNodes in the parsed graph:\n- e1: deny-01 | \"He denied any wrongdoing .\"\n- e2: he | \"He\"\n- e3: do-02 | \"any wrongdoing\"\n- e4: thing | \"\"\n- e5: wrong | \"\"\n- e6: any | \"\"",
+     "output": {
+      "merge": [
+       [
+        "e2",
+        "e1"
+       ],
+       [
+        "e4",
+        "e3"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "He denied any wrongdoing .",
+     "input": "Current sentence (snt3): He denied any wrongdoing .\n\nCurrent sentence variables:\n- s3x: deny-01 (aspect=performance, modstr=fullaff)\n- s3x2: he\n\nRegistry of previous sentences' variables:\n- snt1: s1x: taste-01\n- snt1: s1x2: person\n- snt1: s1x3: name\n- snt1: s1x4: freedom\n- snt1: s1x5: today\n- snt1: s1x6: ordinal-entity\n- snt1: s1x7: more-than\n- snt1: s1x8: temporal-quantity\n- snt1: s1x9: month\n- snt2: s2x: have-role-91\n- snt2: s2x2: pope\n- snt2: s2x3: businessman\n- snt2: s2x4: country\n- snt2: s2x5: name\n- snt2: s2x6: and\n- snt2: s2x7: convict-01\n- snt2: s2x8: charge\n- snt2: s2x9: spy-01\n- snt2: s2x10: before\n- snt2: s2x11: now\n- snt2: s2x12: temporal-quantity\n- snt2: s2x13: week\n- snt2: s2x14: sentence-01\n- snt2: s2x15: temporal-quantity\n- snt2: s2x16: year\n- snt2: s2x17: prison\n- snt2: s2x18: country\n- snt2: s2x19: name\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's3x']]",
+     "output": {
+      "temporal": [],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s3x"
+       ]
+      ],
+      "coref": [
+       [
+        "s2x3",
+        ":same-entity",
+        "s3x2"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 6
+  },
+  {
+   "index": 4,
+   "text": "Russian President Vladimir Putin pardoned him for health reasons .",
+   "tokens": [
+    "Russian",
+    "President",
+    "Vladimir",
+    "Putin",
+    "pardoned",
+    "him",
+    "for",
+    "health",
+    "reasons",
+    "."
+   ],
+   "graph": "(s4x / pardon-01\n    :ARG0 (s4x2 / person\n        :name (s4x3 / name\n            :op1 \"Vladimir\"\n            :op2 \"Putin\")\n        :wiki \"Vladimir_Putin\"\n        :ARG0-of (s4x4 / have-role-91\n            :ARG1 s4x2\n            :ARG2 (s4x5 / president)\n            :ARG3 (s4x6 / country\n                :name (s4x7 / name\n                    :op1 \"Russia\"))\n            :aspect state))\n    :ARG1 (s4x8 / him)\n    :ARG2 (s4x9 / reason\n        :mod (s4x10 / health)\n        :refer-number plural)\n    :aspect performance)",
+   "docAnnotation": "(s4s0 / sentence\n\t:temporal ((document-creation-time :overlap s4x)\n\t\t(document-creation-time :overlap s4x4))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s4x)\n\t\t(author :full-affirmative s4x4))\n\t:coref ((s3x2 :same-entity s4x8)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "Russian President Vladimir Putin pardoned him for health reasons .",
+     "input": "Sentence (English):\nRussian President Vladimir Putin pardoned him for health reasons .",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "Russian President Vladimir Putin pardoned him for health reasons .",
+     "input": "Full sentence (context): Russian President Vladimir Putin pardoned him for health reasons .\nClause to analyse: Russian President Vladimir Putin pardoned him for health reasons .\nCore predicate: pardoned (kind: verb)",
+     "output": {
+      "concept": "pardon-01",
+      "relations": [
+       [
+        ":ARG0",
+        {
+         "expand": true,
+         "phrase": "Russian President Vladimir Putin",
+         "kind": "np"
+        }
+       ],
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "him",
+         "kind": "atomic"
+        }
+       ],
+       [
+        ":ARG2",
+        {
+         "expand": true,
+         "phrase": "health reasons",
+         "kind": "np"
+        }
+       ],
+       [
+        ":aspect",
+        "performance"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "Russian President Vladimir Putin pardoned him for health reasons .",
+      "note": "Formal presidential pardon (legal/official act) fits pardon-01 (pardoner/guilty party/for what) rather than pardon-02 (forgiving a faux pas); 'for health reasons' is ARG2."
+     },
+     "rationale": "Formal presidential pardon (legal/official act) fits pardon-01 (pardoner/guilty party/for what) rather than pardon-02 (forgiving a faux pas); 'for health reasons' is ARG2.",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "Russian President Vladimir Putin pardoned him for health reasons .",
+       "input": "Full sentence (context): Russian President Vladimir Putin pardoned him for health reasons .\nClause to analyse: Russian President Vladimir Putin pardoned him for health reasons .",
+       "output": {
+        "predicate_kind": "verb",
+        "concept": null,
+        "lemmas": [
+         "pardon"
+        ],
+        "predicate_text": "pardoned",
+        "note": "Main eventive verb; 'for health reasons' attaches as :cause/:reason to pardon-01, not an abstract predication."
+       },
+       "rationale": "Main eventive verb; 'for health reasons' attaches as :cause/:reason to pardon-01, not an abstract predication.",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "Russian President Vladimir Putin",
+       "input": "Full sentence (context): Russian President Vladimir Putin pardoned him for health reasons .\nNoun phrase to analyse: Russian President Vladimir Putin",
+       "output": {
+        "id": "n1",
+        "concept": "person",
+        "relations": [
+         [
+          ":name",
+          {
+           "concept": "name",
+           "relations": [
+            [
+             ":op1",
+             "\"Vladimir\""
+            ],
+            [
+             ":op2",
+             "\"Putin\""
+            ]
+           ]
+          }
+         ],
+         [
+          ":wiki",
+          "\"Vladimir_Putin\""
+         ],
+         [
+          ":ARG0-of",
+          {
+           "concept": "have-role-91",
+           "relations": [
+            [
+             ":ARG1",
+             {
+              "ref": "n1"
+             }
+            ],
+            [
+             ":ARG2",
+             {
+              "concept": "president"
+             }
+            ],
+            [
+             ":ARG3",
+             {
+              "concept": "country",
+              "relations": [
+               [
+                ":name",
+                {
+                 "concept": "name",
+                 "relations": [
+                  [
+                   ":op1",
+                   "\"Russia\""
+                  ]
+                 ]
+                }
+               ]
+              ],
+              "wiki": "Russia"
+             }
+            ]
+           ]
+          }
+         ]
+        ],
+        "phrase": "Russian President Vladimir Putin",
+        "note": "Named person Vladimir Putin; 'President' is a role via have-role-91 with ARG3 the country Russia, capturing 'Russian' as the role's associated polity rather than a plain adjectival mod."
+       },
+       "rationale": "Named person Vladimir Putin; 'President' is a role via have-role-91 with ARG3 the country Russia, capturing 'Russian' as the role's associated polity rather than a plain adjectival mod.",
+       "children": []
+      },
+      {
+       "skill": "(stop)",
+       "span": "him",
+       "input": "him",
+       "output": {
+        "concept": "him",
+        "kind": "atomic"
+       },
+       "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "health reasons",
+       "input": "Full sentence (context): Russian President Vladimir Putin pardoned him for health reasons .\nNoun phrase to analyse: health reasons",
+       "output": {
+        "concept": "reason",
+        "relations": [
+         [
+          ":mod",
+          {
+           "concept": "health"
+          }
+         ],
+         [
+          ":refer-number",
+          "plural"
+         ]
+        ],
+        "phrase": "health reasons"
+       },
+       "rationale": "",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "Russian President Vladimir Putin pardoned him for health reasons .",
+     "input": "Sentence: Russian President Vladimir Putin pardoned him for health reasons .\n\nNodes in the parsed graph:\n- e1: pardon-01 | \"Russian President Vladimir Putin pardoned him for health reasons .\"\n- n1: person | \"Russian President Vladimir Putin\"\n- e3: name | \"\"\n- e4: have-role-91 | \"\"\n- e5: president | \"\"\n- e6: country | \"\"\n- e7: name | \"\"\n- e8: him | \"him\"\n- e9: reason | \"health reasons\"\n- e10: health | \"\"",
+     "output": {
+      "merge": []
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "Russian President Vladimir Putin pardoned him for health reasons .",
+     "input": "Current sentence (snt4): Russian President Vladimir Putin pardoned him for health reasons .\n\nCurrent sentence variables:\n- s4x: pardon-01 (aspect=state, modstr=fullaff)\n- s4x2: person\n- s4x3: name\n- s4x4: have-role-91 (aspect=state, modstr=fullaff)\n- s4x5: president\n- s4x6: country\n- s4x7: name\n- s4x8: him\n- s4x9: reason\n- s4x10: health\n\nRegistry of previous sentences' variables:\n- snt1: s1x: taste-01\n- snt1: s1x2: person\n- snt1: s1x3: name\n- snt1: s1x4: freedom\n- snt1: s1x5: today\n- snt1: s1x6: ordinal-entity\n- snt1: s1x7: more-than\n- snt1: s1x8: temporal-quantity\n- snt1: s1x9: month\n- snt2: s2x: have-role-91\n- snt2: s2x2: pope\n- snt2: s2x3: businessman\n- snt2: s2x4: country\n- snt2: s2x5: name\n- snt2: s2x6: and\n- snt2: s2x7: convict-01\n- snt2: s2x8: charge\n- snt2: s2x9: spy-01\n- snt2: s2x10: before\n- snt2: s2x11: now\n- snt2: s2x12: temporal-quantity\n- snt2: s2x13: week\n- snt2: s2x14: sentence-01\n- snt2: s2x15: temporal-quantity\n- snt2: s2x16: year\n- snt2: s2x17: prison\n- snt2: s2x18: country\n- snt2: s2x19: name\n- snt3: s3x: deny-01\n- snt3: s3x2: he\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's4x'], ['author', ':full-affirmative', 's4x4']]",
+     "output": {
+      "temporal": [
+       [
+        "s3x",
+        ":before",
+        "s4x"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s4x"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s4x4"
+       ]
+      ],
+      "coref": [
+       [
+        "s3x2",
+        ":same-entity",
+        "s4x8"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 7
+  },
+  {
+   "index": 5,
+   "text": "Pope was flown to the U.S. military base at Ramstein , Germany .",
+   "tokens": [
+    "Pope",
+    "was",
+    "flown",
+    "to",
+    "the",
+    "U.S.",
+    "military",
+    "base",
+    "at",
+    "Ramstein",
+    ",",
+    "Germany",
+    "."
+   ],
+   "graph": "(s5x / fly-01\n    :ARG1 (s5x2 / pope)\n    :goal (s5x3 / base\n        :mod (s5x4 / military)\n        :mod (s5x5 / country\n            :name (s5x6 / name\n                :op1 \"U.S.\"))\n        :location (s5x7 / human-settlement\n            :name (s5x8 / name\n                :op1 \"Ramstein\")\n            :location (s5x9 / country\n                :name (s5x10 / name\n                    :op1 \"Germany\"))))\n    :aspect performance)",
+   "docAnnotation": "(s5s0 / sentence\n\t:temporal ((document-creation-time :after s5x))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s5x))\n\t:coref ((s4x2 :same-entity s5x2)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "Pope was flown to the U.S. military base at Ramstein , Germany .",
+     "input": "Sentence (English):\nPope was flown to the U.S. military base at Ramstein , Germany .",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "Pope was flown to the U.S. military base at Ramstein , Germany .",
+     "input": "Full sentence (context): Pope was flown to the U.S. military base at Ramstein , Germany .\nClause to analyse: Pope was flown to the U.S. military base at Ramstein , Germany .\nCore predicate: flown (kind: verb)",
+     "output": {
+      "concept": "fly-01",
+      "relations": [
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "Pope",
+         "kind": "atomic"
+        }
+       ],
+       [
+        ":goal",
+        {
+         "expand": true,
+         "phrase": "the U.S. military base at Ramstein , Germany",
+         "kind": "np"
+        }
+       ],
+       [
+        ":aspect",
+        "performance"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "Pope was flown to the U.S. military base at Ramstein , Germany .",
+      "note": "Passive fly-01: Pope is the passenger (ARG1); destination has no dedicated ARG slot in this roleset, so it attaches as :goal."
+     },
+     "rationale": "Passive fly-01: Pope is the passenger (ARG1); destination has no dedicated ARG slot in this roleset, so it attaches as :goal.",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "Pope was flown to the U.S. military base at Ramstein , Germany .",
+       "input": "Full sentence (context): Pope was flown to the U.S. military base at Ramstein , Germany .\nClause to analyse: Pope was flown to the U.S. military base at Ramstein , Germany .",
+       "output": {
+        "predicate_kind": "verb",
+        "concept": null,
+        "lemmas": [
+         "fly"
+        ],
+        "predicate_text": "flown",
+        "note": "Main verb of the passive clause; 'was flown' = transported by air, PropBank fly-01 (ARG1=Pope as thing moved, ARG0=unexpressed agent, ARG4/destination=the U.S. military base at Ramstein, Germany). Not an abstract predication—straightforward transport event."
+       },
+       "rationale": "Main verb of the passive clause; 'was flown' = transported by air, PropBank fly-01 (ARG1=Pope as thing moved, ARG0=unexpressed agent, ARG4/destination=the U.S. military base at Ramstein, Germany). Not an abstract predication—straightforward transport event.",
+       "children": []
+      },
+      {
+       "skill": "(stop)",
+       "span": "Pope",
+       "input": "Pope",
+       "output": {
+        "concept": "Pope",
+        "kind": "atomic"
+       },
+       "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "the U.S. military base at Ramstein , Germany",
+       "input": "Full sentence (context): Pope was flown to the U.S. military base at Ramstein , Germany .\nNoun phrase to analyse: the U.S. military base at Ramstein , Germany",
+       "output": {
+        "concept": "base",
+        "relations": [
+         [
+          ":mod",
+          {
+           "concept": "military"
+          }
+         ],
+         [
+          ":mod",
+          {
+           "concept": "country",
+           "relations": [
+            [
+             ":name",
+             {
+              "concept": "name",
+              "relations": [
+               [
+                ":op1",
+                "\"U.S.\""
+               ]
+              ]
+             }
+            ]
+           ],
+           "wiki": "United_States"
+          }
+         ],
+         [
+          ":location",
+          {
+           "concept": "human-settlement",
+           "relations": [
+            [
+             ":name",
+             {
+              "concept": "name",
+              "relations": [
+               [
+                ":op1",
+                "\"Ramstein\""
+               ]
+              ]
+             }
+            ],
+            [
+             ":location",
+             {
+              "concept": "country",
+              "relations": [
+               [
+                ":name",
+                {
+                 "concept": "name",
+                 "relations": [
+                  [
+                   ":op1",
+                   "\"Germany\""
+                  ]
+                 ]
+                }
+               ]
+              ],
+              "wiki": "Germany"
+             }
+            ]
+           ],
+           "wiki": "Ramstein-Miesenbach"
+          }
+         ]
+        ],
+        "phrase": "the U.S. military base at Ramstein , Germany",
+        "note": "Base is the implicit head (facility), modified by military and U.S.; Ramstein is a human-settlement nested inside country Germany via :location."
+       },
+       "rationale": "Base is the implicit head (facility), modified by military and U.S.; Ramstein is a human-settlement nested inside country Germany via :location.",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "Pope was flown to the U.S. military base at Ramstein , Germany .",
+     "input": "Sentence: Pope was flown to the U.S. military base at Ramstein , Germany .\n\nNodes in the parsed graph:\n- e1: fly-01 | \"Pope was flown to the U.S. military base at Ramstein , Germany .\"\n- e2: pope | \"Pope\"\n- e3: base | \"the U.S. military base at Ramstein , Germany\"\n- e4: military | \"\"\n- e5: country | \"\"\n- e6: name | \"\"\n- e7: human-settlement | \"\"\n- e8: name | \"\"\n- e9: country | \"\"\n- e10: name | \"\"",
+     "output": {
+      "merge": []
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "Pope was flown to the U.S. military base at Ramstein , Germany .",
+     "input": "Current sentence (snt5): Pope was flown to the U.S. military base at Ramstein , Germany .\n\nCurrent sentence variables:\n- s5x: fly-01 (aspect=None, modstr=None)\n- s5x2: pope\n- s5x3: base\n- s5x4: military\n- s5x5: country\n- s5x6: name\n- s5x7: human-settlement\n- s5x8: name\n- s5x9: country\n- s5x10: name\n\nRegistry of previous sentences' variables:\n- snt1: s1x: taste-01\n- snt1: s1x2: person\n- snt1: s1x3: name\n- snt1: s1x4: freedom\n- snt1: s1x5: today\n- snt1: s1x6: ordinal-entity\n- snt1: s1x7: more-than\n- snt1: s1x8: temporal-quantity\n- snt1: s1x9: month\n- snt2: s2x: have-role-91\n- snt2: s2x2: pope\n- snt2: s2x3: businessman\n- snt2: s2x4: country\n- snt2: s2x5: name\n- snt2: s2x6: and\n- snt2: s2x7: convict-01\n- snt2: s2x8: charge\n- snt2: s2x9: spy-01\n- snt2: s2x10: before\n- snt2: s2x11: now\n- snt2: s2x12: temporal-quantity\n- snt2: s2x13: week\n- snt2: s2x14: sentence-01\n- snt2: s2x15: temporal-quantity\n- snt2: s2x16: year\n- snt2: s2x17: prison\n- snt2: s2x18: country\n- snt2: s2x19: name\n- snt3: s3x: deny-01\n- snt3: s3x2: he\n- snt4: s4x: pardon-01\n- snt4: s4x2: person\n- snt4: s4x3: name\n- snt4: s4x4: have-role-91\n- snt4: s4x5: president\n- snt4: s4x6: country\n- snt4: s4x7: name\n- snt4: s4x8: him\n- snt4: s4x9: reason\n- snt4: s4x10: health\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's5x']]",
+     "output": {
+      "temporal": [
+       [
+        "s5x8",
+        ":contained",
+        "s5x"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s5x"
+       ]
+      ],
+      "coref": [
+       [
+        "s4x2",
+        ":same-entity",
+        "s5x2"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 6
+  },
+  {
+   "index": 6,
+   "text": "He will spend the next several days at the medical center there before he returns home with his wife Sherry .",
+   "tokens": [
+    "He",
+    "will",
+    "spend",
+    "the",
+    "next",
+    "several",
+    "days",
+    "at",
+    "the",
+    "medical",
+    "center",
+    "there",
+    "before",
+    "he",
+    "returns",
+    "home",
+    "with",
+    "his",
+    "wife",
+    "Sherry",
+    "."
+   ],
+   "graph": "(s6x / spend-02\n    :ARG0 (s6x2 / he)\n    :ARG1 (s6x3 / temporal-quantity\n        :quant (s6x4 / several)\n        :unit (s6x5 / day)\n        :mod (s6x6 / next))\n    :place (s6x7 / center\n        :mod (s6x8 / medical)\n        :location (s6x9 / place\n            :mod (s6x10 / that)))\n    :aspect process\n    :temporal (s6x11 / return-01\n        :ARG1 s6x2\n        :ARG4 (s6x12 / home)\n        :companion (s6x13 / person\n            :name (s6x14 / name\n                :op1 \"Sherry\")\n            :ARG1-of (s6x15 / have-role-91\n                :ARG2 (s6x16 / wife)\n                :ARG3 s6x2\n                :aspect state))\n        :aspect performance))",
+   "docAnnotation": "(s6s0 / sentence\n\t:temporal ((document-creation-time :overlap s6x)\n\t\t(document-creation-time :overlap s6x11))\n\t:modal ((root :modal author)\n\t\t(author :neutral-affirmative s6x)\n\t\t(author :full-affirmative s6x11))\n\t:coref ((s5x2 :same-entity s6x2)\n\t\t(s5x7 :same-entity s6x9)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "He will spend the next several days at the medical center there before he returns home with his wife Sherry .",
+     "input": "Sentence (English):\nHe will spend the next several days at the medical center there before he returns home with his wife Sherry .",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "expand": true,
+       "phrase": "He will spend the next several days at the medical center there",
+       "kind": "clause",
+       "sub": [
+        [
+         ":temporal",
+         {
+          "expand": true,
+          "phrase": "he returns home with his wife Sherry",
+          "kind": "clause"
+         }
+        ]
+       ]
+      }
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "He will spend the next several days at the medical center there before he returns home with his wife Sherry .",
+     "input": "Sentence: He will spend the next several days at the medical center there before he returns home with his wife Sherry .\n\nNodes in the parsed graph:\n- e1: spend-02 | \"He will spend the next several days at the medical center there\"\n- e2: he | \"He\"\n- e3: temporal-quantity | \"the next several days\"\n- e4: several | \"several\"\n- e5: day | \"days\"\n- e6: next | \"next\"\n- e7: center | \"the medical center there\"\n- e8: medical | \"medical\"\n- e9: place | \"there\"\n- e10: that | \"\"\n- e11: return-01 | \"he returns home with his wife Sherry\"\n- e12: he | \"he\"\n- e13: home | \"home\"\n- e14: person | \"his wife Sherry\"\n- e15: name | \"\"\n- e16: have-role-91 | \"\"\n- e17: wife | \"\"\n- e18: person | \"\"",
+     "output": {
+      "merge": [
+       [
+        "e2",
+        "e12"
+       ],
+       [
+        "e2",
+        "e18"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "He will spend the next several days at the medical center there before he returns home with his wife Sherry .",
+     "input": "Current sentence (snt6): He will spend the next several days at the medical center there before he returns home with his wife Sherry .\n\nCurrent sentence variables:\n- s6x: spend-02 (aspect=process, modstr=neutaff)\n- s6x2: he\n- s6x3: temporal-quantity\n- s6x4: several\n- s6x5: day\n- s6x6: next\n- s6x7: center\n- s6x8: medical\n- s6x9: place\n- s6x10: that\n- s6x11: return-01 (aspect=state, modstr=fullaff)\n- s6x12: home\n- s6x13: person\n- s6x14: name\n- s6x15: have-role-91 (aspect=state, modstr=fullaff)\n- s6x16: wife\n\nRegistry of previous sentences' variables:\n- snt1: s1x: taste-01\n- snt1: s1x2: person\n- snt1: s1x3: name\n- snt1: s1x4: freedom\n- snt1: s1x5: today\n- snt1: s1x6: ordinal-entity\n- snt1: s1x7: more-than\n- snt1: s1x8: temporal-quantity\n- snt1: s1x9: month\n- snt2: s2x: have-role-91\n- snt2: s2x2: pope\n- snt2: s2x3: businessman\n- snt2: s2x4: country\n- snt2: s2x5: name\n- snt2: s2x6: and\n- snt2: s2x7: convict-01\n- snt2: s2x8: charge\n- snt2: s2x9: spy-01\n- snt2: s2x10: before\n- snt2: s2x11: now\n- snt2: s2x12: temporal-quantity\n- snt2: s2x13: week\n- snt2: s2x14: sentence-01\n- snt2: s2x15: temporal-quantity\n- snt2: s2x16: year\n- snt2: s2x17: prison\n- snt2: s2x18: country\n- snt2: s2x19: name\n- snt3: s3x: deny-01\n- snt3: s3x2: he\n- snt4: s4x: pardon-01\n- snt4: s4x2: person\n- snt4: s4x3: name\n- snt4: s4x4: have-role-91\n- snt4: s4x5: president\n- snt4: s4x6: country\n- snt4: s4x7: name\n- snt4: s4x8: him\n- snt4: s4x9: reason\n- snt4: s4x10: health\n- snt5: s5x: fly-01\n- snt5: s5x2: pope\n- snt5: s5x3: base\n- snt5: s5x4: military\n- snt5: s5x5: country\n- snt5: s5x6: name\n- snt5: s5x7: human-settlement\n- snt5: s5x8: name\n- snt5: s5x9: country\n- snt5: s5x10: name\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':neutral-affirmative', 's6x'], ['author', ':full-affirmative', 's6x11']]",
+     "output": {
+      "temporal": [
+       [
+        "s6x",
+        ":before",
+        "s6x11"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s6x"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s6x11"
+       ]
+      ],
+      "coref": [
+       [
+        "s5x2",
+        ":same-entity",
+        "s6x2"
+       ],
+       [
+        "s5x7",
+        ":same-entity",
+        "s6x9"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 10
+  },
+  {
+   "index": 7,
+   "text": "Pope was in remission from a rare form of bone cancer when he was arrested in Russia.",
+   "tokens": [
+    "Pope",
+    "was",
+    "in",
+    "remission",
+    "from",
+    "a",
+    "rare",
+    "form",
+    "of",
+    "bone",
+    "cancer",
+    "when",
+    "he",
+    "was",
+    "arrested",
+    "in",
+    "Russia."
+   ],
+   "graph": "(s7x / have-mod-91\n    :ARG1 s7x6\n    :ARG2 (s7x2 / remission)\n    :source (s7x3 / cancer\n        :mod (s7x4 / rare)\n        :mod (s7x5 / bone))\n    :aspect state\n    :temporal (s7x6 / arrest-01\n        :ARG1 (s7x7 / he)\n        :place (s7x8 / russia)\n        :aspect performance))",
+   "docAnnotation": "(s7s0 / sentence\n\t:temporal ((document-creation-time :overlap s7x)\n\t\t(document-creation-time :after s7x6))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s7x)\n\t\t(author :full-affirmative s7x6))\n\t:coref ((s6x2 :same-entity s7x7)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "Pope was in remission from a rare form of bone cancer when he was arrested in Russia.",
+     "input": "Sentence (English):\nPope was in remission from a rare form of bone cancer when he was arrested in Russia.",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "expand": true,
+       "phrase": "Pope was in remission from a rare form of bone cancer",
+       "kind": "clause",
+       "sub": [
+        [
+         ":temporal",
+         {
+          "expand": true,
+          "phrase": "he was arrested in Russia",
+          "kind": "clause"
+         }
+        ]
+       ]
+      }
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "Pope was in remission from a rare form of bone cancer when he was arrested in Russia.",
+     "input": "Sentence: Pope was in remission from a rare form of bone cancer when he was arrested in Russia.\n\nNodes in the parsed graph:\n- e1: have-mod-91 | \"Pope was in remission from a rare form of bone cancer\"\n- e2: pope | \"Pope\"\n- e3: remission | \"remission\"\n- e4: cancer | \"a rare form of bone cancer\"\n- e5: rare | \"rare\"\n- e6: bone | \"bone\"\n- e7: arrest-01 | \"he was arrested in Russia\"\n- e8: he | \"he\"\n- e9: russia | \"Russia\"",
+     "output": {
+      "merge": [
+       [
+        "e7",
+        "e2"
+       ],
+       [
+        "e8",
+        "e2"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "Pope was in remission from a rare form of bone cancer when he was arrested in Russia.",
+     "input": "Current sentence (snt7): Pope was in remission from a rare form of bone cancer when he was arrested in Russia.\n\nCurrent sentence variables:\n- s7x: have-mod-91 (aspect=state, modstr=fullaff)\n- s7x2: remission\n- s7x3: cancer\n- s7x4: rare\n- s7x5: bone\n- s7x6: arrest-01 (aspect=performance, modstr=fullaff)\n- s7x7: he\n- s7x8: russia\n\nRegistry of previous sentences' variables:\n- snt1: s1x: taste-01\n- snt1: s1x2: person\n- snt1: s1x3: name\n- snt1: s1x4: freedom\n- snt1: s1x5: today\n- snt1: s1x6: ordinal-entity\n- snt1: s1x7: more-than\n- snt1: s1x8: temporal-quantity\n- snt1: s1x9: month\n- snt2: s2x: have-role-91\n- snt2: s2x2: pope\n- snt2: s2x3: businessman\n- snt2: s2x4: country\n- snt2: s2x5: name\n- snt2: s2x6: and\n- snt2: s2x7: convict-01\n- snt2: s2x8: charge\n- snt2: s2x9: spy-01\n- snt2: s2x10: before\n- snt2: s2x11: now\n- snt2: s2x12: temporal-quantity\n- snt2: s2x13: week\n- snt2: s2x14: sentence-01\n- snt2: s2x15: temporal-quantity\n- snt2: s2x16: year\n- snt2: s2x17: prison\n- snt2: s2x18: country\n- snt2: s2x19: name\n- snt3: s3x: deny-01\n- snt3: s3x2: he\n- snt4: s4x: pardon-01\n- snt4: s4x2: person\n- snt4: s4x3: name\n- snt4: s4x4: have-role-91\n- snt4: s4x5: president\n- snt4: s4x6: country\n- snt4: s4x7: name\n- snt4: s4x8: him\n- snt4: s4x9: reason\n- snt4: s4x10: health\n- snt5: s5x: fly-01\n- snt5: s5x2: pope\n- snt5: s5x3: base\n- snt5: s5x4: military\n- snt5: s5x5: country\n- snt5: s5x6: name\n- snt5: s5x7: human-settlement\n- snt5: s5x8: name\n- snt5: s5x9: country\n- snt5: s5x10: name\n- snt6: s6x: spend-02\n- snt6: s6x2: he\n- snt6: s6x3: temporal-quantity\n- snt6: s6x4: several\n- snt6: s6x5: day\n- snt6: s6x6: next\n- snt6: s6x7: center\n- snt6: s6x8: medical\n- snt6: s6x9: place\n- snt6: s6x10: that\n- snt6: s6x11: return-01\n- snt6: s6x12: home\n- snt6: s6x13: person\n- snt6: s6x14: name\n- snt6: s6x15: have-role-91\n- snt6: s6x16: wife\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's7x'], ['author', ':full-affirmative', 's7x6']]",
+     "output": {
+      "temporal": [
+       [
+        "s7x",
+        ":overlap",
+        "s7x6"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s7x"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s7x6"
+       ]
+      ],
+      "coref": [
+       [
+        "s6x2",
+        ":same-entity",
+        "s7x7"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 8
+  },
+  {
+   "index": 8,
+   "text": "Doctors will examine him for signs that the cancer may have come back while he [was] awaiting trial in a Russian jail.",
+   "tokens": [
+    "Doctors",
+    "will",
+    "examine",
+    "him",
+    "for",
+    "signs",
+    "that",
+    "the",
+    "cancer",
+    "may",
+    "have",
+    "come",
+    "back",
+    "while",
+    "he",
+    "[was]",
+    "awaiting",
+    "trial",
+    "in",
+    "a",
+    "Russian",
+    "jail."
+   ],
+   "graph": "(s8x / examine-01\n    :ARG0 (s8x2 / person\n        :ARG0-of (s8x3 / practice-01\n            :ARG1 (s8x4 / medicine)\n            :aspect performance)\n        :refer-number plural)\n    :ARG1 (s8x5 / him)\n    :ARG2 (s8x6 / sign\n        :refer-number plural\n        :ARG1 (s8x7 / come_back-01\n            :ARG1 (s8x8 / cancer)\n            :aspect performance))\n    :aspect process\n    :temporal (s8x9 / await-01\n        :ARG1 s8x5\n        :ARG2 (s8x10 / trial)\n        :place (s8x11 / jail\n            :place (s8x12 / country\n                :name (s8x13 / name\n                    :op1 \"Russia\")))\n        :aspect activity))",
+   "docAnnotation": "(s8s0 / sentence\n\t:temporal ((document-creation-time :after s8x)\n\t\t(document-creation-time :after s8x3)\n\t\t(document-creation-time :after s8x7)\n\t\t(document-creation-time :overlap s8x9))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s8x)\n\t\t(author :full-affirmative s8x3)\n\t\t(author :neutral-affirmative s8x7)\n\t\t(author :full-affirmative s8x9))\n\t:coref ((s7x7 :same-entity s8x5)\n\t\t(s7x3 :same-entity s8x8)\n\t\t(s2x17 :same-entity s8x11)\n\t\t(s7x8 :same-entity s8x13)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "Doctors will examine him for signs that the cancer may have come back while he [was] awaiting trial in a Russian jail.",
+     "input": "Sentence (English):\nDoctors will examine him for signs that the cancer may have come back while he [was] awaiting trial in a Russian jail.",
+     "output": {
+      "has_discourse": true,
+      "structure": {
+       "expand": true,
+       "phrase": "Doctors will examine him for signs that the cancer may have come back",
+       "kind": "clause",
+       "sub": [
+        [
+         ":temporal",
+         {
+          "expand": true,
+          "phrase": "he [was] awaiting trial in a Russian jail",
+          "kind": "clause"
+         }
+        ]
+       ]
+      }
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "reentrancy",
+     "span": "Doctors will examine him for signs that the cancer may have come back while he [was] awaiting trial in a Russian jail.",
+     "input": "Sentence: Doctors will examine him for signs that the cancer may have come back while he [was] awaiting trial in a Russian jail.\n\nNodes in the parsed graph:\n- e1: examine-01 | \"Doctors will examine him for signs that the cancer may have come back\"\n- e2: person | \"Doctors\"\n- e3: practice-01 | \"\"\n- e4: medicine | \"\"\n- e5: him | \"him\"\n- e6: sign | \"signs that the cancer may have come back\"\n- e7: come_back-01 | \"that the cancer may have come back\"\n- e8: cancer | \"the cancer\"\n- e9: await-01 | \"he [was] awaiting trial in a Russian jail\"\n- e10: he | \"he\"\n- e11: trial | \"trial\"\n- e12: jail | \"a Russian jail\"\n- e13: country | \"\"\n- e14: name | \"\"",
+     "output": {
+      "merge": [
+       [
+        "e5",
+        "e10"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "Doctors will examine him for signs that the cancer may have come back while he [was] awaiting trial in a Russian jail.",
+     "input": "Current sentence (snt8): Doctors will examine him for signs that the cancer may have come back while he [was] awaiting trial in a Russian jail.\n\nCurrent sentence variables:\n- s8x: examine-01 (aspect=performance, modstr=fullaff)\n- s8x2: person\n- s8x3: practice-01 (aspect=performance, modstr=fullaff)\n- s8x4: medicine\n- s8x5: him\n- s8x6: sign\n- s8x7: come_back-01 (aspect=performance, modstr=neutaff)\n- s8x8: cancer\n- s8x9: await-01 (aspect=activity, modstr=fullaff)\n- s8x10: trial\n- s8x11: jail\n- s8x12: country\n- s8x13: name\n\nRegistry of previous sentences' variables:\n- snt1: s1x: taste-01\n- snt1: s1x2: person\n- snt1: s1x3: name\n- snt1: s1x4: freedom\n- snt1: s1x5: today\n- snt1: s1x6: ordinal-entity\n- snt1: s1x7: more-than\n- snt1: s1x8: temporal-quantity\n- snt1: s1x9: month\n- snt2: s2x: have-role-91\n- snt2: s2x2: pope\n- snt2: s2x3: businessman\n- snt2: s2x4: country\n- snt2: s2x5: name\n- snt2: s2x6: and\n- snt2: s2x7: convict-01\n- snt2: s2x8: charge\n- snt2: s2x9: spy-01\n- snt2: s2x10: before\n- snt2: s2x11: now\n- snt2: s2x12: temporal-quantity\n- snt2: s2x13: week\n- snt2: s2x14: sentence-01\n- snt2: s2x15: temporal-quantity\n- snt2: s2x16: year\n- snt2: s2x17: prison\n- snt2: s2x18: country\n- snt2: s2x19: name\n- snt3: s3x: deny-01\n- snt3: s3x2: he\n- snt4: s4x: pardon-01\n- snt4: s4x2: person\n- snt4: s4x3: name\n- snt4: s4x4: have-role-91\n- snt4: s4x5: president\n- snt4: s4x6: country\n- snt4: s4x7: name\n- snt4: s4x8: him\n- snt4: s4x9: reason\n- snt4: s4x10: health\n- snt5: s5x: fly-01\n- snt5: s5x2: pope\n- snt5: s5x3: base\n- snt5: s5x4: military\n- snt5: s5x5: country\n- snt5: s5x6: name\n- snt5: s5x7: human-settlement\n- snt5: s5x8: name\n- snt5: s5x9: country\n- snt5: s5x10: name\n- snt6: s6x: spend-02\n- snt6: s6x2: he\n- snt6: s6x3: temporal-quantity\n- snt6: s6x4: several\n- snt6: s6x5: day\n- snt6: s6x6: next\n- snt6: s6x7: center\n- snt6: s6x8: medical\n- snt6: s6x9: place\n- snt6: s6x10: that\n- snt6: s6x11: return-01\n- snt6: s6x12: home\n- snt6: s6x13: person\n- snt6: s6x14: name\n- snt6: s6x15: have-role-91\n- snt6: s6x16: wife\n- snt7: s7x: have-mod-91\n- snt7: s7x2: remission\n- snt7: s7x3: cancer\n- snt7: s7x4: rare\n- snt7: s7x5: bone\n- snt7: s7x6: arrest-01\n- snt7: s7x7: he\n- snt7: s7x8: russia\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's8x'], ['author', ':full-affirmative', 's8x3'], ['author', ':neutral-affirmative', 's8x7'], ['author', ':full-affirmative', 's8x9']]",
+     "output": {
+      "temporal": [
+       [
+        "s8x7",
+        ":overlap",
+        "s8x9"
+       ]
+      ],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s8x"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s8x3"
+       ],
+       [
+        "author",
+        ":neutral-affirmative",
+        "s8x7"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s8x9"
+       ]
+      ],
+      "coref": [
+       [
+        "s7x7",
+        ":same-entity",
+        "s8x5"
+       ],
+       [
+        "s7x3",
+        ":same-entity",
+        "s8x8"
+       ],
+       [
+        "s2x17",
+        ":same-entity",
+        "s8x11"
+       ],
+       [
+        "s7x8",
+        ":same-entity",
+        "s8x13"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 13
+  },
+  {
+   "index": 9,
+   "text": "A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .",
+   "tokens": [
+    "A",
+    "spokeswoman",
+    "said",
+    "that",
+    "Pope",
+    "was",
+    "suffering",
+    "from",
+    "malnutrition",
+    "and",
+    "high",
+    "blood",
+    "pressure",
+    "."
+   ],
+   "graph": "(s9x / suffer-01\n    :ARG0 (s9x2 / pope)\n    :ARG1 (s9x3 / and\n        :op1 (s9x4 / malnutrition)\n        :op2 (s9x5 / blood-pressure\n            :mod (s9x6 / high)))\n    :aspect activity)",
+   "docAnnotation": "(s9s0 / sentence\n\t:temporal ((document-creation-time :overlap s9x))\n\t:modal ((root :modal author)\n\t\t(author :full-affirmative s9x))\n\t:coref ((s8x5 :same-entity s9x2)))",
+   "tree": [
+    {
+     "skill": "discourse",
+     "span": "A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .",
+     "input": "Sentence (English):\nA spokeswoman said that Pope was suffering from malnutrition and high blood pressure .",
+     "output": {
+      "has_discourse": false
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "arguments",
+     "span": "A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .",
+     "input": "Full sentence (context): A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .\nClause to analyse: A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .\nCore predicate: was suffering (kind: verb)",
+     "output": {
+      "concept": "suffer-01",
+      "relations": [
+       [
+        ":ARG0",
+        {
+         "expand": true,
+         "phrase": "Pope",
+         "kind": "atomic"
+        }
+       ],
+       [
+        ":ARG1",
+        {
+         "expand": true,
+         "phrase": "malnutrition and high blood pressure",
+         "kind": "np"
+        }
+       ],
+       [
+        ":aspect",
+        "activity"
+       ],
+       [
+        ":modstr",
+        "fullaff"
+       ]
+      ],
+      "phrase": "Pope was suffering from malnutrition and high blood pressure",
+      "note": "suffer-01: ARG0 Pope (entity suffering), ARG1 coordinated malady NP; past progressive under 'said' gives activity aspect and fullaff (unhedged complement of say)."
+     },
+     "rationale": "suffer-01: ARG0 Pope (entity suffering), ARG1 coordinated malady NP; past progressive under 'said' gives activity aspect and fullaff (unhedged complement of say).",
+     "children": [
+      {
+       "skill": "predicate",
+       "span": "A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .",
+       "input": "Full sentence (context): A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .\nClause to analyse: A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .",
+       "output": {
+        "predicate_kind": "verb",
+        "concept": null,
+        "lemmas": [
+         "suffer"
+        ],
+        "predicate_text": "was suffering",
+        "note": "The embedded clause's main verb 'suffer' (from) is the core predicate expressing Pope's state; progressive aspect maps to activity/state, not an abstract predication since 'suffering from X' is an ordinary verbal event, not role/identity/possession/etc."
+       },
+       "rationale": "The embedded clause's main verb 'suffer' (from) is the core predicate expressing Pope's state; progressive aspect maps to activity/state, not an abstract predication since 'suffering from X' is an ordinary verbal event, not role/identity/possession/etc.",
+       "children": []
+      },
+      {
+       "skill": "(stop)",
+       "span": "Pope",
+       "input": "Pope",
+       "output": {
+        "concept": "Pope",
+        "kind": "atomic"
+       },
+       "rationale": "停止判定：原子概念，无需继续分解（由代码判定，未调用模型）",
+       "children": []
+      },
+      {
+       "skill": "np_phrase",
+       "span": "malnutrition and high blood pressure",
+       "input": "Full sentence (context): A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .\nNoun phrase to analyse: malnutrition and high blood pressure",
+       "output": {
+        "concept": "and",
+        "relations": [
+         [
+          ":op1",
+          {
+           "concept": "malnutrition",
+           "phrase": "malnutrition"
+          }
+         ],
+         [
+          ":op2",
+          {
+           "concept": "blood-pressure",
+           "relations": [
+            [
+             ":mod",
+             {
+              "concept": "high"
+             }
+            ]
+           ],
+           "phrase": "high blood pressure"
+          }
+         ]
+        ],
+        "phrase": "malnutrition and high blood pressure",
+        "note": "Coordinated NP: 'and' with two conjuncts; 'high blood pressure' treated as lexicalized compound 'blood-pressure' modified by 'high'."
+       },
+       "rationale": "Coordinated NP: 'and' with two conjuncts; 'high blood pressure' treated as lexicalized compound 'blood-pressure' modified by 'high'.",
+       "children": []
+      }
+     ]
+    },
+    {
+     "skill": "reentrancy",
+     "span": "A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .",
+     "input": "Sentence: A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .\n\nNodes in the parsed graph:\n- e1: suffer-01 | \"Pope was suffering from malnutrition and high blood pressure\"\n- e2: pope | \"Pope\"\n- e3: and | \"malnutrition and high blood pressure\"\n- e4: malnutrition | \"malnutrition\"\n- e5: blood-pressure | \"high blood pressure\"\n- e6: high | \"\"",
+     "output": {
+      "merge": [
+       [
+        "e2",
+        "e2"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    },
+    {
+     "skill": "doc_level",
+     "span": "A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .",
+     "input": "Current sentence (snt9): A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .\n\nCurrent sentence variables:\n- s9x: suffer-01 (aspect=activity, modstr=fullaff)\n- s9x2: pope\n- s9x3: and\n- s9x4: malnutrition\n- s9x5: blood-pressure\n- s9x6: high\n\nRegistry of previous sentences' variables:\n- snt1: s1x: taste-01\n- snt1: s1x2: person\n- snt1: s1x3: name\n- snt1: s1x4: freedom\n- snt1: s1x5: today\n- snt1: s1x6: ordinal-entity\n- snt1: s1x7: more-than\n- snt1: s1x8: temporal-quantity\n- snt1: s1x9: month\n- snt2: s2x: have-role-91\n- snt2: s2x2: pope\n- snt2: s2x3: businessman\n- snt2: s2x4: country\n- snt2: s2x5: name\n- snt2: s2x6: and\n- snt2: s2x7: convict-01\n- snt2: s2x8: charge\n- snt2: s2x9: spy-01\n- snt2: s2x10: before\n- snt2: s2x11: now\n- snt2: s2x12: temporal-quantity\n- snt2: s2x13: week\n- snt2: s2x14: sentence-01\n- snt2: s2x15: temporal-quantity\n- snt2: s2x16: year\n- snt2: s2x17: prison\n- snt2: s2x18: country\n- snt2: s2x19: name\n- snt3: s3x: deny-01\n- snt3: s3x2: he\n- snt4: s4x: pardon-01\n- snt4: s4x2: person\n- snt4: s4x3: name\n- snt4: s4x4: have-role-91\n- snt4: s4x5: president\n- snt4: s4x6: country\n- snt4: s4x7: name\n- snt4: s4x8: him\n- snt4: s4x9: reason\n- snt4: s4x10: health\n- snt5: s5x: fly-01\n- snt5: s5x2: pope\n- snt5: s5x3: base\n- snt5: s5x4: military\n- snt5: s5x5: country\n- snt5: s5x6: name\n- snt5: s5x7: human-settlement\n- snt5: s5x8: name\n- snt5: s5x9: country\n- snt5: s5x10: name\n- snt6: s6x: spend-02\n- snt6: s6x2: he\n- snt6: s6x3: temporal-quantity\n- snt6: s6x4: several\n- snt6: s6x5: day\n- snt6: s6x6: next\n- snt6: s6x7: center\n- snt6: s6x8: medical\n- snt6: s6x9: place\n- snt6: s6x10: that\n- snt6: s6x11: return-01\n- snt6: s6x12: home\n- snt6: s6x13: person\n- snt6: s6x14: name\n- snt6: s6x15: have-role-91\n- snt6: s6x16: wife\n- snt7: s7x: have-mod-91\n- snt7: s7x2: remission\n- snt7: s7x3: cancer\n- snt7: s7x4: rare\n- snt7: s7x5: bone\n- snt7: s7x6: arrest-01\n- snt7: s7x7: he\n- snt7: s7x8: russia\n- snt8: s8x: examine-01\n- snt8: s8x2: person\n- snt8: s8x3: practice-01\n- snt8: s8x4: medicine\n- snt8: s8x5: him\n- snt8: s8x6: sign\n- snt8: s8x7: come_back-01\n- snt8: s8x8: cancer\n- snt8: s8x9: await-01\n- snt8: s8x10: trial\n- snt8: s8x11: jail\n- snt8: s8x12: country\n- snt8: s8x13: name\n\nDefault modal triples (adjust if needed): [['root', ':modal', 'author'], ['author', ':full-affirmative', 's9x']]",
+     "output": {
+      "temporal": [],
+      "modal": [
+       [
+        "root",
+        ":modal",
+        "author"
+       ],
+       [
+        "author",
+        ":full-affirmative",
+        "s9x"
+       ]
+      ],
+      "coref": [
+       [
+        "s8x5",
+        ":same-entity",
+        "s9x2"
+       ]
+      ]
+     },
+     "rationale": "",
+     "children": []
+    }
+   ],
+   "callCount": 6
+  }
+ ]
+}
