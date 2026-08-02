@@ -65,12 +65,3 @@ export function registerRuntimeFormat(format) {
 export function defineSkill({ id, label, file, describes, serial = false, llm = true }) {
   return { id, label, file, describes, serial, llm };
 }
-
-/** Look up a skill definition across all loaded formats. */
-export function findSkill(skillId) {
-  for (const f of formats.values()) {
-    const hit = (f.skills || []).find((s) => s.id === skillId);
-    if (hit) return { skill: hit, format: f };
-  }
-  return { skill: null, format: null };
-}

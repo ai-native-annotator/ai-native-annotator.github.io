@@ -6,7 +6,7 @@
  * provider's API from the browser when you actually run a skill.
  */
 
-import { el, $, pickFile } from '../core/dom.js';
+import { el, $ } from '../core/dom.js';
 import { state, set } from '../core/state.js';
 import { PROVIDERS } from '../core/providers.js';
 import { setApiKey, setModel, saveSecrets, exportSecretsFile, importSecretsFile } from '../core/settings.js';

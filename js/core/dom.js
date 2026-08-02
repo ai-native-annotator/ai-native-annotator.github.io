@@ -43,30 +43,6 @@ export function download(filename, text, type = 'application/json') {
   URL.revokeObjectURL(url);
 }
 
-/** Read a user-picked local file as text via <input type=file>. */
-export function pickFile(accept = '*') {
-  return new Promise((resolve, reject) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = accept;
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return reject(new Error('未选择文件'));
-      resolve(file);
-    };
-    input.click();
-  });
-}
-
-/** Debounce a function by `ms` (trailing edge only). */
-export function debounce(fn, ms = 300) {
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn(...args), ms);
-  };
-}
-
 /** Format a duration in ms as a short human string. */
 export function fmtMs(ms) {
   if (ms < 1000) return `${Math.round(ms)}ms`;

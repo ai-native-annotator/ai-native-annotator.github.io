@@ -7,7 +7,6 @@
  * does not render, rather than failing when clicked.
  */
 
-import { state, set } from './core/state.js';
 import { logInfo, logWarn, describeError } from './core/log.js';
 
 const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -61,11 +60,6 @@ export function speak(text, lang) {
 
 export function stopSpeaking() {
   if (ttsSupported) window.speechSynthesis.cancel();
-}
-
-export function toggleTts() {
-  set({ voice: { ...state.voice, ttsEnabled: !state.voice.ttsEnabled } }, 'voice');
-  if (!state.voice.ttsEnabled) stopSpeaking();
 }
 
 function stripForSpeech(text) {

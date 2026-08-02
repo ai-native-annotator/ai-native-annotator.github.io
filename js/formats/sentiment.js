@@ -25,16 +25,6 @@ const POLARITY_COLOR = { positive: '#2f9e6e', negative: '#d1493f', neutral: '#8a
 const SKILL_COLOR = { polarity: '#2f9e6e', aspect: '#2b7fd4', intensity: '#c08a1e' };
 const POLARITY_ZH = { positive: '正面', negative: '负面', neutral: '中性', mixed: '褒贬混合' };
 
-/** Run one flat sentiment skill against the given sentence; merges result fields into sentence.annotation. */
-export async function runFlatSkill(skillId, sentence, language) {
-  const meta = SKILLS.find((s) => s.id === skillId);
-  return runFlat(meta, sentence, language);
-}
-
-export function pendingSlots(sentence) {
-  return flatPendingSlots(SKILLS, sentence);
-}
-
 export default {
   id: 'sentiment',
   label: '情感标注（简单格式示例）',
@@ -47,6 +37,14 @@ export default {
     { id: 'json', label: 'JSON' },
   ],
   skillColor: (id) => SKILL_COLOR[id] || '#8a8f98',
+
+  // The flat-format contract ui/tree.js relies on. These MUST live on the
+  // default export: registry.js registers `mod.default`, so a named export
+  // here would be invisible to the UI — the pending rows would silently never
+  // appear and a new document could never be annotated.
+  pendingSlots: (sentence) => flatPendingSlots(SKILLS, sentence),
+  runSkill: (skillId, sentence, language) =>
+    runFlat(SKILLS.find((s) => s.id === skillId), sentence, language),
 
   renderSource(sentence) {
     return `<div class="plain-text">${esc(sentence.text)}</div>`;

@@ -87,7 +87,3 @@ export async function importSecretsFile(file) {
     githubToken: payload.githubToken || '',
   });
 }
-
-export function hasKey(provider) {
-  return Boolean((state.apiKeys[provider] || '').trim());
-}

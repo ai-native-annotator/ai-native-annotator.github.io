@@ -15,7 +15,7 @@
 
 import { esc, jsonHtml } from '../core/dom.js';
 import { defineSkill } from '../core/registry.js';
-import { flatPendingSlots } from '../core/flat.js';
+import { flatPendingSlots, runFlatSkill } from '../core/flat.js';
 
 export const SPEC_SCHEMA = {
   id: 'string — 格式标识（英文小写）',
@@ -90,7 +90,11 @@ export function buildFormat(spec) {
 
     renderExtra: () => '',
 
+    // flat-format contract (same as formats/sentiment.js): both must be on the
+    // format object itself, since that object is what the registry hands to the UI
     pendingSlots: (sentence) => flatPendingSlots(skills, sentence),
+    runSkill: (skillId, sentence, language) =>
+      runFlatSkill(skills.find((s) => s.id === skillId), sentence, language),
 
     nodeSummary(node) {
       const out = node.output || {};

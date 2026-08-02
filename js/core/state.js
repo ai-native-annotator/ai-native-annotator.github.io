@@ -59,18 +59,6 @@ export function currentSentence() {
   return state.doc?.sentences?.[state.selectedSentence] || null;
 }
 
-/** Resolve a node path like [0,2,1] against the current sentence's tree. */
-export function nodeAt(path) {
-  let nodes = currentSentence()?.tree || [];
-  let node = null;
-  for (const i of path) {
-    node = nodes[i];
-    if (!node) return null;
-    nodes = node.children || [];
-  }
-  return node;
-}
-
 // persist the few things worth persisting (no backend by design). API keys
 // and the GitHub token live in their own localStorage keys (settings.js /
 // io/github.js) so they can be exported/imported as a standalone file.

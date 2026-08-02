@@ -92,12 +92,6 @@ export function isConnected() {
 
 /* ---------------------------------------------------------------- browse */
 
-export async function listMyRepos() {
-  const { ok, data } = await ghJson('/user/repos?per_page=100&sort=updated&affiliation=owner,collaborator,organization_member');
-  if (!ok || !Array.isArray(data)) throw new Error(`获取仓库列表失败：${data?.message || '响应不是预期的列表'}`);
-  return data;
-}
-
 export async function listForks(owner, repo) {
   const { ok, data } = await ghJson(`/repos/${owner}/${repo}/forks?per_page=100`);
   if (!ok || !Array.isArray(data)) throw new Error(`获取 ${owner}/${repo} 的 fork 列表失败：${data?.message || '响应不是预期的列表'}`);

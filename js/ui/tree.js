@@ -14,7 +14,7 @@
  */
 
 import { state, set, pathKey, currentSentence } from '../core/state.js';
-import { esc, el } from '../core/dom.js';
+import { el } from '../core/dom.js';
 import { runPendingAt, getAt, SKILL_META } from '../core/pipeline.js';
 import { logInfo, logError, describeError } from '../core/log.js';
 import { toast } from './toast.js';

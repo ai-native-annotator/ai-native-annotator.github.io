@@ -15,7 +15,7 @@ import { el, esc, download } from '../core/dom.js';
 import { callProvider, PROVIDERS } from '../core/providers.js';
 import { extractJson } from '../core/runner.js';
 import { logInfo, logError, describeError } from '../core/log.js';
-import { sttSupported, ttsSupported, startDictation, speak } from '../voice.js';
+import { sttSupported, ttsSupported, startDictation, speak, stopSpeaking } from '../voice.js';
 
 let dictation = null;
 
@@ -77,7 +77,12 @@ export function renderChat(container, format) {
   if (ttsSupported) {
     const tts = el('button', {
       class: `btn ghost sm tts-btn${state.voice.ttsEnabled ? ' on' : ''}`, title: '朗读 AI 回复',
-      onclick: () => { set({ voice: { ...state.voice, ttsEnabled: !state.voice.ttsEnabled } }, 'voice'); renderChat(container, format); },
+      onclick: () => {
+        const next = !state.voice.ttsEnabled;
+        if (!next) stopSpeaking(); // turning it off should also cut off whatever is being read right now
+        set({ voice: { ...state.voice, ttsEnabled: next } }, 'voice');
+        renderChat(container, format);
+      },
     }, '🔊');
     bar.append(tts);
   }

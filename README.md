@@ -13,6 +13,10 @@ python3 -m http.server 8899
 
 必须用 HTTP 打开，不能直接双击 `index.html` —— 代码是 ES modules，`file://` 协议下浏览器会拦截。
 
+## 想读代码？
+
+**[`docs/CODE_WALKTHROUGH.md`](docs/CODE_WALKTHROUGH.md)** 是一份逐文件、逐函数的详解：核心数据结构、一次点击的完整调用链、`js/` 下全部 28 个文件在做什么、以及「想改 X 该动哪个文件」速查表。
+
 ## 这个工具做什么
 
 **标注 = 给文本加信息，每一组 label 由一个 skill 负责。** 标注树里每个节点就是一次 skill 调用；
