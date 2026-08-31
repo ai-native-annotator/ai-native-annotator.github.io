@@ -10,6 +10,7 @@ import { state, set, currentSentence } from '../core/state.js';
 import { el } from '../core/dom.js';
 import { renderTree } from './tree.js';
 import { sentenceDone } from '../core/pipeline.js';
+import { sentenceCoverage } from '../core/coverage.js';
 
 export function renderSource(container, format) {
   const sentence = currentSentence();
@@ -57,8 +58,43 @@ export function renderAnnotated(container, format) {
     el('span', { class: 'muted sm' }, `${countCalls(sentence.tree)} 次调用`));
   const tree = el('div', { class: 'tree-wrap' });
 
-  container.append(bar, artifact, treeHead, tree);
+  container.append(bar, artifact, coverageBar(sentence), treeHead, tree);
   renderTree(tree, format);
+}
+
+/**
+ * Back-check strip: does the annotation so far actually account for the
+ * source sentence? Shows the strict ratio, names every genuinely-lost token,
+ * and points at the step that dropped it.
+ */
+function coverageBar(sentence) {
+  if (!(sentence.tree || []).some((n) => !n.pending)) return null;
+  const report = sentenceCoverage(sentence, state.doc?.language || 'en');
+  const pct = Math.round(report.strict.ratio * 100);
+  const lost = report.strict.lost;
+  const cls = lost.length ? 'bad' : (pct === 100 ? 'good' : 'warn');
+
+  const row = el('div', { class: `coverage-bar ${cls}` },
+    el('span', { class: 'sub-label' }, '覆盖率回查'),
+    el('span', { class: 'cov-pct' }, `${pct}%`),
+    el('span', { class: 'cov-meter' }, el('span', { class: 'cov-fill', style: `width:${pct}%` })),
+    el('span', { class: 'muted sm' },
+      `已覆盖 ${report.strict.covered.length} / 合法省略 ${report.strict.dropped.length} / 丢失 ${lost.length}`),
+  );
+
+  if (!lost.length) return row;
+  const detail = el('div', { class: 'coverage-detail' },
+    el('div', {}, '原文中没有被任何节点覆盖的实词：',
+      ...lost.map((t) => el('code', { class: 'lost-tok' }, t))),
+    ...report.worstSteps.slice(0, 3).map((s) => el('div', { class: 'muted sm' },
+      `↳ ${s.skill}「${truncate(s.span, 34)}」丢了：${s.lost.join('、')}`)),
+  );
+  return el('div', { class: 'coverage-wrap' }, row, detail);
+}
+
+function truncate(s, n) {
+  const str = String(s ?? '');
+  return str.length > n ? str.slice(0, n) + '…' : str;
 }
 
 function countCalls(nodes = []) {

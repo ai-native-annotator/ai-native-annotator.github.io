@@ -18,6 +18,7 @@
 
 import { runSkillCall } from './runner.js';
 import { logInfo, logWarn } from './log.js';
+import { loadEffectiveText } from './skills.js';
 
 // Depth at which clause recursion stops and phrases are forced atomic/np —
 // mirrors umr_parser/pipeline.py's MAX_DEPTH / FORCE_ATOMIC_DEPTH exactly.
@@ -38,17 +39,14 @@ export const SKILL_META = {
 /* --------------------------------------------------------- vendored data */
 
 const DATA_BASE = 'data';
-const textCache = new Map();
 let abstractRolesets = null;
 
-async function fetchText(path) {
-  if (textCache.has(path)) return textCache.get(path);
-  const res = await fetch(`${DATA_BASE}/${path}`);
-  const text = res.ok ? await res.text() : '';
-  if (!res.ok) logWarn('pipeline', `技能文件缺失，已跳过：${path}`);
-  textCache.set(path, text);
-  return text;
-}
+/**
+ * Skill text goes through core/skills.js so that an amendment accepted in the
+ * chat pane is actually present in the very next prompt — that is what makes
+ * the feedback loop a loop rather than a suggestion box.
+ */
+const fetchText = loadEffectiveText;
 
 async function loadAbstractRolesets() {
   if (abstractRolesets) return abstractRolesets;

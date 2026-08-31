@@ -15,6 +15,8 @@ import { el, esc, download } from '../core/dom.js';
 import { callProvider, PROVIDERS } from '../core/providers.js';
 import { extractJson } from '../core/runner.js';
 import { logInfo, logError, describeError } from '../core/log.js';
+import { addAmendment } from '../core/skills.js';
+import { toast } from './toast.js';
 import { sttSupported, ttsSupported, startDictation, speak, stopSpeaking } from '../voice.js';
 
 let dictation = null;
@@ -103,15 +105,46 @@ function messageEl(msg, format) {
   }
   box.append(el('div', { class: 'msg-text', html: renderText(msg.text) }));
   if (msg.role === 'proposal') {
+    const status = el('span', { class: 'edit-status' });
     box.append(el('div', { class: 'proposal-actions' },
+      el('button', {
+        class: 'btn sm',
+        onclick: () => applyProposal(msg, status),
+      }, '应用到技能文件'),
       el('button', {
         class: 'btn sm ghost',
         onclick: () => download(
           `skill-proposal-${msg.skill || 'general'}-${Date.now()}.md`,
           msg.patch || msg.text, 'text/markdown'),
-      }, '导出为 .md 提案')));
+      }, '导出为 .md'),
+      status));
   }
   return box;
+}
+
+/**
+ * Close the loop: take the amendment out of the proposal and put it into the
+ * skill's instructions, so the next call to that skill actually runs with it.
+ * Without this the proposal is just a suggestion box.
+ */
+function applyProposal(msg, status) {
+  const file = msg.clash?.file;
+  if (!file) { status.textContent = '这条提案没有对应的技能文件'; status.className = 'edit-status err'; return; }
+  const rule = extractRule(msg.patch || msg.text);
+  if (!rule) { status.textContent = '提案里没有找到可写入的规则条款（应为 > 引用块）'; status.className = 'edit-status err'; return; }
+  addAmendment(file, rule);
+  set({}, 'chat');
+  status.textContent = `已写入 ${file}，下一次调用 ${msg.skill} 生效`;
+  status.className = 'edit-status ok';
+  toast(`已应用到 ${file} —— 下一次 ${msg.skill} 调用就会带上这条规则`);
+}
+
+/** Pull the `>` quoted rule out of a proposal; fall back to the whole text. */
+function extractRule(text) {
+  const quoted = String(text || '').split('\n').filter((l) => l.trim().startsWith('>'))
+    .map((l) => l.replace(/^\s*>\s?/, '').trim()).filter(Boolean);
+  if (quoted.length) return `- ${quoted.join(' ')}`;
+  return '';
 }
 
 function renderText(text) {

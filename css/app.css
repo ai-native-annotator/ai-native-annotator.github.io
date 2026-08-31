@@ -455,3 +455,21 @@ select:focus, input:focus, textarea:focus {
   .workspace { grid-template-columns: 1fr; grid-auto-rows: minmax(220px, auto); overflow: auto; }
   .legend { border: none; border-bottom: 1px solid var(--line); }
 }
+
+/* ===================================================== coverage back-check */
+.coverage-wrap { border-bottom: 1px solid var(--line-soft); }
+.coverage-bar {
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 11.5px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.coverage-bar.good .cov-pct { color: var(--success); }
+.coverage-bar.warn .cov-pct { color: var(--hi); }
+.coverage-bar.bad  .cov-pct { color: var(--danger); }
+.cov-pct { font-weight: 700; font-variant-numeric: tabular-nums; }
+.cov-meter { flex: 1; max-width: 120px; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.cov-fill { display: block; height: 100%; background: var(--success); }
+.coverage-bar.warn .cov-fill { background: var(--hi); }
+.coverage-bar.bad  .cov-fill { background: var(--danger); }
+.coverage-detail { padding: 8px 14px 10px; font-size: 11.5px; background: var(--danger-soft); display: flex; flex-direction: column; gap: 4px; }
+.lost-tok { font-family: var(--mono); background: var(--panel); border: 1px solid var(--danger); color: var(--danger); border-radius: 4px; padding: 1px 5px; margin-left: 4px; }
+.cov-flag { color: var(--danger); flex: none; cursor: help; }

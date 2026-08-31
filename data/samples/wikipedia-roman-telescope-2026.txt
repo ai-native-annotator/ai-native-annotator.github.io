@@ -1,0 +1,3 @@
+The telescope was launched as planned on 30 August 2026 at 11:26 UTC.
+Soon after separation from the launch vehicle, solar panels deployed and communications were established.
+The telescope will undergo a 90-day commissioning phase while traveling to the sun-Earth Lagrange Point 2.

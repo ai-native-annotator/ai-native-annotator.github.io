@@ -17,6 +17,7 @@ import { state, set, pathKey, currentSentence } from '../core/state.js';
 import { el } from '../core/dom.js';
 import { runPendingAt, getAt, SKILL_META } from '../core/pipeline.js';
 import { logInfo, logError, describeError } from '../core/log.js';
+import { stepCoverage } from '../core/coverage.js';
 import { toast } from './toast.js';
 
 const KIND_LABEL = {
@@ -69,6 +70,7 @@ function nodeEl(node, path, format) {
     el('span', { class: 'node-title' }, truncate(title, 46)),
     detail ? el('span', { class: 'node-detail' }, truncate(detail, 34)) : null,
     node.source ? el('span', { class: `src-dot ${node.source}`, title: sourceLabel(node) }) : null,
+    coverageFlag(node),
     edited ? el('span', { class: 'edited-flag', title: '人工已修改' }, '✎') : null,
   );
 
@@ -102,6 +104,17 @@ function pendingRow(marker, path, format) {
       el('span', { class: 'pending-phrase' }, truncate(marker.phrase, 50)),
       el('span', { class: 'pending-cta' }, running ? '运行中…' : '待运行'),
     ));
+}
+
+/** ⚠ badge on any step whose own decomposition dropped content words from its span. */
+function coverageFlag(node) {
+  if (!(node.children || []).some((c) => c.pending || c.role)) return null;
+  const cov = stepCoverage(node, state.doc?.language || 'en');
+  if (!cov || !cov.lost.length) return null;
+  return el('span', {
+    class: 'cov-flag',
+    title: `这一步没覆盖到原文里的：${cov.lost.join('、')}`,
+  }, '⚠');
 }
 
 function kindToSkillHint(kind) {

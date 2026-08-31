@@ -7,16 +7,7 @@
  */
 
 import { runSkillCall } from './runner.js';
-
-const skillTextCache = new Map();
-
-async function loadSkillText(file) {
-  if (skillTextCache.has(file)) return skillTextCache.get(file);
-  const res = await fetch(`data/${file}`);
-  const text = res.ok ? await res.text() : '';
-  skillTextCache.set(file, text);
-  return text;
-}
+import { loadEffectiveText as loadSkillText } from './skills.js';
 
 export async function runFlatSkill(skillDef, sentence, language) {
   const skillText = skillDef.file ? await loadSkillText(skillDef.file) : '';
