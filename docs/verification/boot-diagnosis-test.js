@@ -60,6 +60,72 @@ const banner = async (page) => {
     await page.close();
   }
 
+  console.log('\n--- 2b. a module in the graph THROWS (the real-world case) ---');
+  {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
+    // js/app.js itself is fine; something it imports blows up. Nothing fires on
+    // the <script> element here, which is exactly why the banner used to be
+    // able to say only "it never started".
+    await page.route(BASE + '/js/core/state.js', async (r) => {
+      const res = await r.fetch();
+      await r.fulfill({ status: 200, contentType: 'text/javascript',
+        body: (await res.text()) + '\nthrow new Error("deliberate module failure");\n' });
+    });
+    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(5500);
+    const b = await banner(page);
+    check('banner shown', Boolean(b));
+    check('prints the real error message', Boolean(b) && b.why.includes('deliberate module failure'), b?.why.slice(0, 150));
+    check('names the file it came from', Boolean(b) && b.why.includes('state.js'), b?.why.slice(0, 150));
+    await page.close();
+  }
+
+  console.log('\n--- 2c. a module in the graph 404s ---');
+  {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
+    await page.route(BASE + '/js/core/edits.js', (r) => r.fulfill({ status: 404, body: 'nope' }));
+    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(5500);
+    const b = await banner(page);
+    check('banner shown', Boolean(b));
+    check('says something concrete, not just "never started"',
+      Boolean(b) && (b.why.includes('edits.js') || b.why.includes('import') || b.why.includes('模块报错')
+        || b.why.includes('没有执行起来') || b.why.includes('did not run')), b?.why.slice(0, 200));
+    await page.close();
+  }
+
+  console.log('\n--- 2d. the server is not serving the repo root (js/app.js 404s) ---');
+  {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
+    await page.route(BASE + '/js/app.js', (r) => r.fulfill({ status: 404, body: 'not found' }));
+    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(5500);
+    const b = await banner(page);
+    check('banner shown', Boolean(b));
+    check('names the HTTP status or the file',
+      Boolean(b) && (b.why.includes('404') || b.why.includes('js/app.js')), b?.why.slice(0, 160));
+    await page.close();
+  }
+
+  console.log('\n--- 2e. stale cache: a module missing an export its sibling imports ---');
+  {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
+    // Exactly what a per-file 304 produces: fresh modules linked against a
+    // stale one. Nothing 404s, so a graph probe alone finds nothing wrong.
+    await page.route(BASE + '/js/core/state.js', async (r) => {
+      const res = await r.fetch();
+      const src = (await res.text()).replace(/export const editKey =/, 'const editKey =');
+      await r.fulfill({ status: 200, contentType: 'text/javascript', body: src });
+    });
+    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.waitForTimeout(5500);
+    const b = await banner(page);
+    check('banner shown', Boolean(b));
+    check('reports the missing export by name',
+      Boolean(b) && b.why.includes('editKey'), b?.why.slice(0, 190));
+    await page.close();
+  }
+
   console.log('\n--- 3. a data file 404s ---');
   {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });

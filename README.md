@@ -7,14 +7,27 @@
 代码是 ES modules，`file://` 协议下浏览器会以 CORS 为由**拒绝加载 `js/` 下的任何脚本**。
 页面照样会画出来，看着像能用，但**一行 JS 都没跑**——所有按钮（包括语言切换）按下去都没有反应。
 
-必须用 HTTP 打开：
+必须用 HTTP 打开，**并且请用仓库里自带的 `serve.py`**：
 
 ```bash
-python3 -m http.server 8899   # 在仓库根目录
-# 然后打开 http://localhost:8899/
+python3 serve.py          # 在仓库根目录，然后打开 http://localhost:8899/
 ```
 
-（页面顶部有一条红色横幅专门盯这件事：只要 `boot()` 没跑完，横幅就在，并写明原因；跑完了它自己消失。）
+它和 `python3 -m http.server` 的唯一区别是**禁用缓存**，而这一条很重要：
+
+`python3 -m http.server` 会按文件各自的 mtime 回 `304 Not Modified`，浏览器就继续用旧副本。
+对单个文件没问题，对 **ES module 图是灾难**——缓存是**逐文件**决定的，所以 `git pull` 之后
+很容易变成「新的 `i18n.js` + 旧的 `state.js`」。只要有一个模块 import 了旧邻居还没导出的名字：
+
+```
+The requested module './state.js' does not provide an export named 'editKey'
+```
+
+**整张模块图就链接失败，一行 JS 都不会跑**。而 `index.html` 自己照样渲染，所以页面看着完全正常，
+只是所有按钮都没反应。磁盘上的代码明明是对的，纯粹是缓存造成的，最难查。
+
+（页面顶部有一条红色横幅专门盯这件事：只要 `boot()` 没跑完横幅就在，并且会写明**卡在哪一步**、
+或者直接打印出模块的真实报错和文件行号；跑完了它自己消失。）
 
 ## 上线
 
