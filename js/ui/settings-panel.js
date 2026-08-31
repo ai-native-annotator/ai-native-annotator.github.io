@@ -6,7 +6,7 @@
  * provider's API from the browser when you actually run a skill.
  */
 
-import { el, $ } from '../core/dom.js';
+import { el, $, labelledRow } from '../core/dom.js';
 import { state, set } from '../core/state.js';
 import { PROVIDERS } from '../core/providers.js';
 import { setApiKey, setModel, saveSecrets, exportSecretsFile, importSecretsFile } from '../core/settings.js';
@@ -81,7 +81,7 @@ function section(title, children) {
 }
 
 function field(label, input, action) {
-  return el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, label), input, action);
+  return labelledRow(label, input, action);
 }
 
 function providerRow(id, meta) {

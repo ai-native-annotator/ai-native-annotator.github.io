@@ -9,8 +9,28 @@ export function esc(s) {
   ));
 }
 
+/**
+ * Every form control this app builds gets an id and a name, whether or not the
+ * caller thought to pass one.
+ *
+ * Chrome's Issues panel reports an input with neither as an accessibility
+ * problem, and it is a real one: without an id there is nothing for a <label>
+ * to point at, so a screen reader announces an unlabelled box. The controls are
+ * created in a dozen places across the panes, and relying on each site to
+ * remember is exactly how you end up with 25 of them. Assigning here means it
+ * cannot be forgotten.
+ */
+const FORM_TAGS = new Set(['input', 'textarea', 'select']);
+let fieldSeq = 0;
+export const nextFieldId = () => `f${++fieldSeq}`;
+
 export function el(tag, attrs = {}, ...children) {
   const node = document.createElement(tag);
+  if (FORM_TAGS.has(tag)) {
+    if (!attrs.id) attrs = { ...attrs, id: nextFieldId() };
+    // radios share a name on purpose — never overwrite one that was given
+    if (!attrs.name) attrs = { ...attrs, name: attrs.id };
+  }
   for (const [k, v] of Object.entries(attrs)) {
     if (k === 'class') node.className = v;
     else if (k === 'html') node.innerHTML = v;
@@ -47,4 +67,17 @@ export function download(filename, text, type = 'application/json') {
 export function fmtMs(ms) {
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
+}
+
+/**
+ * A labelled row: `<label for=…>` genuinely bound to its control.
+ *
+ * The panes all built this as a label and a control side by side inside a div,
+ * with nothing connecting them — which looks right and is not: clicking the
+ * label does nothing and assistive tech cannot pair them. Binding is one line,
+ * but only if there is one place to put it.
+ */
+export function labelledRow(labelText, control, extra = null, rowClass = 'settings-row', labelClass = 'settings-label') {
+  const label = el('label', { class: labelClass, for: control?.id || undefined }, labelText);
+  return el('div', { class: rowClass }, label, control, extra);
 }

@@ -178,12 +178,12 @@
     <span class="brand-name" data-i18n="app.title">AI 标注助手</span>
   </div>
 
-  <label class="ctl"><span data-i18n="toolbar.format">格式</span>
-    <select id="format-select"></select>
+  <label class="ctl" for="format-select"><span data-i18n="toolbar.format">格式</span>
+    <select id="format-select" name="format-select"></select>
   </label>
 
-  <label class="ctl"><span data-i18n="toolbar.document">文档</span>
-    <select id="doc-select"></select>
+  <label class="ctl" for="doc-select"><span data-i18n="toolbar.document">文档</span>
+    <select id="doc-select" name="doc-select"></select>
   </label>
 
   <div class="spacer"></div>
@@ -212,8 +212,8 @@
   <button id="btn-github" class="btn ghost sm">GitHub</button>
   <button id="btn-studio" class="btn ghost sm" data-i18n="toolbar.studio">格式生成器</button>
 
-  <label class="ctl"><span data-i18n="toolbar.mode">模式</span>
-    <select id="mode-select">
+  <label class="ctl" for="mode-select"><span data-i18n="toolbar.mode">模式</span>
+    <select id="mode-select" name="mode-select">
       <option value="replay" data-i18n="mode.replay">replay（回放 / 演示）</option>
       <option value="live" data-i18n="mode.live">live（真实调用模型）</option>
     </select>

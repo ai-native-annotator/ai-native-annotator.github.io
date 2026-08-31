@@ -14,7 +14,7 @@ const RULE = '当时间状语同时含日期与时刻时，必须用一个 :temp
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' })   // selects on Chinese UI text;
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push('PAGEERROR: ' + e.message));

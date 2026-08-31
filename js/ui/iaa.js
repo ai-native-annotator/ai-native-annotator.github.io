@@ -20,7 +20,7 @@
  * flat formats like sentiment) are computed from the same comparison pass.
  */
 
-import { el } from '../core/dom.js';
+import { el, labelledRow } from '../core/dom.js';
 import { state } from '../core/state.js';
 import {
   getFile, listBranches, mergeBranches, createBranch, putFile, createPullRequest, isConnected,
@@ -89,10 +89,10 @@ function renderSetup(body, prefill) {
   };
 
   body.append(
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('iaa.repo')), repoInput),
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('iaa.path')), pathInput),
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('iaa.branchA')), branchA),
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('iaa.branchB')), branchB),
+    labelledRow(t('iaa.repo'), repoInput),
+    labelledRow(t('iaa.path'), pathInput),
+    labelledRow(t('iaa.branchA'), branchA),
+    labelledRow(t('iaa.branchB'), branchB),
     el('div', { class: 'modal-actions' }, el('button', { class: 'btn', onclick: compare }, t('iaa.compare')), status),
     el('div', { class: 'hint' }, t('iaa.setupHint')),
   );

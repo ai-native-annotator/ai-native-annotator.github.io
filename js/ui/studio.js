@@ -8,7 +8,7 @@
  * the spec *is* the format definition.
  */
 
-import { el, jsonHtml, download } from '../core/dom.js';
+import { el, jsonHtml, download, labelledRow } from '../core/dom.js';
 import { state } from '../core/state.js';
 import { registerRuntimeFormat } from '../core/registry.js';
 import { buildFormat, specFromDescription, specPrompt } from '../formats/declarative.js';
@@ -75,8 +75,8 @@ export function openStudio(onCreated) {
         el('h3', {}, t('studio.title')),
         el('button', { class: 'btn sm ghost', onclick: () => close() }, t('common.close'))),
       el('div', { class: 'modal-body' },
-        el('div', { class: 'field' }, el('label', {}, t('studio.formatId')), idInput),
-        el('div', { class: 'field' }, el('label', {}, t('studio.describe')), desc),
+        labelledRow(t('studio.formatId'), idInput, null, 'field', ''),
+        labelledRow(t('studio.describe'), desc, null, 'field', ''),
         el('div', { class: 'modal-actions' },
           el('button', { class: 'btn', onclick: generate }, t('studio.generate')),
           el('button', { class: 'btn ghost', onclick: apply }, t('studio.apply')),
@@ -86,7 +86,9 @@ export function openStudio(onCreated) {
           }, t('studio.exportSpec')),
           status),
         el('div', { class: 'field' },
-          el('label', {}, t('studio.specLabel')),
+          // a contentEditable div is not a form control, so this stays a plain
+          // caption rather than a <label> pointing at something unlabellable
+          el('div', { class: 'field-caption' }, t('studio.specLabel')),
           el('div', { class: 'editable-wrap' }, Object.assign(preview, { contentEditable: 'true' }))),
         el('div', { class: 'hint' }, t('studio.hint')),
       )));

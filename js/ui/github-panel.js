@@ -6,7 +6,7 @@
  * the same repo to compare.
  */
 
-import { el, $ } from '../core/dom.js';
+import { el, $, labelledRow } from '../core/dom.js';
 import { state, set } from '../core/state.js';
 import { describeError } from '../core/log.js';
 import { toast } from './toast.js';
@@ -43,7 +43,7 @@ function renderBody(body, onLoadDoc) {
       } catch (err) { status.textContent = describeError(err); status.className = 'edit-status err'; }
     };
     body.append(
-      el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('settings.githubToken')), tokenInput,
+      labelledRow(t('settings.githubToken'), tokenInput,
         el('button', { class: 'btn sm', onclick: connect }, t('common.connect'))),
       el('div', { class: 'hint' }, t('gh.tokenHint')),
       status);
@@ -132,8 +132,8 @@ function branchAndFileSection(body, onLoadDoc) {
   };
 
   return el('div', { class: 'settings-section' },
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('gh.branch')), branchSel),
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('gh.path')), pathInput),
+    labelledRow(t('gh.branch'), branchSel),
+    labelledRow(t('gh.path'), pathInput),
     el('div', { class: 'modal-actions' },
       el('button', { class: 'btn sm', onclick: load }, t('gh.load')),
       el('button', { class: 'btn sm ghost', onclick: save }, t('gh.save')),

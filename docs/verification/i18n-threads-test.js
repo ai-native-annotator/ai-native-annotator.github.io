@@ -10,6 +10,8 @@ const S1 = 'The museum opened a new exhibit last week.';
 
 (async () => {
   const browser = await chromium.launch({ executablePath: process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  // Deliberately NO locale override: part 1 asserts the first visit follows the
+  // browser's own language, so pinning one here would test nothing.
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
   const errs = [];
   page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });

@@ -144,7 +144,7 @@ function reentrancyAnswer(prompt) {
 
 (async () => {
   const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
-  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' })   // selects on Chinese UI text;
   const consoleErrors = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });
   page.on('pageerror', (e) => consoleErrors.push('PAGEERROR: ' + e.message));
