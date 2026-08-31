@@ -1,13 +1,21 @@
 # Deploy the annotation workbench to GitHub Pages.
 #
-# One-time setup: Settings -> Pages -> Source = "GitHub Actions".
+# ONE-TIME SETUP, still required by a human with repo admin:
+#   Settings -> Pages -> Source = "GitHub Actions"
+# Until that is done this workflow can run but the site stays 404 — that is
+# exactly what happened here: it was written for `main`, this repo's default
+# branch is `claude/ai-annotator-web-full-uzmpyp`, so it never even fired.
+#
+# It now follows the default branch instead of a hard-coded name, so renaming
+# or merging elsewhere does not silently stop deploying.
+#
 # The site is static (no build step) — this just uploads the repo root.
 
 name: Deploy to Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, master, claude/ai-annotator-web-full-uzmpyp]
   workflow_dispatch:
 
 permissions:

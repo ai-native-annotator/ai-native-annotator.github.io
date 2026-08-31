@@ -11,6 +11,45 @@
 </head>
 <body>
 
+<!--
+  Visible by default; js/app.js removes it once boot() finishes. If the module
+  never loads (opened over file://, a bad path, a syntax error) the page still
+  renders this whole static layout and looks like a working app while nothing
+  at all is wired up — every button silently does nothing. This banner is what
+  turns that into a stated failure. The inline script is deliberately NOT a
+  module, so it runs even when module loading is what is broken.
+-->
+<div id="boot-error" class="boot-error" role="alert">
+  <strong>页面没有启动 · The app did not start</strong>
+  <span id="boot-error-why"></span>
+</div>
+<script>
+  (function () {
+    var why = document.getElementById('boot-error-why');
+    if (location.protocol === 'file:') {
+      why.textContent = '你是用 file:// 直接打开的 HTML。浏览器会以 CORS 为由拒绝加载 ES 模块，'
+        + '所以 js/ 下的代码一行都没跑 —— 界面是静态的，任何按钮（包括语言切换）都不会有反应。'
+        + '请在仓库根目录起一个本地服务器：python3 -m http.server 8899，然后访问 http://localhost:8899/'
+        + '  ·  Opened over file://, so the browser blocked the ES modules and no script ran. '
+        + 'Serve the folder instead: python3 -m http.server 8899 then open http://localhost:8899/';
+      return;
+    }
+    window.addEventListener('error', function (e) {
+      if (e.target && e.target.tagName === 'SCRIPT') {
+        why.textContent = '加载 ' + (e.target.src || 'js/app.js') + ' 失败。'
+          + '  ·  Failed to load ' + (e.target.src || 'js/app.js') + '.';
+      }
+    }, true);
+    setTimeout(function () {
+      var box = document.getElementById('boot-error');
+      if (box && !why.textContent) {
+        why.textContent = 'js/app.js 没有跑完 boot()。请打开浏览器控制台看具体报错。'
+          + '  ·  js/app.js did not finish boot(). Open the browser console for the actual error.';
+      }
+    }, 4000);
+  }());
+</script>
+
 <header class="toolbar">
   <div class="brand">
     <span class="logo">◧</span>

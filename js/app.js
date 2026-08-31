@@ -58,6 +58,9 @@ async function boot() {
   const first = state.docIndex.find((d) => d.format === state.formatId) || state.docIndex[0];
   if (first) await openDoc(first.id);
   else renderAll();
+  // Reaching here is the only proof the app is actually wired up; until now the
+  // page has been showing the boot-failure banner from index.html.
+  document.getElementById('boot-error')?.remove();
   logInfo('app', t('app.ready'));
 }
 
@@ -261,4 +264,10 @@ function wireMenus() {
   });
 }
 
-boot();
+boot().catch((err) => {
+  // A boot that throws leaves a fully-rendered but dead page. Say so in the
+  // banner rather than letting every button quietly do nothing.
+  const why = document.getElementById('boot-error-why');
+  if (why) why.textContent = `boot() 抛错：${err?.message || err}  ·  boot() threw: ${err?.message || err}`;
+  console.error('[app] boot failed', err);
+});

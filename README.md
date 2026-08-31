@@ -2,16 +2,25 @@
 
 面向 UMR（统一意义表示）等结构化标注任务的协作标注台。纯静态站点（无后端、无构建步骤），GitHub Pages 直接托管。
 
-在线地址：仓库 Settings → Pages → Source 设为 "GitHub Actions" 后，合并到 `main` 即自动部署。
+## ⚠️ 先看这里：不要双击 `index.html`
 
-## 本地运行
+代码是 ES modules，`file://` 协议下浏览器会以 CORS 为由**拒绝加载 `js/` 下的任何脚本**。
+页面照样会画出来，看着像能用，但**一行 JS 都没跑**——所有按钮（包括语言切换）按下去都没有反应。
+
+必须用 HTTP 打开：
 
 ```bash
-python3 -m http.server 8899
-# 打开 http://localhost:8899/
+python3 -m http.server 8899   # 在仓库根目录
+# 然后打开 http://localhost:8899/
 ```
 
-必须用 HTTP 打开，不能直接双击 `index.html` —— 代码是 ES modules，`file://` 协议下浏览器会拦截。
+（页面顶部有一条红色横幅专门盯这件事：只要 `boot()` 没跑完，横幅就在，并写明原因；跑完了它自己消失。）
+
+## 上线
+
+仓库 **Settings → Pages → Source 设为 "GitHub Actions"**——这一步必须由有仓库管理权限的人手动做一次，
+在此之前无论推多少次，`https://<owner>.github.io/` 都是 404。设好之后，推送到默认分支会自动触发
+`.github/workflows/pages.yml` 部署；也可以在 Actions 页面手动 `Run workflow`。
 
 ## 想读代码？
 

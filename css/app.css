@@ -486,3 +486,16 @@ select:focus, input:focus, textarea:focus {
   display: inline-flex; align-items: center; justify-content: center;
 }
 .thread-chip:hover .thread-count { filter: brightness(1.1); }
+
+/* ============================================== boot failure (see index.html)
+   Shown until js/app.js finishes boot(). If the modules never load, the rest
+   of the page still renders and looks alive while nothing is wired — this is
+   what says so out loud instead of leaving every button silently inert. */
+.boot-error {
+  position: fixed; inset: 0 0 auto 0; z-index: 9999;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 12px 18px; font-size: 12.5px; line-height: 1.6;
+  background: #7f1d1d; color: #fff;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, .35);
+}
+.boot-error strong { font-size: 13.5px; }
