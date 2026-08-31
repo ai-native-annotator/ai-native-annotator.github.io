@@ -19,22 +19,23 @@
  *      it for real. See data/skills + core/pipeline.js for the live path.
  */
 
-import { state } from '../core/state.js';
+import { state, traceKey } from '../core/state.js';
 import { logInfo, logWarn } from '../core/log.js';
 import { download } from '../core/dom.js';
 import { advanceSentence } from '../core/pipeline.js';
+import { t } from '../core/i18n.js';
 
 const DEMO_BASE = 'data/demo';
 
 export async function listDemos() {
   const res = await fetch(`${DEMO_BASE}/index.json`);
-  if (!res.ok) throw new Error('无法加载演示语料索引 (data/demo/index.json)');
+  if (!res.ok) throw new Error(t('sources.noIndex'));
   return res.json();
 }
 
 export async function loadDemo(id) {
   const res = await fetch(`${DEMO_BASE}/${id}.json`);
-  if (!res.ok) throw new Error(`无法加载演示文档 ${id}`);
+  if (!res.ok) throw new Error(t('sources.noDemo', { id }));
   const doc = await res.json();
   normalizeDoc(doc);
   return doc;
@@ -48,7 +49,7 @@ export function openLocalFile() {
     input.accept = '.json,.umr,.txt';
     input.onchange = () => {
       const file = input.files?.[0];
-      if (!file) return reject(new Error('未选择文件'));
+      if (!file) return reject(new Error(t('sources.noFile')));
       file.text().then((text) => resolve(parseDocument(text, file.name))).catch(reject);
     };
     input.click();
@@ -67,7 +68,7 @@ export function parseDocument(text, filename = 'untitled') {
   const trimmed = text.trim();
   if (trimmed.startsWith('{')) {
     const doc = JSON.parse(trimmed);
-    if (!doc.sentences) throw new Error('JSON 缺少 sentences 字段');
+    if (!doc.sentences) throw new Error(t('sources.noSentences'));
     normalizeDoc(doc);
     return doc;
   }
@@ -88,7 +89,7 @@ export function parseDocument(text, filename = 'untitled') {
     })),
   };
   normalizeDoc(doc);
-  logInfo('sources', `已导入未标注文档「${doc.id}」，共 ${doc.sentences.length} 句，标注树为空 —— 可以开始逐技能标注。`);
+  logInfo('sources', t('sources.imported', { id: doc.id, n: doc.sentences.length }));
   return doc;
 }
 
@@ -109,7 +110,7 @@ function normalizeDoc(doc) {
     const before = countPending(s.tree) + countResolved(s.tree);
     repairNode({ children: s.tree }, 1);
     const gaps = fillMissingPending(s.tree);
-    if (gaps) logWarn('sources', `句 ${s.index}：修复了历史录制数据中缺失的 ${gaps} 处子调用（现在可在 live 模式下补全）`);
+    if (gaps) logWarn('sources', t('sources.repaired', { n: s.index, gaps }));
     advanceSentence(s);
   }
   doc._trace = buildTraceIndex(doc);
@@ -174,7 +175,7 @@ function buildTraceIndex(doc) {
   const walk = (nodes) => {
     for (const n of nodes || []) {
       if (!n.pending) {
-        idx.set(`${n.skill} ${n.span}`, { output: n.output, rationale: n.rationale, rawText: n.rawText, model: n.model });
+        idx.set(traceKey(n.skill, n.span), { output: n.output, rationale: n.rationale, rawText: n.rawText, model: n.model });
         walk(n.children);
       }
     }
@@ -206,7 +207,7 @@ export function exportDocumentFile() {
   const doc = exportDocument();
   if (!doc) return false;
   download(`${doc.id}-annotated.json`, JSON.stringify(doc, null, 1));
-  logInfo('sources', `已导出标注文档「${doc.id}」`);
+  logInfo('sources', t('sources.exported', { id: doc.id }));
   return true;
 }
 

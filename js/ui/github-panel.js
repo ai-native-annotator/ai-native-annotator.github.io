@@ -16,13 +16,14 @@ import {
 } from '../io/github.js';
 import { exportDocument } from '../io/sources.js';
 import { openIaa } from './iaa.js';
+import { t } from '../core/i18n.js';
 
 export function openGithubPanel(onLoadDoc) {
   const overlay = el('div', { class: 'overlay', onclick: (e) => { if (e.target === overlay) close(); } });
   const close = () => overlay.remove();
   const body = el('div', { class: 'modal-body' });
   overlay.append(el('div', { class: 'modal github-modal' },
-    el('div', { class: 'modal-head' }, el('h3', {}, ' GitHub'), el('button', { class: 'btn sm ghost', onclick: close }, '关闭')),
+    el('div', { class: 'modal-head' }, el('h3', {}, t('gh.title')), el('button', { class: 'btn sm ghost', onclick: close }, t('common.close'))),
     body));
   document.body.append(overlay);
   renderBody(body, onLoadDoc);
@@ -31,46 +32,46 @@ export function openGithubPanel(onLoadDoc) {
 function renderBody(body, onLoadDoc) {
   body.innerHTML = '';
   if (!isConnected()) {
-    const tokenInput = el('input', { class: 'settings-input', type: 'password', placeholder: 'ghp_... 或 github_pat_...' });
+    const tokenInput = el('input', { class: 'settings-input', type: 'password', placeholder: t('settings.tokenPlaceholder') });
     const status = el('span', { class: 'edit-status' });
     const connect = async () => {
-      status.textContent = '验证中…'; status.className = 'edit-status';
+      status.textContent = t('gh.verifying'); status.className = 'edit-status';
       try {
         await connectGithub(tokenInput.value);
-        toast('已连接 GitHub');
+        toast(t('gh.connected', { login: state.github.user?.login || '' }));
         renderBody(body, onLoadDoc);
       } catch (err) { status.textContent = describeError(err); status.className = 'edit-status err'; }
     };
     body.append(
-      el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, 'Personal Access Token'), tokenInput,
-        el('button', { class: 'btn sm', onclick: connect }, '连接')),
-      el('div', { class: 'hint' }, '需要 repo 权限。也可以在「⚙ 设置」里预先填好并保存。'),
+      el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('settings.githubToken')), tokenInput,
+        el('button', { class: 'btn sm', onclick: connect }, t('common.connect'))),
+      el('div', { class: 'hint' }, t('gh.tokenHint')),
       status);
     return;
   }
 
   body.append(el('div', { class: 'gh-user-row' },
-    `已连接：@${state.github.user.login}`,
-    el('button', { class: 'btn sm ghost', onclick: () => { disconnectGithub(); renderBody(body, onLoadDoc); } }, '断开')));
+    t('gh.connected', { login: state.github.user.login }),
+    el('button', { class: 'btn sm ghost', onclick: () => { disconnectGithub(); renderBody(body, onLoadDoc); } }, t('common.disconnect'))));
 
-  const repoInput = el('input', { class: 'settings-input', placeholder: 'owner/repo，例如 ai-native-annotator/ai-native-annotator.github.io',
+  const repoInput = el('input', { class: 'settings-input', placeholder: t('gh.repoPlaceholder'),
     value: state.github.owner ? `${state.github.owner}/${state.github.repo}` : '' });
   const networkBox = el('div', { class: 'gh-network' });
   const browse = async () => {
     const [owner, repo] = repoInput.value.trim().split('/');
-    if (!owner || !repo) { toast('请输入 owner/repo', true); return; }
-    networkBox.innerHTML = '加载中…';
+    if (!owner || !repo) { toast(t('gh.needOwnerRepo'), true); return; }
+    networkBox.innerHTML = t('common.loading');
     try {
       const { origin, forks } = await listNetwork(owner, repo);
       networkBox.innerHTML = '';
       networkBox.append(repoRow(origin, '(origin)', onLoadDoc, body));
       for (const f of forks) networkBox.append(repoRow(f, `fork · @${f.owner.login}`, onLoadDoc, body));
-      if (!forks.length) networkBox.append(el('div', { class: 'hint' }, '这个仓库还没有 fork。'));
+      if (!forks.length) networkBox.append(el('div', { class: 'hint' }, t('gh.noForks')));
     } catch (err) { networkBox.innerHTML = ''; toast(describeError(err), true); }
   };
 
   body.append(
-    el('div', { class: 'settings-row' }, repoInput, el('button', { class: 'btn sm ghost', onclick: browse }, '浏览仓库 / forks')),
+    el('div', { class: 'settings-row' }, repoInput, el('button', { class: 'btn sm ghost', onclick: browse }, t('gh.browse'))),
     networkBox,
   );
 
@@ -80,13 +81,16 @@ function renderBody(body, onLoadDoc) {
 }
 
 function repoRow(repo, tag, onLoadDoc, body) {
+  // `full_name` is what the API returns, but derive it rather than render an
+  // empty row if a response ever comes back without it.
+  const fullName = repo.full_name || `${repo.owner?.login || '?'}/${repo.name || '?'}`;
   return el('div', { class: 'gh-repo-row' },
-    el('span', { class: 'gh-repo-name' }, repo.full_name),
+    el('span', { class: 'gh-repo-name' }, fullName),
     el('span', { class: 'muted sm' }, tag),
     el('button', { class: 'btn sm ghost', onclick: () => {
       set({ github: { ...state.github, owner: repo.owner.login, repo: repo.name, branch: repo.default_branch || 'main' } });
       renderBody(body, onLoadDoc);
-    } }, '选择'));
+    } }, t('common.select')));
 }
 
 function branchAndFileSection(body, onLoadDoc) {
@@ -101,39 +105,39 @@ function branchAndFileSection(body, onLoadDoc) {
   }).catch((err) => toast(describeError(err), true));
   branchSel.onchange = () => set({ github: { ...state.github, branch: branchSel.value } });
 
-  const pathInput = el('input', { class: 'settings-input', placeholder: '文件路径，例如 annotations/doc1.json', value: 'annotated.json' });
+  const pathInput = el('input', { class: 'settings-input', placeholder: t('gh.path'), value: 'annotated.json' });
   const status = el('span', { class: 'edit-status' });
 
   const load = async () => {
-    status.textContent = '加载中…'; status.className = 'edit-status';
+    status.textContent = t('common.loading'); status.className = 'edit-status';
     try {
       const doc = await importFromGithubFile(owner, repo, pathInput.value.trim(), branchSel.value);
       onLoadDoc(doc);
-      toast(`已从 ${owner}/${repo}@${branchSel.value} 载入`);
+      toast(t('gh.loaded', { repo: `${owner}/${repo}`, branch: branchSel.value }));
       status.textContent = ''; document.querySelector('.overlay')?.remove();
     } catch (err) { status.textContent = describeError(err); status.className = 'edit-status err'; }
   };
 
   const save = async () => {
     const doc = exportDocument();
-    if (!doc) { toast('还没有可导出的文档', true); return; }
-    status.textContent = '保存中…'; status.className = 'edit-status';
+    if (!doc) { toast(t('gh.noDoc'), true); return; }
+    status.textContent = t('gh.saving'); status.className = 'edit-status';
     try {
       const existing = await getFile(owner, repo, pathInput.value.trim(), branchSel.value);
       await putFile(owner, repo, pathInput.value.trim(), JSON.stringify(doc, null, 1),
         `annotate: update ${doc.id}`, branchSel.value, existing?.sha);
-      toast(`已提交到 ${owner}/${repo}@${branchSel.value}`);
-      status.textContent = '已保存'; status.className = 'edit-status ok';
+      toast(t('gh.saved', { repo: `${owner}/${repo}`, branch: branchSel.value }));
+      status.textContent = t('gh.savedShort'); status.className = 'edit-status ok';
     } catch (err) { status.textContent = describeError(err); status.className = 'edit-status err'; }
   };
 
   return el('div', { class: 'settings-section' },
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, '分支'), branchSel),
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, '文件路径'), pathInput),
+    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('gh.branch')), branchSel),
+    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('gh.path')), pathInput),
     el('div', { class: 'modal-actions' },
-      el('button', { class: 'btn sm', onclick: load }, '从此载入标注'),
-      el('button', { class: 'btn sm ghost', onclick: save }, '保存标注到此分支'),
-      el('button', { class: 'btn sm ghost', onclick: () => openIaa({ owner, repo, path: pathInput.value.trim() }) }, 'Inter-Annotator 合并…'),
+      el('button', { class: 'btn sm', onclick: load }, t('gh.load')),
+      el('button', { class: 'btn sm ghost', onclick: save }, t('gh.save')),
+      el('button', { class: 'btn sm ghost', onclick: () => openIaa({ owner, repo, path: pathInput.value.trim() }) }, t('gh.iaa')),
       status));
 }
 

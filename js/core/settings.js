@@ -13,6 +13,7 @@
 import { state, set } from './state.js';
 import { download } from './dom.js';
 import { logInfo } from './log.js';
+import { t } from './i18n.js';
 
 const KEY = 'annotator_secrets';
 
@@ -50,7 +51,7 @@ export function saveSecrets(patch) {
     models: next.models,
     github: { ...state.github, token: next.githubToken },
   });
-  logInfo('settings', '本地设置已保存（仅存于本机，不上传任何服务器）');
+  logInfo('settings', t('settings.savedLog'));
   return next;
 }
 
@@ -70,10 +71,10 @@ export function exportSecretsFile() {
     driveClientId: localStorage.getItem('gdrive_client_id') || '',
     githubToken: state.github.token,
     exportedAt: new Date().toISOString(),
-    note: 'AI 标注助手本地凭据备份。请妥善保管，不要提交到公开仓库。',
+    note: t('settings.fileNote'),
   };
   download('annotator-credentials.json', JSON.stringify(payload, null, 2));
-  logInfo('settings', '凭据已导出为本地文件');
+  logInfo('settings', t('settings.exportedLog'));
 }
 
 /** Import a previously-exported credentials file. */

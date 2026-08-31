@@ -14,6 +14,7 @@
  */
 
 import { logInfo, logWarn } from './log.js';
+import { t } from './i18n.js';
 
 const STORE_KEY = 'annotator_skill_overrides';
 const baseCache = new Map();     // relPath -> original file text
@@ -31,7 +32,7 @@ export async function loadBaseText(relPath) {
   if (baseCache.has(relPath)) return baseCache.get(relPath);
   const res = await fetch(`data/${relPath}`);
   const text = res.ok ? await res.text() : '';
-  if (!res.ok) logWarn('skills', `技能文件缺失，已跳过：${relPath}`);
+  if (!res.ok) logWarn('skills', t('pipe.skillMissing', { path: relPath }));
   baseCache.set(relPath, text);
   return text;
 }
@@ -44,7 +45,7 @@ export async function loadEffectiveText(relPath) {
   const base = await loadBaseText(relPath);
   const amendment = overrides[relPath];
   if (!amendment) return base;
-  return `${base}\n\n## 人工修订（本地生效，尚未合入仓库）\n\n${amendment}`;
+  return `${base}\n\n${t('skills.amendHeading')}\n\n${amendment}`;
 }
 
 export function getOverride(relPath) { return overrides[relPath] || ''; }
@@ -57,20 +58,20 @@ export function addAmendment(relPath, text) {
   if (!trimmed) return '';
   overrides[relPath] = overrides[relPath] ? `${overrides[relPath]}\n\n${trimmed}` : trimmed;
   persist();
-  logInfo('skills', `已应用修订到 ${relPath} —— 下一次调用该 skill 就会带上这条规则`);
+  logInfo('skills', t('skills.applied', { file: relPath }));
   return overrides[relPath];
 }
 
 export function clearOverride(relPath) {
   delete overrides[relPath];
   persist();
-  logInfo('skills', `已撤销 ${relPath} 的本地修订`);
+  logInfo('skills', t('skills.reverted', { file: relPath }));
 }
 
 export function clearAllOverrides() {
   overrides = {};
   persist();
-  logInfo('skills', '已撤销全部本地技能修订');
+  logInfo('skills', 'all local skill amendments reverted');
 }
 
 /** Full merged file text, for committing back to the repo. */

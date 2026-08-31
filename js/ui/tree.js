@@ -15,27 +15,25 @@
 
 import { state, set, pathKey, currentSentence } from '../core/state.js';
 import { el } from '../core/dom.js';
-import { runPendingAt, getAt, SKILL_META } from '../core/pipeline.js';
+import { runPendingAt, getAt } from '../core/pipeline.js';
 import { logInfo, logError, describeError } from '../core/log.js';
 import { stepCoverage } from '../core/coverage.js';
 import { toast } from './toast.js';
+import { t } from '../core/i18n.js';
 
-const KIND_LABEL = {
-  discourse: '篇章关系（第一步）', clause: '从句', np: '名词短语', special: '特殊实体',
-  atomic: '原子概念', reentrancy: '同指消解', doc_level: '篇章级标注',
-};
+const KIND_LABEL = (kind) => t(`kind.${kind}`);
 
 export function renderTree(container, format) {
   const sentence = currentSentence();
   container.innerHTML = '';
-  if (!sentence) { container.append(el('div', { class: 'empty' }, '未载入文档')); return; }
+  if (!sentence) { container.append(el('div', { class: 'empty' }, t('common.notLoaded'))); return; }
 
   const nodes = format.flat
     ? [...(sentence.tree || []), ...(format.pendingSlots?.(sentence) || [])]
     : (sentence.tree || []);
 
   if (!nodes.length) {
-    container.append(el('div', { class: 'empty' }, '该句还没有标注调用 —— 请稍候'));
+    container.append(el('div', { class: 'empty' }, t('tree.empty')));
     return;
   }
   const list = el('div', { class: 'tree' });
@@ -71,7 +69,7 @@ function nodeEl(node, path, format) {
     detail ? el('span', { class: 'node-detail' }, truncate(detail, 34)) : null,
     node.source ? el('span', { class: `src-dot ${node.source}`, title: sourceLabel(node) }) : null,
     coverageFlag(node),
-    edited ? el('span', { class: 'edited-flag', title: '人工已修改' }, '✎') : null,
+    edited ? el('span', { class: 'edited-flag', title: t('tree.edited') }, '✎') : null,
   );
 
   const wrap = el('div', { class: 'node' }, row);
@@ -89,20 +87,20 @@ function pendingRow(marker, path, format) {
   const blocked = state.running.size > 0 && !running;
   const label = format.flat
     ? (format.skills?.find((s) => s.id === marker.kind)?.label || marker.kind)
-    : (KIND_LABEL[marker.kind] || marker.kind);
+    : KIND_LABEL(marker.kind);
   const skillHint = format.flat ? marker.kind : (kindToSkillHint(marker.kind));
 
   return el('div', { class: 'node' },
     el('div', {
       class: `node-row pending-row${running ? ' running' : ''}${blocked ? ' blocked' : ''}`,
-      title: blocked ? '有一个标注正在进行，请稍候' : `点击运行 ${skillHint}`,
+      title: blocked ? t('tree.blocked') : t('tree.clickToRun', { skill: skillHint }),
       onclick: (e) => { e.stopPropagation(); if (!blocked) runPending(format, marker, path, runKey); },
     },
       el('span', { class: `run-glyph${running ? ' spin' : ''}` }, running ? '◐' : '▶'),
       el('span', { class: 'pending-kind' }, label),
       marker.role ? el('span', { class: 'role-chip' }, marker.role) : null,
       el('span', { class: 'pending-phrase' }, truncate(marker.phrase, 50)),
-      el('span', { class: 'pending-cta' }, running ? '运行中…' : '待运行'),
+      el('span', { class: 'pending-cta' }, running ? t('tree.running') : t('tree.pending')),
     ));
 }
 
@@ -113,7 +111,7 @@ function coverageFlag(node) {
   if (!cov || !cov.lost.length) return null;
   return el('span', {
     class: 'cov-flag',
-    title: `这一步没覆盖到原文里的：${cov.lost.join('、')}`,
+    title: t('cov.flagTitle', { lost: cov.lost.join(', ') }),
   }, '⚠');
 }
 
@@ -121,14 +119,14 @@ function kindToSkillHint(kind) {
   if (kind === 'clause') return 'predicate + arguments';
   if (kind === 'np') return 'np_phrase';
   if (kind === 'special') return 'special_entity';
-  if (kind === 'atomic') return '(代码判定，无需模型)';
-  return SKILL_META[kind]?.label || kind;
+  if (kind === 'atomic') return t('tree.atomicHint');
+  return t(`kind.${kind}`);
 }
 
 function sourceLabel(node) {
   if (node.source === 'live') return `live · ${node.model || ''}`.trim();
-  if (node.source === 'replay') return 'replay：录制数据回放';
-  if (node.source === 'rule') return '代码规则判定，未调用模型';
+  if (node.source === 'replay') return t('tree.srcReplay');
+  if (node.source === 'rule') return t('tree.srcRule');
   return node.source || '';
 }
 
@@ -143,19 +141,19 @@ async function runPending(format, marker, path, runKey) {
   const sentence = currentSentence();
   try {
     if (format.flat) {
-      logInfo('ui', `运行 ${marker.kind} · "${truncate(sentence.text, 30)}"`);
+      logInfo('ui', t('tree.running.log', { kind: marker.kind, text: truncate(sentence.text, 30) }));
       const node = await format.runSkill(marker.kind, sentence, state.doc.language || 'en');
       sentence.tree.push(node);
       set({ selectedNode: { path: [sentence.tree.length - 1], node } }, 'tree', 'artifact', 'selectedNode');
     } else {
-      logInfo('ui', `运行 ${marker.kind} · "${truncate(marker.phrase, 30)}"`);
+      logInfo('ui', t('tree.running.log', { kind: marker.kind, text: truncate(marker.phrase, 30) }));
       await runPendingAt(state.doc, state.selectedSentence, path);
       const node = getAt(sentence.tree, path);
       set({ selectedNode: { path, node } }, 'tree', 'artifact', 'selectedNode');
     }
   } catch (err) {
-    logError('ui', `标注步骤失败（${marker.kind}）：${describeError(err)}`, err);
-    toast(`标注失败：${describeError(err)}`, true);
+    logError('ui', t('tree.runFailedLog', { kind: marker.kind, err: describeError(err) }), err);
+    toast(t('tree.runFailed', { err: describeError(err) }), true);
     set({}, 'tree');
   } finally {
     state.running.delete(runKey);

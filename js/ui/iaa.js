@@ -28,17 +28,18 @@ import {
 import { parseDocument } from '../io/sources.js';
 import { logInfo, logError, describeError } from '../core/log.js';
 import { toast } from './toast.js';
+import { t } from '../core/i18n.js';
 
 export function openIaa(prefill = {}) {
   if (!isConnected()) {
-    toast('请先在「GitHub」面板里连接账号，再发起 inter-annotator 合并。', true);
+    toast(t('iaa.needConnect'), true);
     return;
   }
   const overlay = el('div', { class: 'overlay', onclick: (e) => { if (e.target === overlay) close(); } });
   const close = () => overlay.remove();
   const body = el('div', { class: 'modal-body iaa-body' });
   overlay.append(el('div', { class: 'modal iaa-modal' },
-    el('div', { class: 'modal-head' }, el('h3', {}, 'Inter-Annotator 合并'), el('button', { class: 'btn sm ghost', onclick: close }, '关闭')),
+    el('div', { class: 'modal-head' }, el('h3', {}, t('iaa.title')), el('button', { class: 'btn sm ghost', onclick: close }, t('common.close'))),
     body));
   document.body.append(overlay);
   renderSetup(body, prefill);
@@ -48,7 +49,7 @@ function renderSetup(body, prefill) {
   body.innerHTML = '';
   const { owner = '', repo = '' } = prefill;
   const repoInput = el('input', { class: 'settings-input', placeholder: 'owner/repo', value: owner && repo ? `${owner}/${repo}` : '' });
-  const pathInput = el('input', { class: 'settings-input', placeholder: '文件路径', value: prefill.path || 'annotated.json' });
+  const pathInput = el('input', { class: 'settings-input', placeholder: t('iaa.path'), value: prefill.path || 'annotated.json' });
   const branchA = el('select', { class: 'settings-input' });
   const branchB = el('select', { class: 'settings-input' });
   const status = el('span', { class: 'edit-status' });
@@ -71,41 +72,39 @@ function renderSetup(body, prefill) {
   const compare = async () => {
     const [o, r] = repoInput.value.trim().split('/');
     const path = pathInput.value.trim();
-    if (!o || !r || !path || !branchA.value || !branchB.value) { toast('请填完 仓库 / 文件路径 / 两个分支', true); return; }
-    status.textContent = '正在读取两个分支的标注…'; status.className = 'edit-status';
+    if (!o || !r || !path || !branchA.value || !branchB.value) { toast(t('iaa.needAll'), true); return; }
+    status.textContent = t('iaa.reading'); status.className = 'edit-status';
     try {
       const [fileA, fileB] = await Promise.all([
         getFile(o, r, path, branchA.value), getFile(o, r, path, branchB.value),
       ]);
-      if (!fileA || !fileB) throw new Error('其中一个分支上没有找到这个文件');
+      if (!fileA || !fileB) throw new Error(t('iaa.fileMissing'));
       const docA = parseDocument(fileA.text, path);
       const docB = parseDocument(fileB.text, path);
       renderCompare(body, { owner: o, repo: r, path, branchA: branchA.value, branchB: branchB.value, docA, docB });
     } catch (err) {
-      logError('iaa', `读取/比较失败：${describeError(err)}`, err);
+      logError('iaa', `compare failed: ${describeError(err)}`, err);
       status.textContent = describeError(err); status.className = 'edit-status err';
     }
   };
 
   body.append(
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, '仓库'), repoInput),
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, '文件路径'), pathInput),
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, '标注者 A 分支'), branchA),
-    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, '标注者 B 分支'), branchB),
-    el('div', { class: 'modal-actions' }, el('button', { class: 'btn', onclick: compare }, '比较并尝试合并'), status),
-    el('div', { class: 'hint' },
-      '会先调用 GitHub 的合并 API 尝试真正的 git merge；两份独立标注几乎总会在文本层面冲突（和本地 `git merge` 一样），'
-      + '冲突时下方给出逐节点的可视化冲突解决界面。'),
+    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('iaa.repo')), repoInput),
+    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('iaa.path')), pathInput),
+    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('iaa.branchA')), branchA),
+    el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('iaa.branchB')), branchB),
+    el('div', { class: 'modal-actions' }, el('button', { class: 'btn', onclick: compare }, t('iaa.compare')), status),
+    el('div', { class: 'hint' }, t('iaa.setupHint')),
   );
 }
 
 async function renderCompare(body, ctx) {
-  body.innerHTML = '正在尝试 git merge…';
+  body.innerHTML = t('iaa.merging');
   let mergeResult = null;
   try {
     mergeResult = await mergeBranches(ctx.owner, ctx.repo, ctx.branchA, ctx.branchB, `iaa: merge ${ctx.branchB} into ${ctx.branchA} for review`);
   } catch (err) {
-    logError('iaa', `merge API 调用失败：${describeError(err)}`, err);
+    logError('iaa', `merge API failed: ${describeError(err)}`, err);
   }
 
   const resolutions = new Map();
@@ -217,36 +216,33 @@ function renderResult(body, ctx, mergeResult, items, resolutions, stats, rerende
   const disagreements = items.filter((it) => it.status !== 'agree');
 
   const mergeBanner = mergeResult?.merged
-    ? el('div', { class: 'iaa-banner ok' }, mergeResult.alreadyUpToDate
-        ? `git merge：${ctx.branchB} 与 ${ctx.branchA} 已一致，无需合并。`
-        : `git merge：${ctx.branchB} → ${ctx.branchA} 自动合并成功（无文本冲突）。`)
-    : el('div', { class: 'iaa-banner conflict' },
-        `git merge：${ctx.branchB} → ${ctx.branchA} 存在文本冲突（与预期一致 —— 两份独立标注很少逐字节相同）。`
-        + '下面按节点逐一裁决，裁决结果会被真正提交到一个新分支。');
+    ? el('div', { class: 'iaa-banner ok' }, t(mergeResult.alreadyUpToDate ? 'iaa.upToDate' : 'iaa.mergedClean',
+        { head: ctx.branchB, base: ctx.branchA }))
+    : el('div', { class: 'iaa-banner conflict' }, t('iaa.conflict', { head: ctx.branchB, base: ctx.branchA }));
 
   const statsBox = el('div', { class: 'iaa-stats' },
-    stat('可比节点', stats.comparable),
-    stat('一致', stats.agree),
-    stat('一致率', stats.pct !== null ? `${stats.pct}%` : '—'),
-    stat('仅一方存在（结构性分歧）', stats.structural),
-    stats.kappa ? stat("Cohen's κ (polarity)", `${stats.kappa.value} (n=${stats.kappa.n})`) : null,
+    stat(t('iaa.statComparable'), stats.comparable),
+    stat(t('iaa.statAgree'), stats.agree),
+    stat(t('iaa.statPct'), stats.pct !== null ? `${stats.pct}%` : '—'),
+    stat(t('iaa.statStructural'), stats.structural),
+    stats.kappa ? stat(t('iaa.statKappa'), `${stats.kappa.value} (n=${stats.kappa.n})`) : null,
   );
 
   const list = el('div', { class: 'iaa-list' });
   if (!disagreements.length) {
-    list.append(el('div', { class: 'empty' }, '没有发现分歧 —— 两份标注在可比节点上完全一致。'));
+    list.append(el('div', { class: 'empty' }, t('iaa.noDisagreement')));
   }
   for (const it of disagreements) {
     list.append(conflictRow(it, resolutions, rerender, ctx));
   }
 
   const commitBtn = el('button', { class: 'btn', onclick: () => commitResolution(ctx, resolutions, status2) },
-    '提交裁决结果到新分支');
+    t('iaa.commit'));
   const status2 = el('span', { class: 'edit-status' });
 
   body.append(
     mergeBanner, statsBox,
-    el('div', { class: 'pane-subbar' }, el('span', { class: 'sub-label' }, `分歧节点（${disagreements.length}）`)),
+    el('div', { class: 'pane-subbar' }, el('span', { class: 'sub-label' }, t('iaa.disagreements', { n: disagreements.length }))),
     list,
     el('div', { class: 'modal-actions' }, commitBtn, status2),
   );
@@ -263,26 +259,27 @@ function conflictRow(it, resolutions, rerender, ctx) {
     el('div', { class: 'iaa-conflict-head' },
       el('span', { class: 'skill-chip' }, it.skill),
       el('span', { class: 'node-title' }, truncate(it.span, 60)),
-      it.status === 'structural' ? el('span', { class: 'muted sm' }, it.hasA ? '仅 A 有' : '仅 B 有') : null),
+      it.status === 'structural' ? el('span', { class: 'muted sm' }, t(it.hasA ? 'iaa.onlyA' : 'iaa.onlyB')) : null),
     el('div', { class: 'conflict-block' },
       el('div', { class: `conflict-side${current === 'A' ? ' picked' : ''}` },
         el('div', { class: 'conflict-marker' }, `<<<<<<< A (${ctx.branchA})`),
-        el('pre', { class: 'code sm' }, it.hasA ? JSON.stringify(it.outA, null, 2) : '(不存在)'),
-        el('button', { class: 'btn xs', onclick: () => pick('A') }, '采用 A')),
+        el('pre', { class: 'code sm' }, it.hasA ? JSON.stringify(it.outA, null, 2) : t('iaa.absent')),
+        el('button', { class: 'btn xs', onclick: () => pick('A') }, t('iaa.takeA'))),
       el('div', { class: 'conflict-sep' }, '======='),
       el('div', { class: `conflict-side${current === 'B' ? ' picked' : ''}` },
-        el('pre', { class: 'code sm' }, it.hasB ? JSON.stringify(it.outB, null, 2) : '(不存在)'),
+        el('pre', { class: 'code sm' }, it.hasB ? JSON.stringify(it.outB, null, 2) : t('iaa.absent')),
         el('div', { class: 'conflict-marker' }, `>>>>>>> B (${ctx.branchB})`),
-        el('button', { class: 'btn xs', onclick: () => pick('B') }, '采用 B'))),
+        el('button', { class: 'btn xs', onclick: () => pick('B') }, t('iaa.takeB')))),
     el('div', { class: 'conflict-actions' },
-      el('button', { class: 'btn xs ghost', onclick: () => pick('skip') }, '两者都不用（删除此节点）'),
-      current ? el('span', { class: 'muted sm' }, `已选：${current === 'skip' ? '删除' : current}`) : el('span', { class: 'muted sm warn' }, '未裁决 — 暂按 A 处理')));
+      el('button', { class: 'btn xs ghost', onclick: () => pick('skip') }, t('iaa.takeNeither')),
+      current ? el('span', { class: 'muted sm' }, t('iaa.chosen', { choice: current === 'skip' ? t('iaa.deleted') : current }))
+        : el('span', { class: 'muted sm warn' }, t('iaa.undecided'))));
 }
 
 function truncate(s, n) { return String(s ?? '').length > n ? String(s).slice(0, n) + '…' : String(s ?? ''); }
 
 async function commitResolution(ctx, resolutions, status) {
-  status.textContent = '正在生成合并结果…'; status.className = 'edit-status';
+  status.textContent = t('iaa.generating'); status.className = 'edit-status';
   try {
     const [fileA, fileB] = await Promise.all([
       getFile(ctx.owner, ctx.repo, ctx.path, ctx.branchA), getFile(ctx.owner, ctx.repo, ctx.path, ctx.branchB),
@@ -301,14 +298,14 @@ async function commitResolution(ctx, resolutions, status) {
     } };
 
     const targetBranch = `iaa/${ctx.path.replace(/[^a-z0-9]+/gi, '-')}-${Date.now()}`;
-    logInfo('iaa', `创建裁决分支 ${targetBranch}`);
+    logInfo('iaa', `creating resolution branch ${targetBranch}`);
     await createBranch(ctx.owner, ctx.repo, targetBranch, ctx.branchA);
     const existing = await getFile(ctx.owner, ctx.repo, ctx.path, targetBranch);
     await putFile(ctx.owner, ctx.repo, ctx.path, JSON.stringify(mergedDoc, null, 1),
       `iaa: reconcile ${ctx.branchA} + ${ctx.branchB}`, targetBranch, existing?.sha);
 
     status.innerHTML = '';
-    status.append(`已提交到分支 ${targetBranch}。 `);
+    status.append(t('iaa.committed', { branch: targetBranch }));
     const prBtn = el('button', { class: 'btn xs', onclick: async () => {
       try {
         const pr = await createPullRequest(ctx.owner, ctx.repo, {
@@ -318,12 +315,12 @@ async function commitResolution(ctx, resolutions, status) {
         });
         status.append(` PR: ${pr.html_url}`);
       } catch (err) { toast(describeError(err), true); }
-    } }, '创建 PR');
+    } }, t('iaa.createPr'));
     status.append(prBtn);
     status.className = 'edit-status ok';
-    toast('裁决结果已提交');
+    toast(t('iaa.committedToast'));
   } catch (err) {
-    logError('iaa', `提交裁决结果失败：${describeError(err)}`, err);
+    logError('iaa', `commit failed: ${describeError(err)}`, err);
     status.textContent = describeError(err); status.className = 'edit-status err';
   }
 }

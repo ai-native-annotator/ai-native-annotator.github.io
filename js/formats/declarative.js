@@ -16,20 +16,23 @@
 import { esc, jsonHtml } from '../core/dom.js';
 import { defineSkill } from '../core/registry.js';
 import { flatPendingSlots, runFlatSkill } from '../core/flat.js';
+import { t } from '../core/i18n.js';
 
-export const SPEC_SCHEMA = {
-  id: 'string — 格式标识（英文小写）',
-  label: 'string — 显示名',
+// Built on read so the schema shown to the user (and sent to the model in
+// live mode) is in the interface language.
+export const specSchema = () => ({
+  id: t('studio.schema.id'),
+  label: t('studio.schema.label'),
   description: 'string',
-  serial: 'boolean — 是否为串行标注（标注之上再标注）',
-  source: { layout: "'tokens' | 'text' — 左侧原文：逐词一行 或 整段文本" },
+  serial: t('studio.schema.serial'),
+  source: { layout: t('studio.schema.source') },
   artifact: {
     layout: "'badges' | 'spans' | 'table' | 'json'",
     fields: "[{key, label, type: 'text'|'badge'|'list'|'number'}]",
   },
   skills: "[{id, label, describes, serial}]",
   legend: "[{label, color, note}]",
-};
+});
 
 const PALETTE = ['#2f9e6e', '#d1493f', '#2b7fd4', '#c08a1e', '#7c6cf0', '#b34ba0', '#4a8fa8'];
 
@@ -56,7 +59,7 @@ export function buildFormat(spec) {
     skills,
     serial: Boolean(spec.serial),
     themes: [
-      { id: spec.artifact?.layout || 'badges', label: '标签视图' },
+      { id: spec.artifact?.layout || 'badges', label: t('studio.badgeTheme') },
       { id: 'json', label: 'JSON' },
     ],
     skillColor: (id) => skillColor[id] || '#8a8f98',
@@ -75,7 +78,7 @@ export function buildFormat(spec) {
     renderArtifact(sentence, theme) {
       const ann = sentence.annotation || {};
       if (theme === 'json' || !fields.length) {
-        if (!Object.keys(ann).length) return '<pre class="artifact empty-artifact">(尚未标注)</pre>';
+        if (!Object.keys(ann).length) return `<pre class="artifact empty-artifact">${t('fmt.empty')}</pre>`;
         return `<pre class="artifact">${jsonHtml(ann)}</pre>`;
       }
       const rows = fields.map((f) => {
@@ -85,7 +88,7 @@ export function buildFormat(spec) {
           <span class="gen-label">${esc(f.label || f.key)}</span>
           ${renderValue(v, f, colorFor)}</div>`;
       }).join('');
-      return rows ? `<div class="gen-fields">${rows}</div>` : '<pre class="artifact empty-artifact">(尚未标注)</pre>';
+      return rows ? `<div class="gen-fields">${rows}</div>` : `<pre class="artifact empty-artifact">${t('fmt.empty')}</pre>`;
     },
 
     renderExtra: () => '',
@@ -126,36 +129,36 @@ function renderValue(v, field, colorFor) {
  * API key; live mode produces a much better spec from the same description.
  */
 export function specFromDescription(text, id) {
-  const t = text.toLowerCase();
+  const low = text.toLowerCase();          // NOT `t` — that is the i18n lookup
   const zh = text;
-  const wantsTokens = /逐[字词]|每.{0,2}[字词].{0,3}一行|token|per line|一行一个/.test(zh + t);
+  const wantsTokens = /逐[字词]|每.{0,2}[字词].{0,3}一行|token|per line|一行一个/.test(zh + low);
   const fields = [];
   const legend = [];
 
   const guess = [
-    { re: /极性|情感|polarity|sentiment/i, key: 'polarity', label: '极性', type: 'badge',
+    { re: /极性|情感|polarity|sentiment/i, key: 'polarity', label: t('studio.f.polarity'), type: 'badge',
       values: ['positive', 'negative', 'neutral'] },
-    { re: /实体|ner|entity/i, key: 'entities', label: '实体', type: 'list' },
-    { re: /类别|分类|label|category|class/i, key: 'label', label: '类别', type: 'badge' },
-    { re: /强度|intensity|score|分数|置信/i, key: 'score', label: '强度/分数', type: 'number' },
-    { re: /关系|relation/i, key: 'relations', label: '关系', type: 'list' },
-    { re: /摘要|summary/i, key: 'summary', label: '摘要', type: 'text' },
-    { re: /主题|topic/i, key: 'topic', label: '主题', type: 'badge' },
+    { re: /实体|ner|entity/i, key: 'entities', label: t('studio.f.entities'), type: 'list' },
+    { re: /类别|分类|label|category|class/i, key: 'label', label: t('studio.f.label'), type: 'badge' },
+    { re: /强度|intensity|score|分数|置信/i, key: 'score', label: t('studio.f.score'), type: 'number' },
+    { re: /关系|relation/i, key: 'relations', label: t('studio.f.relations'), type: 'list' },
+    { re: /摘要|summary/i, key: 'summary', label: t('studio.f.summary'), type: 'text' },
+    { re: /主题|topic/i, key: 'topic', label: t('studio.f.topic'), type: 'badge' },
   ];
   for (const g of guess) {
-    if (g.re.test(zh) || g.re.test(t)) {
+    if (g.re.test(zh) || g.re.test(low)) {
       fields.push({ key: g.key, label: g.label, type: g.type });
       for (const v of g.values || []) legend.push({ label: v, note: '' });
     }
   }
-  if (!fields.length) fields.push({ key: 'label', label: '标注', type: 'text' });
+  if (!fields.length) fields.push({ key: 'label', label: t('studio.f.generic'), type: 'text' });
 
-  const serial = /串行|嵌套|再标注|递归|层级|serial|nested/.test(zh + t);
+  const serial = /串行|嵌套|再标注|递归|层级|serial|nested/.test(zh + low);
   const skills = fields.map((f) => ({
-    id: f.key, label: f.label, describes: `产出 ${f.label} 字段`, serial: false,
+    id: f.key, label: f.label, describes: t('studio.f.describes', { label: f.label }), serial: false,
   }));
   if (serial) {
-    skills.push({ id: 'refine', label: '二次标注', describes: '在上一层结果之上继续标注', serial: true });
+    skills.push({ id: 'refine', label: t('studio.f.refine'), describes: t('studio.f.refineDesc'), serial: true });
   }
 
   return {
@@ -169,15 +172,12 @@ export function specFromDescription(text, id) {
 /** Prompt used in live mode to have the model fill in this same schema. */
 export function specPrompt(description, id) {
   return [
-    '你是标注工具的格式设计器。根据用户对某种标注格式的文字描述，',
-    '产出一个 JSON 规格（不要输出任何解释文字，只输出 JSON）。',
-    '规格字段含义：',
-    JSON.stringify(SPEC_SCHEMA, null, 2),
+    t('studio.prompt'),
+    JSON.stringify(specSchema(), null, 2),
     '',
-    `其中 id 必须为 "${id}"。fields 描述标注结果里有哪些字段以及如何显示。`,
-    'skills 是产生这些标注所需的技能拆解——如果这个格式是串行的（标注之上再标注），',
-    'serial 设为 true 并在 skills 里体现层级。legend 给出取值到颜色语义的说明。',
+    t('studio.promptId', { id }),
+    t('studio.promptSkills'),
     '',
-    `用户描述：${description}`,
+    t('studio.promptDesc', { description }),
   ].join('\n');
 }

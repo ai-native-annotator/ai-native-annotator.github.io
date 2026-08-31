@@ -24,9 +24,14 @@ export const state = {
   apiKeys: {},            // provider id -> key, mirrors localStorage (see settings.js)
   models: {},             // provider id -> model override
   running: new Set(),     // path-keys currently mid-flight (for spinners/disabling)
+  lang: 'zh',             // interface language ('zh' | 'en') — see core/i18n.js
   edits: new Map(),       // path -> human-edited output
   proposals: [],          // skill-update proposals from rationale clashes
-  chat: [],               // {role, text, skill?, path?}
+  // One conversation PER NODE, keyed by threadKey() below, plus a 'general'
+  // thread for document-level questions. A single shared log made every
+  // node's argument bleed into every other node's; an argument about one
+  // skill call is its own thread and belongs with that call.
+  chats: {},              // threadKey -> [{role, text, skill?, path?}]
   log: [],                // {ts, level, source, message, detail?} — visible activity log
   github: {               // GitHub connection (token kept in localStorage, mirrored here)
     token: '', user: null, owner: '', repo: '', branch: '',
@@ -55,14 +60,42 @@ export function set(patch, ...keys) {
 /** Stable identity for a node in the annotation tree. */
 export const pathKey = (path) => path.join('.');
 
+/**
+ * Key for `doc._trace`, the replay index. Defined here, in the one module both
+ * sides import, because it is written by io/sources.js and read by
+ * core/runner.js: when those two built the string independently they silently
+ * drifted apart (one used a space, the other a stray NUL) and *every* replay
+ * lookup missed — with a message blaming the document for having no recording.
+ */
+export const traceKey = (skill, span) => skill + SEP + span;
+const SEP = String.fromCharCode(31);   // ASCII unit separator: cannot occur in a skill id or a span
+
 export function currentSentence() {
   return state.doc?.sentences?.[state.selectedSentence] || null;
+}
+
+/**
+ * Which conversation the chat pane is showing. Node threads are scoped by
+ * sentence as well as path, because path indices repeat across sentences —
+ * `[0,1]` in sentence 1 is a different node from `[0,1]` in sentence 2.
+ */
+export function threadKey(sentenceIndex = state.selectedSentence, path = state.selectedNode?.path) {
+  return path ? `s${sentenceIndex}:${pathKey(path)}` : 'general';
+}
+
+export function currentThread() {
+  return state.chats[threadKey()] || [];
+}
+
+export function pushToThread(key, message) {
+  if (!state.chats[key]) state.chats[key] = [];
+  state.chats[key].push(message);
 }
 
 // persist the few things worth persisting (no backend by design). API keys
 // and the GitHub token live in their own localStorage keys (settings.js /
 // io/github.js) so they can be exported/imported as a standalone file.
-const PERSIST = ['runMode', 'theme', 'formatId', 'provider', 'models'];
+const PERSIST = ['runMode', 'theme', 'formatId', 'provider', 'models', 'lang'];
 export function loadPersisted() {
   try {
     const saved = JSON.parse(localStorage.getItem('annotator') || '{}');

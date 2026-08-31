@@ -19,21 +19,25 @@
 import { runSkillCall } from './runner.js';
 import { logInfo, logWarn } from './log.js';
 import { loadEffectiveText } from './skills.js';
+import { t } from './i18n.js';
 
 // Depth at which clause recursion stops and phrases are forced atomic/np —
 // mirrors umr_parser/pipeline.py's MAX_DEPTH / FORCE_ATOMIC_DEPTH exactly.
 const MAX_DEPTH = 6;
 const FORCE_ATOMIC_DEPTH = 8;
 
+// Which markdown files each skill's prompt is assembled from. Display names
+// are NOT here: the UI reads them from the format module (formats/umr.js),
+// which builds them through t('skill.<id>') so they follow the language.
 export const SKILL_META = {
-  discourse: { label: '篇章关系', file: 'shared/discourse.md', notes: 'shared/discourse.md', schema: true },
-  predicate: { label: '核心谓词', file: 'shared/predicate.md', notes: '', schema: false },
-  arguments: { label: '论元与属性', file: 'shared/arguments.md', notes: 'shared/arguments.md', schema: true },
-  np_phrase: { label: '名词短语', file: 'shared/np_phrase.md', notes: 'shared/np_phrase.md', schema: true },
-  special_entity: { label: '特殊实体', file: 'shared/special_entity.md', notes: 'shared/special_entity.md', schema: true },
-  stop_test: { label: '停止判定', file: 'shared/stop_test.md', notes: '', schema: false },
-  reentrancy: { label: '同指消解', file: 'shared/reentrancy.md', notes: '', schema: false },
-  doc_level: { label: '篇章级标注', file: 'shared/doc_level.md', notes: 'shared/doc_level.md', schema: false },
+  discourse: { file: 'shared/discourse.md', notes: 'shared/discourse.md', schema: true },
+  predicate: { file: 'shared/predicate.md', notes: '', schema: false },
+  arguments: { file: 'shared/arguments.md', notes: 'shared/arguments.md', schema: true },
+  np_phrase: { file: 'shared/np_phrase.md', notes: 'shared/np_phrase.md', schema: true },
+  special_entity: { file: 'shared/special_entity.md', notes: 'shared/special_entity.md', schema: true },
+  stop_test: { file: 'shared/stop_test.md', notes: '', schema: false },
+  reentrancy: { file: 'shared/reentrancy.md', notes: '', schema: false },
+  doc_level: { file: 'shared/doc_level.md', notes: 'shared/doc_level.md', schema: false },
 };
 
 /* --------------------------------------------------------- vendored data */
@@ -236,7 +240,7 @@ async function resolveByKind(kind, marker, ctx) {
     const concept = atomicConcept(phrase, language);
     return resultNode('(stop)', phrase, phrase, {
       output: { concept, kind: 'atomic' },
-      rationale: '原子概念：单个词/代词/数字，代码直接判定为叶子节点，未调用模型。',
+      rationale: t('pipe.atomicRationale'),
       source: 'rule',
     });
   }
@@ -246,7 +250,7 @@ async function resolveByKind(kind, marker, ctx) {
     const prompt = await buildPrompt('special_entity', language, input);
     const res = await runSkillCall({ skillId: 'special_entity', span: phrase, prompt, language });
     if (!res.output?.concept) {
-      logWarn('pipeline', `special_entity 未返回合法节点（${truncateForLog(phrase)}），回退为 string-entity`);
+      logWarn('pipeline', t('pipe.specialFallback', { phrase: truncateForLog(phrase) }));
       res.output = { concept: 'string-entity', relations: [[':value', `"${phrase}"`]], phrase };
     }
     return resultNode('special_entity', phrase, input, res, scanPendingChildren(res.output, depth + 1));
@@ -257,7 +261,7 @@ async function resolveByKind(kind, marker, ctx) {
     const prompt = await buildPrompt('np_phrase', language, input);
     const res = await runSkillCall({ skillId: 'np_phrase', span: phrase, prompt, language });
     if (!res.output?.concept) {
-      logWarn('pipeline', `np_phrase 未返回合法节点（${truncateForLog(phrase)}），回退为原文小写拼接`);
+      logWarn('pipeline', t('pipe.npFallback', { phrase: truncateForLog(phrase) }));
       res.output = { concept: phrase.replace(/\s+/g, '-').toLowerCase() || 'thing', relations: [], phrase };
     }
     return resultNode('np_phrase', phrase, input, res, scanPendingChildren(res.output, depth + 1));
@@ -277,7 +281,7 @@ async function resolveByKind(kind, marker, ctx) {
   if (!argRes.output?.concept) {
     const lemma = (predRes.output.lemmas || [])[0] || phrase.split(/\s+/)[0] || 'event';
     argRes.output = { concept: `${lemma}-01`, relations: [], phrase };
-    logWarn('pipeline', `arguments 未返回合法节点，回退为 ${argRes.output.concept}`);
+    logWarn('pipeline', t('pipe.argFallback', { concept: argRes.output.concept }));
   }
   const node = resultNode('arguments', phrase, argInput, argRes, scanPendingChildren(argRes.output, depth + 1));
   node.children.unshift(resultNode('predicate', phrase, predInput, predRes));
@@ -295,10 +299,10 @@ export async function resolvePendingLeaf(marker, ctx) {
   let kind = marker.kind;
   let forcedNote = '';
   if (marker.depth >= FORCE_ATOMIC_DEPTH && kind !== 'atomic') {
-    forcedNote = `深度达到 ${marker.depth}（上限 ${FORCE_ATOMIC_DEPTH}），代码强制作为 atomic 处理，未再展开。`;
+    forcedNote = t('pipe.forcedAtomic', { depth: marker.depth, max: FORCE_ATOMIC_DEPTH });
     kind = 'atomic';
   } else if (marker.depth >= MAX_DEPTH && kind === 'clause') {
-    forcedNote = `深度达到 ${marker.depth}（超过 clause 递归上限 ${MAX_DEPTH}），代码强制降级为 np 处理。`;
+    forcedNote = t('pipe.forcedNp', { depth: marker.depth, max: MAX_DEPTH });
     kind = 'np';
   }
 
@@ -400,8 +404,8 @@ export async function resolveReentrancy(ctx) {
   const { sentence, language } = ctx;
   const nodes = assignIds(sentence);
   if (nodes.length < 3) {
-    return resultNode('reentrancy', sentence.text, '(节点数 < 3，代码判定跳过)', {
-      output: { merge: [] }, rationale: '句内节点少于 3 个，跳过同指消解（与后端规则一致）。', source: 'rule',
+    return resultNode('reentrancy', sentence.text, t('pipe.reentSkipInput'), {
+      output: { merge: [] }, rationale: t('pipe.reentSkip'), source: 'rule',
     });
   }
   const listing = nodes.map((n) => `- ${n.output.id}: ${n.output.concept} | "${n.output.phrase || ''}"`).join('\n');
@@ -421,7 +425,7 @@ export async function resolveReentrancy(ctx) {
   }
   const attrNote = applyDefaultAttributes(nodes);
   const node = resultNode('reentrancy', sentence.text, input, res);
-  node.rationale = [res.rationale, applied ? `已合并 ${applied} 组同指。` : '', attrNote]
+  node.rationale = [res.rationale, applied ? t('pipe.reentMerged', { n: applied }) : '', attrNote]
     .filter(Boolean).join(' ');
   return node;
 }
@@ -440,7 +444,7 @@ function applyDefaultAttributes(nodes) {
     }
     if (!roles.includes(':modstr')) { node.output.relations.push([':modstr', 'fullaff']); n++; }
   }
-  return n ? `代码为 ${n} 处缺失的 :aspect/:modstr 补上了默认值。` : '';
+  return n ? t('pipe.defaultAttrs', { n }) : '';
 }
 
 /* -------------------------------------------------------------- doc_level */
@@ -479,8 +483,8 @@ function defaultTemporal(current) {
 
 function renderDocAnnotation(sntIndex, temporal, modal, coref) {
   const block = (triples) => triples
-    .filter((t) => Array.isArray(t) && t.length === 3)
-    .map((t) => `(${t[0]} ${String(t[1]).startsWith(':') ? t[1] : ':' + t[1]} ${t[2]})`);
+    .filter((tp) => Array.isArray(tp) && tp.length === 3)
+    .map((tp) => `(${tp[0]} ${String(tp[1]).startsWith(':') ? tp[1] : ':' + tp[1]} ${tp[2]})`);
   const parts = [`(s${sntIndex}s0 / sentence`];
   for (const [role, triples] of [[':temporal', temporal], [':modal', modal], [':coref', coref]]) {
     const rows = block(triples);
@@ -522,13 +526,13 @@ export async function resolveDocLevel(ctx) {
   const knownVars = new Set([...current.map((e) => e.var), ...registry.map((e) => e.var),
     'document-creation-time', 'root', 'author', 'past-reference', 'present-reference', 'future-reference']);
   const temporal = defaultTemporal(current);
-  const anchored = new Set(temporal.map((t) => t[2]));
+  const anchored = new Set(temporal.map((tp) => tp[2]));
   const extraTemporal = (Array.isArray(res.output?.temporal) ? res.output.temporal : [])
-    .filter((t) => Array.isArray(t) && t.length === 3 && knownVars.has(String(t[0])) && knownVars.has(String(t[2]))
-      && String(t[0]) !== 'document-creation-time' && !anchored.has(String(t[2])))
+    .filter((tp) => Array.isArray(tp) && tp.length === 3 && knownVars.has(String(tp[0])) && knownVars.has(String(tp[2]))
+      && String(tp[0]) !== 'document-creation-time' && !anchored.has(String(tp[2])))
     .slice(0, 2);
   const coref = (Array.isArray(res.output?.coref) ? res.output.coref : [])
-    .filter((t) => Array.isArray(t) && t.length === 3 && knownVars.has(String(t[0])) && knownVars.has(String(t[2])))
+    .filter((tp) => Array.isArray(tp) && tp.length === 3 && knownVars.has(String(tp[0])) && knownVars.has(String(tp[2])))
     .slice(0, 4);
 
   const docAnnotation = renderDocAnnotation(sentenceIndex, [...temporal, ...extraTemporal], modal, coref);
@@ -641,7 +645,7 @@ function setAt(tree, path, value) {
 export async function runPendingAt(doc, sentenceIndex, path) {
   const sentence = doc.sentences[sentenceIndex];
   const marker = getAt(sentence.tree, path);
-  if (!marker?.pending) throw new Error('这个节点不是待处理状态（可能已被其他操作解析）。');
+  if (!marker?.pending) throw new Error(t('pipe.notPending'));
   const language = doc.language || 'en';
   const ctx = { doc, sentence, sentenceIndex, language };
 

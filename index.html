@@ -14,83 +14,85 @@
 <header class="toolbar">
   <div class="brand">
     <span class="logo">◧</span>
-    <span class="brand-name">AI 标注助手</span>
+    <span class="brand-name" data-i18n="app.title">AI 标注助手</span>
   </div>
 
-  <label class="ctl">格式
+  <label class="ctl"><span data-i18n="toolbar.format">格式</span>
     <select id="format-select"></select>
   </label>
 
-  <label class="ctl">文档
+  <label class="ctl"><span data-i18n="toolbar.document">文档</span>
     <select id="doc-select"></select>
   </label>
 
   <div class="spacer"></div>
 
   <div class="menu-wrap">
-    <button class="btn ghost sm" data-menu="menu-import">导入 ▾</button>
+    <button class="btn ghost sm" data-menu="menu-import" data-i18n="toolbar.import">导入 ▾</button>
     <div id="menu-import" class="dropdown-menu">
-      <button id="btn-local" class="menu-item">本地文件（.json / .txt / .umr）</button>
-      <button id="btn-drive" class="menu-item">Google Drive…</button>
+      <button id="btn-local" class="menu-item" data-i18n="menu.localFile">本地文件（.json / .txt / .umr）</button>
+      <button id="btn-drive" class="menu-item" data-i18n="menu.drive">Google Drive…</button>
       <div class="menu-sep"></div>
-      <div class="menu-label">测试用：模拟 Drive 导入未标注文件</div>
-      <button id="btn-drive-demo-en" class="menu-item">示例文档（英文，未标注）</button>
-      <button id="btn-drive-demo-zh" class="menu-item">示例文档（中文，未标注）</button>
+      <div class="menu-label" data-i18n="menu.sampleLabel">测试用：模拟 Drive 导入未标注文件</div>
+      <button id="btn-drive-demo-en" class="menu-item" data-i18n="menu.sampleEn">示例文档（英文，未标注）</button>
+      <button id="btn-drive-demo-wiki" class="menu-item" data-i18n="menu.sampleWiki">维基百科示例（英文，未标注）</button>
+      <button id="btn-drive-demo-zh" class="menu-item" data-i18n="menu.sampleZh">示例文档（中文，未标注）</button>
     </div>
   </div>
 
   <div class="menu-wrap">
-    <button class="btn ghost sm" data-menu="menu-export">导出 ▾</button>
+    <button class="btn ghost sm" data-menu="menu-export" data-i18n="toolbar.export">导出 ▾</button>
     <div id="menu-export" class="dropdown-menu">
-      <button id="btn-export" class="menu-item">导出标注 JSON</button>
-      <button id="btn-proposals" class="menu-item">导出 skill 更新提案</button>
+      <button id="btn-export" class="menu-item" data-i18n="menu.exportDoc">导出标注 JSON</button>
+      <button id="btn-proposals" class="menu-item" data-i18n="menu.exportProposals">导出 skill 更新提案</button>
     </div>
   </div>
 
   <button id="btn-github" class="btn ghost sm">GitHub</button>
-  <button id="btn-studio" class="btn ghost sm">格式生成器</button>
+  <button id="btn-studio" class="btn ghost sm" data-i18n="toolbar.studio">格式生成器</button>
 
-  <label class="ctl">模式
+  <label class="ctl"><span data-i18n="toolbar.mode">模式</span>
     <select id="mode-select">
-      <option value="replay">replay（回放 / 演示）</option>
-      <option value="live">live（真实调用模型）</option>
+      <option value="replay" data-i18n="mode.replay">replay（回放 / 演示）</option>
+      <option value="live" data-i18n="mode.live">live（真实调用模型）</option>
     </select>
   </label>
   <span id="provider-indicator" class="provider-indicator">replay</span>
 
-  <button id="btn-log" class="btn ghost sm icon-btn" title="运行日志">
-    <span>日志</span><span id="log-badge" class="badge"></span>
+  <button id="btn-log" class="btn ghost sm icon-btn" data-i18n-title="log.title" title="运行日志">
+    <span data-i18n="toolbar.log">日志</span><span id="log-badge" class="badge"></span>
   </button>
-  <button id="btn-settings" class="btn ghost sm icon-btn" title="设置">⚙</button>
+  <button id="btn-lang" class="btn ghost sm" data-i18n="toolbar.lang" data-i18n-title="toolbar.langTitle">English</button>
+  <button id="btn-settings" class="btn ghost sm icon-btn" data-i18n-title="toolbar.settings" title="设置">⚙</button>
 </header>
 
 <div id="sentence-bar" class="sentence-bar"></div>
 
 <main class="workspace">
   <section class="pane pane-left">
-    <div class="pane-head">原始文件 <span class="muted">source</span></div>
+    <div class="pane-head"><span data-i18n="pane.source">原始文件</span> <span class="muted">source</span></div>
     <div id="pane-source" class="pane-body"></div>
   </section>
 
   <aside id="legend" class="legend"></aside>
 
   <section class="pane pane-mid">
-    <div class="pane-head">标注后文件 <span class="muted">annotated</span></div>
+    <div class="pane-head"><span data-i18n="pane.annotated">标注后文件</span> <span class="muted">annotated</span></div>
     <div id="pane-annotated" class="pane-body"></div>
   </section>
 
   <section class="pane pane-right">
-    <div class="pane-head">AI 标注助手 <span class="muted">skill call</span></div>
+    <div class="pane-head"><span data-i18n="pane.assistant">AI 标注助手</span> <span class="muted">skill call</span></div>
     <div id="pane-assistant" class="pane-body"></div>
-    <div class="pane-head sub">AI 对话 · rationale 交锋</div>
+    <div class="pane-head sub" data-i18n="pane.chat">AI 对话 · rationale 交锋</div>
     <div id="pane-chat" class="pane-chat"></div>
   </section>
 </main>
 
 <aside id="log-panel" class="log-panel">
   <div class="log-panel-head">
-    <h3>运行日志</h3>
-    <button id="log-panel-close" class="btn sm ghost">关闭</button>
+    <h3 data-i18n="log.title">运行日志</h3>
+    <button id="log-panel-close" class="btn sm ghost" data-i18n="common.close">关闭</button>
   </div>
   <div id="log-panel-body" class="log-panel-body"></div>
 </aside>

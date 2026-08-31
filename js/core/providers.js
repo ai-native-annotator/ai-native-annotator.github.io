@@ -9,12 +9,14 @@
  * knows provider-specific request shapes.
  */
 
+import { t } from './i18n.js';
+
 export const PROVIDERS = {
   anthropic: {
     label: 'Anthropic (Claude)',
     defaultModel: 'claude-sonnet-5',
-    modelHint: '例如 claude-sonnet-5 / claude-opus-5 —— 按你账户可用的型号填写',
-    keyHint: 'sk-ant-... （在 console.anthropic.com 生成）',
+    get modelHint() { return t('provider.anthropic.model'); },
+    get keyHint() { return t('provider.anthropic.key'); },
     async complete({ apiKey, model, prompt, maxTokens = 4000, signal }) {
       const res = await fetchSafe('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -33,7 +35,7 @@ export const PROVIDERS = {
       }, 'Anthropic');
       const data = await res.json();
       const text = (data.content || []).map((c) => c.text || '').join('');
-      if (!text) throw new Error('Anthropic 返回了空响应（可能被截断或触发了安全过滤）');
+      if (!text) throw new Error(t('provider.emptyAnthropic'));
       return text;
     },
   },
@@ -41,10 +43,10 @@ export const PROVIDERS = {
   openai: {
     label: 'OpenAI (GPT)',
     defaultModel: '',
-    modelHint: '填写你账户可用的型号 id，例如 gpt-4.1 / gpt-4o',
-    keyHint: 'sk-... （在 platform.openai.com 生成）',
+    get modelHint() { return t('provider.openai.model'); },
+    get keyHint() { return t('provider.openai.key'); },
     async complete({ apiKey, model, prompt, maxTokens = 4000, signal }) {
-      if (!model) throw new Error('请先在设置里填写 OpenAI 的模型 id（每个账户可用型号不同，无法内置默认值）');
+      if (!model) throw new Error(t('provider.needModel'));
       const res = await fetchSafe('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         signal,
@@ -60,7 +62,7 @@ export const PROVIDERS = {
       }, 'OpenAI');
       const data = await res.json();
       const text = data.choices?.[0]?.message?.content || '';
-      if (!text) throw new Error('OpenAI 返回了空响应');
+      if (!text) throw new Error(t('provider.emptyOpenai'));
       return text;
     },
   },
@@ -72,7 +74,7 @@ async function fetchSafe(url, init, label) {
     res = await fetch(url, init);
   } catch (err) {
     if (err?.name === 'AbortError') throw err;
-    throw new Error(`${label} 请求失败（网络错误或被浏览器拦截，常见原因：无网络 / 广告拦截器 / CORS）：${err.message}`);
+    throw new Error(t('provider.netFail', { name: label, err: err.message }));
   }
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -83,7 +85,7 @@ async function fetchSafe(url, init, label) {
 
 export async function callProvider(providerId, { apiKey, model, prompt, maxTokens, signal }) {
   const provider = PROVIDERS[providerId];
-  if (!provider) throw new Error(`未知的模型提供方: ${providerId}`);
-  if (!apiKey) throw new Error(`${provider.label} 需要 API Key —— 请在设置里填写（只存本机，不上传任何服务器）`);
+  if (!provider) throw new Error(t('provider.unknown', { id: providerId }));
+  if (!apiKey) throw new Error(t('provider.needKey', { name: provider.label }));
   return provider.complete({ apiKey, model, prompt, maxTokens, signal });
 }

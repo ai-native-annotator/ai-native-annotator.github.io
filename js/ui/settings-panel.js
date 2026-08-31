@@ -12,6 +12,7 @@ import { PROVIDERS } from '../core/providers.js';
 import { setApiKey, setModel, saveSecrets, exportSecretsFile, importSecretsFile } from '../core/settings.js';
 import { toast } from './toast.js';
 import { logInfo, describeError } from '../core/log.js';
+import { t } from '../core/i18n.js';
 
 export function openSettings() {
   const overlay = el('div', { class: 'overlay', onclick: (e) => { if (e.target === overlay) close(); } });
@@ -20,22 +21,22 @@ export function openSettings() {
   const providerRows = Object.entries(PROVIDERS).map(([id, meta]) => providerRow(id, meta));
 
   const driveInput = el('input', {
-    class: 'settings-input', placeholder: '例如 1234567890-abc.apps.googleusercontent.com',
+    class: 'settings-input', placeholder: t('settings.drivePlaceholder'),
     value: localStorage.getItem('gdrive_client_id') || '',
   });
   const driveSave = el('button', { class: 'btn sm ghost', onclick: () => {
     saveSecrets({ driveClientId: driveInput.value.trim() });
-    toast('已保存 Google OAuth Client ID');
-  } }, '保存');
+    toast(t('settings.savedDrive'));
+  } }, t('common.save'));
 
   const ghInput = el('input', {
-    class: 'settings-input', type: 'password', placeholder: 'ghp_... 或 github_pat_...',
+    class: 'settings-input', type: 'password', placeholder: t('settings.tokenPlaceholder'),
     value: state.github.token || '',
   });
   const ghSave = el('button', { class: 'btn sm ghost', onclick: () => {
     saveSecrets({ githubToken: ghInput.value.trim() });
-    toast('已保存 GitHub Token（仅本机）');
-  } }, '保存');
+    toast(t('settings.savedGithub'));
+  } }, t('common.save'));
 
   const importInput = el('input', { type: 'file', accept: 'application/json', class: 'hidden-file' });
   importInput.onchange = async () => {
@@ -43,36 +44,34 @@ export function openSettings() {
     if (!file) return;
     try {
       await importSecretsFile(file);
-      toast('已从本地文件导入凭据');
+      toast(t('settings.imported'));
       close(); openSettings();
-    } catch (err) { toast(`导入失败：${describeError(err)}`, true); }
+    } catch (err) { toast(t('settings.importFailed', { err: describeError(err) }), true); }
   };
 
   const body = el('div', { class: 'modal-body settings-body' },
-    section('大模型 API Key（存于本机，可导出为本地文件备份）', providerRows),
-    section('Google Drive', [
-      field('OAuth Client ID', driveInput, driveSave),
-      el('div', { class: 'hint' }, '在 Google Cloud Console 创建 OAuth 客户端 ID（应用类型：桌面应用/Web），本工具没有后端，无法代为保管凭据。'),
+    section(t('settings.apiKeys'), providerRows),
+    section(t('settings.driveTitle'), [
+      field(t('settings.driveClientId'), driveInput, driveSave),
+      el('div', { class: 'hint' }, t('settings.driveHint')),
     ]),
-    section('GitHub', [
-      field('Personal Access Token', ghInput, ghSave),
-      el('div', { class: 'hint' },
-        '需要 repo 权限的 fine-grained 或 classic token（github.com/settings/tokens）。'
-        + '用于浏览你的仓库/fork、读写标注文件、发起 inter-annotator 合并。'),
+    section(t('settings.githubTitle'), [
+      field(t('settings.githubToken'), ghInput, ghSave),
+      el('div', { class: 'hint' }, t('settings.githubHint')),
     ]),
-    section('本地凭据文件', [
+    section(t('settings.fileTitle'), [
       el('div', { class: 'settings-row' },
-        el('button', { class: 'btn sm ghost', onclick: exportSecretsFile }, '导出为本地文件'),
-        el('button', { class: 'btn sm ghost', onclick: () => importInput.click() }, '从本地文件导入'),
+        el('button', { class: 'btn sm ghost', onclick: exportSecretsFile }, t('settings.exportFile')),
+        el('button', { class: 'btn sm ghost', onclick: () => importInput.click() }, t('settings.importFile')),
         importInput),
-      el('div', { class: 'hint' }, '所有 key/token 会打包成一个 JSON 文件下载到本地——可以放进你自己的密码管理器或加密文件夹，不会经过任何服务器。'),
+      el('div', { class: 'hint' }, t('settings.fileHint')),
     ]),
   );
 
   overlay.append(el('div', { class: 'modal settings-modal' },
     el('div', { class: 'modal-head' },
-      el('h3', {}, '⚙ 设置'),
-      el('button', { class: 'btn sm ghost', onclick: close }, '关闭')),
+      el('h3', {}, t('settings.title')),
+      el('button', { class: 'btn sm ghost', onclick: close }, t('common.close'))),
     body));
   document.body.append(overlay);
 }
@@ -95,7 +94,7 @@ function providerRow(id, meta) {
   const save = () => {
     setApiKey(id, keyInput.value);
     setModel(id, modelInput.value);
-    toast(`已保存 ${meta.label} 设置`);
+    toast(t('settings.savedProvider', { name: meta.label }));
   };
   return el('div', { class: 'provider-row' },
     el('div', { class: 'provider-name' },
@@ -103,11 +102,11 @@ function providerRow(id, meta) {
       el('label', { class: 'radio-inline' },
         el('input', {
           type: 'radio', name: 'active-provider', checked: state.provider === id,
-          onchange: () => { set({ provider: id }, 'provider'); logInfo('settings', `已切换默认模型提供方为 ${meta.label}`); },
-        }), '设为默认')),
-    field('API Key', keyInput, null),
-    field('模型', modelInput, null),
-    el('button', { class: 'btn sm', onclick: save }, '保存'));
+          onchange: () => { set({ provider: id }, 'provider'); logInfo('settings', `default provider -> ${meta.label}`); },
+        }), t('settings.setDefault'))),
+    field(t('settings.apiKey'), keyInput, null),
+    field(t('settings.model'), modelInput, null),
+    el('button', { class: 'btn sm', onclick: save }, t('common.save')));
 }
 
 export function mountSettingsButton() {

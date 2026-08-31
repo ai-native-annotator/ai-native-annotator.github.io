@@ -24,11 +24,15 @@ import {
 import { importFromDrive } from './io/drive.js';
 import { PROVIDERS } from './core/providers.js';
 import { logInfo, logError, describeError } from './core/log.js';
+import { t, applyStaticI18n, toggleLang, detectLang } from './core/i18n.js';
 
 const panes = {};
 
 async function boot() {
   loadPersisted();
+  // first run: follow the browser's language until the user chooses one
+  if (!localStorage.getItem('annotator')) state.lang = detectLang();
+  applyStaticI18n();
   loadSecrets();
   cacheNodes();
   wireToolbar();
@@ -44,8 +48,8 @@ async function boot() {
   try {
     state.docIndex = await listDemos();
   } catch (err) {
-    logError('app', `演示语料索引加载失败：${describeError(err)}`, err);
-    toast('演示语料索引加载失败：' + err.message, true);
+    logError('app', t('app.docIndexFailed', { err: describeError(err) }), err);
+    toast(t('app.docIndexFailed', { err: err.message }), true);
   }
   fillDocSelect();
   fillFormatSelect();
@@ -54,7 +58,7 @@ async function boot() {
   const first = state.docIndex.find((d) => d.format === state.formatId) || state.docIndex[0];
   if (first) await openDoc(first.id);
   else renderAll();
-  logInfo('app', '就绪');
+  logInfo('app', t('app.ready'));
 }
 
 function cacheNodes() {
@@ -106,6 +110,11 @@ function subscribe() {
   on('provider', () => { persist(); updateModeUi(); });
   on('apiKeys', () => updateModeUi());
   on('models', () => updateModeUi());
+  on('lang', () => {
+    applyStaticI18n();       // static markup carrying data-i18n
+    fillDocSelect(); fillFormatSelect(); updateModeUi();
+    renderAll();             // every pane rebuilds its own strings through t()
+  });
 }
 
 async function openDoc(id) {
@@ -113,8 +122,8 @@ async function openDoc(id) {
     const doc = await loadDemo(id);
     await useDoc(doc);
   } catch (err) {
-    logError('app', `载入失败：${describeError(err)}`, err);
-    toast('载入失败：' + err.message, true);
+    logError('app', t('app.loadFailed', { err: describeError(err) }), err);
+    toast(t('app.loadFailed', { err: err.message }), true);
   }
 }
 
@@ -124,7 +133,7 @@ async function useDoc(doc) {
     catch { /* keep current format; renderers degrade to JSON */ }
   }
   const f = activeFormat();
-  state.theme = (f.themes || []).some((t) => t.id === state.theme) ? state.theme : f.themes?.[0]?.id;
+  state.theme = (f.themes || []).some((th) => th.id === state.theme) ? state.theme : f.themes?.[0]?.id;
   set({
     doc, selectedSentence: 0, selectedNode: null,
     edits: new Map(), proposals: [], chat: [],
@@ -134,15 +143,15 @@ async function useDoc(doc) {
   const sel = $('#doc-select');
   if ([...sel.options].some((o) => o.value === doc.id)) sel.value = doc.id;
   else sel.value = '';
-  logInfo('app', `已载入文档「${doc.id}」`);
+  logInfo('app', t('app.docLoaded', { id: doc.id }));
 }
 
 function fillDocSelect() {
   const sel = $('#doc-select');
   sel.innerHTML = '';
-  sel.append(el('option', { value: '', disabled: '' }, '（导入的文档）'));
+  sel.append(el('option', { value: '', disabled: '' }, t('app.importedDocs')));
   for (const d of state.docIndex) {
-    sel.append(el('option', { value: d.id }, `${d.title} · ${d.sentences} 句`));
+    sel.append(el('option', { value: d.id }, t('app.demoOption', { title: d.title, n: d.sentences })));
   }
 }
 
@@ -163,7 +172,7 @@ function updateModeUi() {
   const meta = PROVIDERS[state.provider];
   if (state.runMode === 'live') {
     const hasKey = Boolean((state.apiKeys[state.provider] || '').trim());
-    label.textContent = hasKey ? `live · ${meta?.label || state.provider}` : 'live · 未设置 API Key';
+    label.textContent = hasKey ? `live · ${meta?.label || state.provider}` : t('app.liveNoKey');
     label.className = `provider-indicator${hasKey ? '' : ' warn'}`;
   } else {
     label.textContent = 'replay';
@@ -171,18 +180,24 @@ function updateModeUi() {
   }
 }
 
+const SAMPLES = {
+  en: 'data/samples/drive-import-demo-en.txt',
+  zh: 'data/samples/drive-import-demo-zh.txt',
+  wiki: 'data/samples/wikipedia-roman-telescope-2026.txt',
+};
+
 async function importSample(lang) {
-  const path = `data/samples/drive-import-demo-${lang}.txt`;
-  toast('正在模拟 Google Drive 导入未标注 UMR 文件…');
-  logInfo('app', `模拟 Drive 导入：${path}`);
+  const path = SAMPLES[lang];
+  toast(t('app.sampleImporting'));
+  logInfo('app', `simulated Drive import: ${path}`);
   const res = await fetch(path);
-  if (!res.ok) throw new Error(`示例文件缺失：${path}`);
+  if (!res.ok) throw new Error(t('app.sampleMissing', { path }));
   const text = await res.text();
   state.formatId = 'umr';
-  const doc = parseDocument(text, `drive-import-demo-${lang}.umr.txt`);
-  doc.provenance = 'imported: 模拟 Google Drive 导入（未标注 UMR 文件，标注后文件为空）';
+  const doc = parseDocument(text, path.split('/').pop());
+  doc.provenance = 'imported: simulated Google Drive import (unannotated UMR file)';
   await useDoc(doc);
-  toast('已导入未标注文档 —— 在右侧标注树里点击「待运行」节点，逐个 skill 完成标注。');
+  toast(t('app.sampleDone'));
 }
 
 function wireToolbar() {
@@ -205,8 +220,9 @@ function wireToolbar() {
   };
   $('#btn-drive-demo-en').onclick = () => importSample('en').catch((err) => { logError('app', describeError(err), err); toast(err.message, true); });
   $('#btn-drive-demo-zh').onclick = () => importSample('zh').catch((err) => { logError('app', describeError(err), err); toast(err.message, true); });
+  $('#btn-drive-demo-wiki').onclick = () => importSample('wiki').catch((err) => { logError('app', describeError(err), err); toast(err.message, true); });
 
-  $('#btn-export').onclick = () => { if (!exportDocumentFile()) toast('还没有载入文档', true); };
+  $('#btn-export').onclick = () => { if (!exportDocumentFile()) toast(t('app.noDoc'), true); };
   $('#btn-proposals').onclick = exportProposals;
   $('#btn-studio').onclick = () => openStudio((format) => {
     fillFormatSelect();
@@ -214,14 +230,16 @@ function wireToolbar() {
     state.formatId = format.id;
     state.theme = format.themes?.[0]?.id;
     set({}, 'format');
-    toast(`已应用生成的格式：${format.label}`);
+    toast(t('studio.applied', { label: format.label }));
   });
+
+  $('#btn-lang').onclick = () => toggleLang();
 
   const modeSel = $('#mode-select');
   modeSel.value = state.runMode;
   modeSel.onchange = (e) => {
     if (e.target.value === 'live' && !state.apiKeys[state.provider]) {
-      toast('live 模式需要先在设置里填好 API Key', true);
+      toast(t('app.needKey'), true);
       openSettings();
     }
     set({ runMode: e.target.value }, 'runMode');

@@ -8,6 +8,7 @@
  */
 
 import { logInfo, logWarn, describeError } from './core/log.js';
+import { t } from './core/i18n.js';
 
 const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -31,16 +32,16 @@ export function startDictation({ lang, onResult, onEnd, onError }) {
     onResult(text, e.results[e.results.length - 1].isFinal);
   };
   rec.onerror = (e) => {
-    logWarn('voice', `语音识别出错：${e.error}`);
+    logWarn('voice', t('voice.recError', { err: e.error }));
     onError?.(e.error);
   };
   rec.onend = () => onEnd?.();
 
   try {
     rec.start();
-    logInfo('voice', '开始语音输入…');
+    logInfo('voice', t('voice.listening'));
   } catch (err) {
-    logWarn('voice', `语音识别启动失败：${describeError(err)}`);
+    logWarn('voice', t('voice.startFailed', { err: describeError(err) }));
     return null;
   }
   return { stop: () => { try { rec.stop(); } catch { /* already stopped */ } } };
@@ -54,7 +55,7 @@ export function speak(text, lang) {
     u.lang = lang === 'zh' ? 'zh-CN' : 'en-US';
     window.speechSynthesis.speak(u);
   } catch (err) {
-    logWarn('voice', `朗读失败：${describeError(err)}`);
+    logWarn('voice', t('voice.speakFailed', { err: describeError(err) }));
   }
 }
 
@@ -64,7 +65,7 @@ export function stopSpeaking() {
 
 function stripForSpeech(text) {
   return String(text)
-    .replace(/```[\s\S]*?```/g, ' （代码块省略） ')
+    .replace(/```[\s\S]*?```/g, t('voice.codeBlock'))
     .replace(/[*_`#>]/g, '')
     .slice(0, 600);
 }

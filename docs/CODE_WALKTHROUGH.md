@@ -87,7 +87,7 @@ localStorage.removeItem('annotator_secrets');                                   
         providers  settings  penman  log  dom
 ```
 
-### 28 个文件一句话速览
+### 31 个文件一句话速览
 
 **`core/` —— 引擎，不碰 DOM 样式，不知道有哪些面板**
 
@@ -95,13 +95,16 @@ localStorage.removeItem('annotator_secrets');                                   
 |---|---|
 | `dom.js` | 造 DOM 元素、转义 HTML、下载文件的小工具 |
 | `log.js` | 统一日志出口：写进 state、同时打到控制台 |
-| `state.js` | 全局状态对象 + 极简发布订阅 |
+| `state.js` | 全局状态对象 + 极简发布订阅 + `threadKey()` / `traceKey()` |
+| `i18n.js` | 界面语言（中/英）：一张字典 + `t()`，切换即时生效并持久化 |
 | `settings.js` | 凭据的本地读写、导出/导入 |
 | `providers.js` | Anthropic / OpenAI 的请求格式适配 |
 | `runner.js` | 一次 skill 调用：replay 查录制 / live 发请求 + 抽 JSON |
 | `registry.js` | 格式注册表（懒加载）+ skill 定义构造器 |
 | **`pipeline.js`** | **UMR 递归标注流程（全项目最重要的文件）** |
 | `flat.js` | 并行格式（非递归）的单步执行 |
+| `skills.js` | skill 文本的加载与**本地修订**：对话里接受的条款会进下一次 prompt |
+| `coverage.js` | 覆盖率回查：分解到底有没有覆盖原文（严格口径 + 后端宽松口径） |
 | `penman.js` | Penman ⇄ JSON 双向转换 |
 
 **`formats/` —— "这种标注长什么样"**
@@ -365,7 +368,8 @@ logEvent(level, source, message, detail)
 | `running` | `Set<runKey>`，正在跑的调用（画旋转图标、禁用其他行） |
 | `edits` | `Map<pathKey → 人工改过的 output>` |
 | `proposals` | 本次会话产生的 skill 更新提案 |
-| `chat` | 对话消息数组 |
+| `lang` | 界面语言（`'zh'` \| `'en'`），见 `core/i18n.js` |
+| `chats` | **每个节点一条独立对话**：`threadKey → 消息数组`（原来是一个共享数组，一个节点的争论会串到所有节点上） |
 | `log` | 活动日志数组 |
 | `github` | `{token, user, owner, repo, branch}` |
 | `voice` | `{ttsEnabled, listening}` |
@@ -376,8 +380,10 @@ logEvent(level, source, message, detail)
 - `emit(...keys)` — 挨个 key 调用它的监听器。
 - `set(patch, ...keys)` — `Object.assign(state, patch)` 然后 `emit`。**不传 key 时默认用 `patch` 自己的键名**，所以 `set({runMode:'live'})` 会自动触发 `'runMode'` 的监听器；而 `set({}, 'tree')` 是"我直接改了嵌套内容，请重绘树"的惯用写法。
 - `pathKey(path)` / `currentSentence()` — 两个小助手。
+- `threadKey(sentenceIndex, path)` — 对话的身份：`s{句下标}:{路径}`，没选中节点时是 `'general'`。**必须带句下标**，因为路径 `[0,1]` 在第 1 句和第 2 句是完全不同的节点。配套的 `currentThread()` / `pushToThread()` 让 `ui/chat.js` 不必自己拼 key。
+- `traceKey(skill, span)` — replay 索引的 key。**写它的是 `io/sources.js`，读它的是 `core/runner.js`**；这两边曾各自拼过一次字符串，然后悄悄拼得不一样（一个用空格、一个混进了一个控制字节），结果**每一次 replay 查找都必然落空**，还把锅甩给数据（"这份文档是新导入/未标注的"）。现在只有这一个定义，两边都 import 它。
 
-**持久化**：只有 `PERSIST = ['runMode','theme','formatId','provider','models']` 这五项写进 localStorage 的 `annotator` 键。**API Key 和 GitHub Token 刻意不在这里**——它们归 `settings.js` 管，存在自己的键里，这样才能整体导出成一个文件。
+**持久化**：只有 `PERSIST = ['runMode','theme','formatId','provider','models','lang']` 这六项写进 localStorage 的 `annotator` 键。**API Key 和 GitHub Token 刻意不在这里**——它们归 `settings.js` 管，存在自己的键里，这样才能整体导出成一个文件。
 
 ---
 
@@ -431,7 +437,11 @@ logEvent(level, source, message, detail)
 
 **`runSkillCall({skillId, span, prompt, language})`**
 
-- **replay 分支**：拿 `${skillId} ${span}` 去 `doc._trace` 里查。查不到 → 记日志 + 抛出一句**说明了下一步该干什么**的错误："这份文档是新导入/未标注的，没有可回放的历史调用——请切换到 live 模式并填入 API Key"。
+- **replay 分支**：拿 `traceKey(skillId, span)`（定义在 `state.js`）去 `doc._trace` 里查。查不到时**分两种情况说话**，因为它们是两回事：
+  - `_trace` 是空的 → 这份文档本来就没有可回放的历史，提示"新导入/未标注，请切换到 live 模式"；
+  - `_trace` 有 N 条但**独独缺这一步** → 这正是 `io/sources.js` 用"待运行"标记暴露出来的那个导出缺口，提示"这份文档有 N 条录制调用，但当年导出时漏掉了这一步"。
+  
+  以前两种情况共用第一句话，于是一份录制完整的文档也会被说成"未标注"。
 - **live 分支**：从 state 取厂商/key/模型 → `performance.now()` 掐表 → `callProvider` → `extractJson`。两处失败都是**先 `logError` 再原样 `throw`**（记录 ≠ 吞掉）。
 
 统一返回：`{output, rationale, rawText, latencyMs, source, model}`。
@@ -537,6 +547,72 @@ Penman 是 UMR/AMR 的标准文本格式：`(x1 / open-01 :ARG0 (x2 / museum))`�
 | `definedVars(node)` | 收集所有定义过的变量名 |
 | `reentrancies(node)` | 被引用但没在此处定义的变量 = 同指目标（Penman 视图里高亮它们） |
 | `nodeToPenman(node, …)` | **给实时标注树用的版本**：待运行位置渲染成 `<np: 短语>`，`{ref}` 渲染成变量名，所以半成品也能正常显示 |
+
+---
+
+#### `core/i18n.js` — 界面语言（中 / 英）
+
+**一张扁平字典，两种语言并排放**：
+
+```js
+const D = {
+  'toolbar.format': ['格式', 'Format'],
+  'tree.empty': ['该句还没有标注调用 —— 请稍候', 'No annotation calls for this sentence yet'],
+  …
+};
+```
+
+两种写法并排，是为了**不可能漏译**——加一条就必须同时写两句，没有"中文有英文没有"的中间态。
+
+| 导出 | 作用 |
+|---|---|
+| `t(key, vars)` | 查表；`vars` 做 `{name}` 占位替换。查不到就原样返回 key（不静默显示空白） |
+| `setLang(lang)` / `toggleLang()` | 切换，写进 state、持久化、同步 `<html lang>` |
+| `detectLang()` | 首次进入按 `navigator.language` 猜（`zh*` → 中文，其余英文） |
+| `applyStaticI18n(root)` | 扫 `data-i18n` / `data-i18n-title` 属性刷新 `index.html` 里的静态文案 |
+
+**动态文案怎么跟着变**：格式对象上凡是会显示的字段都写成 **getter**（`get label() { return t('fmt.umr.label'); }`），skill 列表也是每次读时现构造。所以切语言只需要重绘，不需要重新加载格式。
+
+**刻意不翻译的东西**：`data/skills/` 下的技能说明文件。那是标注方法论本身（也是发给模型的提示词），不是界面。
+
+> 有一个反复踩到的坑值得记下来：**局部变量不要叫 `t`**。`themes.map((t) => …)`、`const t = text.toLowerCase()` 都会把 i18n 的 `t` 遮住，而且遮住之后往往不报错、只是渲染出奇怪的东西。仓库里已经把这类命名全部改掉了。
+
+---
+
+#### `core/skills.js` — 技能文本的加载与**本地修订**
+
+在这个文件出现之前，"对话里达成的共识"是一个**意见箱**：生成一条提案，导出成 markdown，然后请你自己去改文件——下一次调用完全不受影响。
+
+| 导出 | 作用 |
+|---|---|
+| `loadBaseText(relPath)` | `data/` 下原始文件，带缓存 |
+| **`loadEffectiveText(relPath)`** | **原文 + 已接受的修订**，`core/pipeline.js` 拼提示词时用的就是它 |
+| `addAmendment(relPath, text)` | 接受一条修订：追加（不是覆盖）、写 localStorage、记日志 |
+| `getOverride` / `listOverrides` / `hasOverride` | 查询 |
+| `clearOverride` / `clearAllOverrides` | 撤销 |
+| `mergedFileText(relPath)` | 合并后的完整文件，用于提交回仓库 |
+
+修订以 `## 人工修订（本地生效，尚未合入仓库）` 为标题追加在原文之后。判断这个回路是否真的闭合，标准只有一条：**下一次该 skill 的 prompt 里是否字面包含这条新规则**（`docs/verification/skill-update-test.js` 就是照这个标准写的）。
+
+---
+
+#### `core/coverage.js` — 覆盖率回查
+
+回答"这一层层分解，到底有没有覆盖原句"。
+
+**最关键的一条记账规则**：一个节点自己的 `span` / `phrase` **不算证据**。那是这次调用的**输入**，不是它干了活的**证明**——把输入算成证据，任何一棵树都会得到 100%，指标就成了摆设。算数的是 `concept`、关系里的取值、以及子节点新产生的内容。
+
+| 导出 | 作用 |
+|---|---|
+| `tokenize` / `isContentToken` | 切词；区分实词与功能词（冠词、系动词、介词……） |
+| `accountedStrings(node)` | 一个节点真正贡献了哪些字符串（按上面的规则） |
+| `strictCoverage(sentence)` | 严格口径：按词边界比对，分三档 —— 已覆盖 / 合法省略 / **真正丢失** |
+| `looseCoverage(sentence)` | **后端宽松口径**的忠实移植（它 *包含* `phrase`），用来和 Python 侧对齐 |
+| `stepCoverage` / `sentenceCoverage` | 单步 / 整句 |
+
+匹配时做了几层放宽，每一层都是为了消掉一个**假阳性**（把工具的局限误报成标注错误）：词干化（含辅音重复的还原）、共同词根（≥5 个公共字符且占短词 ≥70%）、月份名 ⇄ 数字、连字符复合词按部件匹配。每放宽一次，都要拿一棵**故意做残的树**重跑一遍确认它仍然报 66.7% —— 否则放宽就变成了粉饰。
+
+"合法省略"指的是英语功能词等在 UMR 里本就不进图的成分；只有第三档"真正丢失"才是需要人看的。
 
 ---
 
@@ -693,7 +769,11 @@ try {
 
 这是"人机分歧 → 技能改进提案"闭环的实现。
 
-- `renderChat` — 画作用域提示（当前针对哪个节点）+ 消息流 + 输入框 + 麦克风 + 朗读开关 + 发送按钮。
+**每个节点一条独立对话**。消息不再堆在一个共享数组里，而是按 `threadKey()`（`s{句下标}:{路径}`，见 `core/state.js`）分线：关于某一次 `np_phrase` 调用的争论，就属于那次调用，不该在你点到另一个节点时还挂在屏幕上。
+
+- `renderChat` — 作用域提示（当前针对哪个节点）+ **本节点**的消息流 + 输入框 + 麦克风 + 朗读开关 + 发送按钮。
+- `otherThreadsBar(activeKey, format)` — 当前节点还没聊过、但别处有对话时，顶部出现一排"其他节点的对话"小标签；点一下就跳到那个句子 + 那个节点。分线不等于把东西藏起来。
+- `applyProposal(msg, status)` — 「应用到技能文件」：从提案里抽出 `>` 引用块那条规则，交给 `core/skills.js` 的 `addAmendment()`。**这一步才让闭环闭上**——下一次同一个 skill 的 prompt 里就会带上它。
 - `respond(text, sel, format)` — 分三种情况：
   - **没选节点 + live 模式有 key** → 当普通提问直接问模型；
   - **没选节点 + 没 key** → 提示先选节点或配置 key；
@@ -818,3 +898,10 @@ try {
 1. **并行格式完全无法标注**（真 bug）。`formats/sentiment.js` 把 `pendingSlots` / `runSkill` 写成了**具名导出**，而 `core/registry.js` 只注册 `mod.default`——于是这两个函数对界面不可见，情感格式的"待运行"行一个都不显示，任何新建的情感文档都没法标注。内置演示数据三个 skill 都已完成，所以表面上完全看不出来。这和当初要修的那个 bug 是**同一类**：靠预填数据掩盖住的、只在新文档上才暴露的路径。已把两个函数移到 default 对象上，`formats/declarative.js` 补上同样缺失的 `runSkill`，两处都加了注释警示。已用一份空白情感文档验证：3 个待运行行正常出现、依次点击全部成功、第二句同样正常。
 2. **关掉朗读开关不会停止当前朗读**。`stopSpeaking()` 写了但没接线，现在 `ui/chat.js` 的开关关闭时会调用它。
 3. **删掉 7 个死代码导出**（`pickFile`、`debounce`、`nodeAt`、`findSkill`、`listMyRepos`、`toggleTts`、`hasKey`）——都是我早期写下、后来换了实现方式就没人调用的残留。留着会让这份文档多出 7 条"这个函数没人用"的噪音。
+
+### 后来做中英切换时又挖出来的
+
+4. **replay 模式的查表必然落空**（真 bug）。`doc._trace` 的 key，写它的 `io/sources.js` 用的是空格拼接，读它的 `core/runner.js` 里却混进了一个 `\x00` 控制字节——肉眼、`node --check`、grep 全都看不出来（`\x00` 在编辑器里就显示成一个空格）。后果是**每一次 replay 查找都失败**，而失败信息说的是"这份文档是新导入/未标注的"，等于把工具自己的 bug 说成了数据的问题。之所以一直没被测出来，是因为内置语料里能点的"待运行"行**恰好全都是当年导出时漏掉、本来就没有录制的那些**，所以查不到看起来是合理的。修法不是把字节改回去，而是把 key 的构造收进 `core/state.js` 的 `traceKey()`，两边都 import 它——两处各拼一次字符串，本来就迟早会拼歪。同时把失败信息拆成两句：`_trace` 空 vs. `_trace` 有 N 条但缺这一步，是两回事。`docs/verification/replay-test.js` 守着这条。
+5. **`repoRow()` 会渲染出空白的仓库行**。它直接用 `repo.full_name`，字段缺失时整行名字就是空的——静默渲染空内容，正是最难发现的一类问题。改成缺失时用 `owner/name` 现推。
+6. **`specFromDescription()` 里 `const t = text.toLowerCase()` 遮住了 i18n 的 `t`**。这是把这个函数接入 i18n 时当场引入的，`t('studio.f.polarity')` 会变成"把字符串当函数调"。仓库里所有叫 `t` 的局部变量都已改名。
+7. **未标注句子的成品区提示不见了**。`renderArtifact` 用"树是空的"来判断"还没标注"，但导入后 `advanceSentence` 已经种下一个待运行行，树不空——于是本该显示"点右边第一个待处理节点开始"的地方显示成了 `(empty)`。改用"有没有图文本"来判断。

@@ -12,6 +12,7 @@
 import { state, set, pathKey } from '../core/state.js';
 import { el, jsonHtml, fmtMs } from '../core/dom.js';
 import { toast } from './toast.js';
+import { t } from '../core/i18n.js';
 
 export function renderAssistant(container, format) {
   const sel = state.selectedNode;
@@ -19,12 +20,12 @@ export function renderAssistant(container, format) {
 
   if (!sel) {
     container.append(el('div', { class: 'empty' },
-      '在中间的标注树里点一个「待运行」节点来标注，或点一个已完成的节点查看它的输入 / 输出 / 判断依据。'));
+      t('assist.empty')));
     return;
   }
 
   const { node, path } = sel;
-  if (!node || node.pending) { container.append(el('div', { class: 'empty' }, '这一步还没有结果。')); return; }
+  if (!node || node.pending) { container.append(el('div', { class: 'empty' }, t('assist.noResult'))); return; }
   const key = pathKey(path);
   const def = (format.skills || []).find((s) => s.id === node.skill);
   const edited = state.edits.get(key);
@@ -38,14 +39,14 @@ export function renderAssistant(container, format) {
       el('span', { class: `src-badge ${node.source || 'replay'}` }, sourceText(node)),
     ),
     def?.describes ? el('div', { class: 'skill-desc' }, def.describes) : null,
-    def?.file ? el('div', { class: 'skill-file' }, `技能定义：${def.file}`) : null,
+    def?.file ? el('div', { class: 'skill-file' }, t('assist.skillFile', { file: def.file })) : null,
 
-    section('作用范围 (span)', el('div', { class: 'span-box' }, node.span || '—')),
-    section('输入 (input)', el('pre', { class: 'code sm' }, node.input || '—')),
-    section('输出 (output)' + (edited ? ' — 人工已修改' : ''),
+    section(t('assist.span'), el('div', { class: 'span-box' }, node.span || '—')),
+    section(t('assist.input'), el('pre', { class: 'code sm' }, node.input || '—')),
+    section(t('assist.output') + (edited ? t('assist.outputEdited') : ''),
       el('pre', { class: `code${edited ? ' edited' : ''}`, html: jsonHtml(shown) })),
     node.rationale
-      ? section('模型判断依据 (model rationale)',
+      ? section(t('assist.rationale'),
           el('div', { class: 'rationale model' }, node.rationale))
       : null,
     editor(key, shown, node),
@@ -54,7 +55,7 @@ export function renderAssistant(container, format) {
 
 function sourceText(node) {
   if (node.source === 'live') return `live${node.model ? ' · ' + node.model : ''}${node.latencyMs ? ' · ' + fmtMs(node.latencyMs) : ''}`;
-  if (node.source === 'rule') return '代码规则（未调用模型）';
+  if (node.source === 'rule') return t('assist.srcRule');
   return 'replay';
 }
 
@@ -77,9 +78,9 @@ function editor(key, shown, node) {
       const parsed = JSON.parse(ta.value);
       state.edits.set(key, parsed);
       set({}, 'selectedNode', 'tree', 'artifact');
-      toast('已保存人工修改（原始记录保持不变）— 请在下方说明理由以生成 skill 提案');
+      toast(t('assist.saved'));
     } catch (err) {
-      status.textContent = 'JSON 解析失败：' + err.message;
+      status.textContent = t('assist.jsonError') + err.message;
       status.className = 'edit-status err';
     }
   };
@@ -87,17 +88,17 @@ function editor(key, shown, node) {
   const reset = () => {
     state.edits.delete(key);
     set({}, 'selectedNode', 'tree', 'artifact');
-    toast('已还原为模型输出');
+    toast(t('assist.reverted'));
   };
 
   return el('details', { class: 'editor', ...(state.edits.has(key) ? { open: '' } : {}) },
-    el('summary', {}, '人工修改'),
+    el('summary', {}, t('assist.editSection')),
     el('div', { class: 'edit-hint' },
-      '改完请在下方对话框写下你的理由——系统会把它与模型的 rationale 做对照，产出 skill 更新提案。'),
+      t('assist.editHint')),
     ta,
     el('div', { class: 'edit-actions' },
-      el('button', { class: 'btn sm', onclick: apply }, '保存修改'),
-      el('button', { class: 'btn sm ghost', onclick: reset }, '还原'),
+      el('button', { class: 'btn sm', onclick: apply }, t('assist.saveEdit')),
+      el('button', { class: 'btn sm ghost', onclick: reset }, t('assist.revert')),
       status),
   );
 }

@@ -6,6 +6,7 @@
 
 import { state, on } from '../core/state.js';
 import { $, el } from '../core/dom.js';
+import { t } from '../core/i18n.js';
 
 let open = false;
 
@@ -29,7 +30,7 @@ function renderLog() {
   const body = $('#log-panel-body');
   body.innerHTML = '';
   if (!state.log.length) {
-    body.append(el('div', { class: 'empty sm' }, '还没有活动记录。'));
+    body.append(el('div', { class: 'empty sm' }, t('log.empty')));
     return;
   }
   for (const entry of state.log.slice().reverse()) {
