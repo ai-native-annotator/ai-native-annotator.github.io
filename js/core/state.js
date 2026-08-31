@@ -25,7 +25,8 @@ export const state = {
   models: {},             // provider id -> model override
   running: new Set(),     // path-keys currently mid-flight (for spinners/disabling)
   lang: 'zh',             // interface language ('zh' | 'en') — see core/i18n.js
-  edits: new Map(),       // path -> human-edited output
+  editMode: 'penman',     // how the assistant's edit box shows output ('penman' | 'json')
+  edits: new Map(),       // editKey -> human-edited output (also written through onto node.output)
   proposals: [],          // skill-update proposals from rationale clashes
   // One conversation PER NODE, keyed by threadKey() below, plus a 'general'
   // thread for document-level questions. A single shared log made every
@@ -68,6 +69,13 @@ export const pathKey = (path) => path.join('.');
  * lookup missed — with a message blaming the document for having no recording.
  */
 export const traceKey = (skill, span) => skill + SEP + span;
+
+/**
+ * Key for a human edit. Scoped by sentence for the same reason threadKey is:
+ * path [0,1] is a different node in sentence 1 than in sentence 2, and an edit
+ * that leaked across sentences would silently rewrite someone else's node.
+ */
+export const editKey = (sentenceIndex, path) => `s${sentenceIndex}:${pathKey(path)}`;
 const SEP = String.fromCharCode(31);   // ASCII unit separator: cannot occur in a skill id or a span
 
 export function currentSentence() {
@@ -95,7 +103,7 @@ export function pushToThread(key, message) {
 // persist the few things worth persisting (no backend by design). API keys
 // and the GitHub token live in their own localStorage keys (settings.js /
 // io/github.js) so they can be exported/imported as a standalone file.
-const PERSIST = ['runMode', 'theme', 'formatId', 'provider', 'models', 'lang'];
+const PERSIST = ['runMode', 'theme', 'formatId', 'provider', 'models', 'lang', 'editMode'];
 export function loadPersisted() {
   try {
     const saved = JSON.parse(localStorage.getItem('annotator') || '{}');

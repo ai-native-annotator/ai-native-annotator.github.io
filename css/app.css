@@ -493,9 +493,22 @@ select:focus, input:focus, textarea:focus {
    what says so out loud instead of leaving every button silently inert. */
 .boot-error {
   position: fixed; inset: 0 0 auto 0; z-index: 9999;
+  /* Informational, never modal: it sits over the toolbar, and swallowing the
+     clicks meant for the buttons underneath would be its own version of the
+     bug it exists to report. */
+  pointer-events: none;
   display: flex; flex-direction: column; gap: 4px;
   padding: 12px 18px; font-size: 12.5px; line-height: 1.6;
   background: #7f1d1d; color: #fff;
   box-shadow: 0 2px 12px rgba(0, 0, 0, .35);
 }
 .boot-error strong { font-size: 13.5px; }
+
+/* ======================================== human edit surface (Penman first) */
+.editor.open {
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--line-soft);
+}
+.edit-tabs { display: flex; gap: 6px; margin: 6px 0; }
+.edit-box { font-family: var(--mono); }
+.edit-status { line-height: 1.5; }

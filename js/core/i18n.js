@@ -290,6 +290,10 @@ const D = {
     'Simulating a Google Drive import of an unannotated UMR file…'],
   'app.sampleDone': ['已导入未标注文档 —— 在右侧标注树里点击「待运行」节点，逐个 skill 完成标注。',
     'Unannotated document imported — click the pending rows in the tree to annotate it skill by skill.'],
+  'app.missingNode': ['界面元素缺失：{sel} —— 页面上少了这个元素，它的按钮不会有反应（其余功能不受影响）。多半是浏览器缓存了旧的 index.html，请强制刷新（Ctrl/Cmd+Shift+R）。',
+    'Missing element: {sel} — that control will not respond (everything else still works). Usually a cached index.html; hard-refresh (Ctrl/Cmd+Shift+R).'],
+  'app.missingNodes': ['有 {n} 个界面元素没找到，对应按钮不会有反应 —— 请强制刷新页面（Ctrl/Cmd+Shift+R），详见日志。',
+    '{n} interface element(s) missing, so those buttons will not respond — hard-refresh the page (Ctrl/Cmd+Shift+R). See the log.'],
   'app.sampleMissing': ['示例文件缺失：{path}', 'Sample file missing: {path}'],
   'app.demoOption': ['{title} · {n} 句', '{title} · {n} sentences'],
 
@@ -379,6 +383,26 @@ const D = {
   'run.replayGap': [
     'replay 模式没有这一步的录制数据（skill={skill}）。这份文档有 {n} 条录制调用，但当年导出时漏掉了这一步（就是这个「待运行」标记的由来）—— 请切换到「live」模式补全它。',
     'Replay mode has no recorded call for this step (skill={skill}). This document has {n} recorded calls, but this one was dropped when it was exported — that is exactly why this pending marker exists. Switch to live mode to fill it in.'],
+  /* ---------------------------------------------------------- human edits */
+  'edits.applied': ['已采用人工修改：{skill} · {span}', 'Human correction applied: {skill} · {span}'],
+  'edits.reverted': ['已还原模型原始输出：{skill} · {span}', 'Reverted to the model output: {skill} · {span}'],
+  'edits.penmanParse': ['Penman 解析失败：请检查括号是否配对，格式形如 (x1 / concept :role value)',
+    'Could not parse the Penman: check the parentheses. Shape is (x1 / concept :role value)'],
+  'edits.ignoredChild': ['没有对应的子节点，已忽略：{role} ({concept})',
+    'No matching child node, ignored: {role} ({concept})'],
+  'edits.ignoredMissing': ['子节点 {role} 不能在这里删除 —— 它是一次独立的 skill 调用，请在标注树里处理',
+    'Child edge {role} cannot be deleted here — it is its own skill call; use the annotation tree'],
+  'edits.rolesChanged': ['改写了 {n} 条子节点的关系标签', 'Relabelled {n} child edge(s)'],
+  'edits.tabPenman': ['Penman', 'Penman'],
+  'edits.tabJson': ['JSON', 'JSON'],
+  'edits.penmanHint': ['直接改 concept、关系标签和常量值。子节点写作 (x / concept)，只能改它的关系标签；'
+    + '增删子节点请在左边的标注树里做。<np: 短语> 是还没展开的待运行位置。',
+    'Edit the concept, the roles and the constant values. A child shows as (x / concept) and only its role '
+    + 'is editable here; add or remove children from the annotation tree. <np: phrase> is a pending slot.'],
+  'edits.ignoredSome': ['已保存，但有 {n} 处没能应用：', 'Saved, but {n} part(s) could not be applied:'],
+  'edits.savedShown': ['已保存 —— 右侧「标注后文件」已同步更新',
+    'Saved — the annotated result on the right is updated'],
+
   /* ------------------------------------------------------------- pipeline */
   // Rationales for steps the *code* decided (no model call) and the warnings
   // for malformed model output. They show up in the assistant pane and the

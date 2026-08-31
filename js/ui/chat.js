@@ -15,13 +15,14 @@
  */
 
 import {
-  state, set, pathKey, threadKey, currentThread, pushToThread,
+  state, set, threadKey, currentThread, pushToThread,
 } from '../core/state.js';
 import { el, esc, download } from '../core/dom.js';
 import { callProvider, PROVIDERS } from '../core/providers.js';
 import { extractJson } from '../core/runner.js';
 import { logInfo, logError, describeError } from '../core/log.js';
 import { addAmendment } from '../core/skills.js';
+import { editedOutput } from '../core/edits.js';
 import { t } from '../core/i18n.js';
 import { toast } from './toast.js';
 import { sttSupported, ttsSupported, startDictation, speak, stopSpeaking } from '../voice.js';
@@ -214,9 +215,8 @@ async function respond(text, sel, format) {
     return { role: 'ai', text: t('chat.needNode') };
   }
   const { node, path } = sel;
-  const key = pathKey(path);
   const def = (format.skills || []).find((s) => s.id === node.skill);
-  const humanEdit = state.edits.get(key);
+  const humanEdit = editedOutput(state.selectedSentence, path);
 
   const clash = {
     skill: node.skill,

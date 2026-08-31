@@ -16,6 +16,7 @@
 import { state, set, pathKey, currentSentence } from '../core/state.js';
 import { el } from '../core/dom.js';
 import { runPendingAt, getAt } from '../core/pipeline.js';
+import { isEdited } from '../core/edits.js';
 import { logInfo, logError, describeError } from '../core/log.js';
 import { stepCoverage } from '../core/coverage.js';
 import { toast } from './toast.js';
@@ -49,7 +50,7 @@ function nodeEl(node, path, format) {
   const isOpen = !state.collapsed.has(key); // default open; collapse is opt-in
   const isSel = state.selectedNode && pathKey(state.selectedNode.path) === key;
   const { title, detail } = format.nodeSummary?.(node) || { title: node.span, detail: '' };
-  const edited = state.edits.has(key);
+  const edited = isEdited(state.selectedSentence, path);
 
   const row = el('div', {
     class: `node-row${isSel ? ' selected' : ''}${node.source ? ` src-${node.source}` : ''}`,

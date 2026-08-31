@@ -65,27 +65,34 @@ async function boot() {
 }
 
 function cacheNodes() {
-  panes.source = $('#pane-source');
-  panes.legend = $('#legend');
-  panes.annotated = $('#pane-annotated');
-  panes.assistant = $('#pane-assistant');
-  panes.chat = $('#pane-chat');
-  panes.sentences = $('#sentence-bar');
+  const need = {
+    source: '#pane-source', legend: '#legend', annotated: '#pane-annotated',
+    assistant: '#pane-assistant', chat: '#pane-chat', sentences: '#sentence-bar',
+  };
+  for (const [name, sel] of Object.entries(need)) {
+    panes[name] = $(sel);
+    if (!panes[name]) { missingNodes.push(sel); logError('app', t('app.missingNode', { sel })); }
+  }
 }
 
 function activeFormat() {
   return getFormat(state.formatId) || getFormat('umr');
 }
 
+/**
+ * Repaint every pane. Each call is guarded on its own container so one absent
+ * pane costs that pane and nothing else — the same rule as wire(): a missing
+ * element must never take the rest of the app down with it.
+ */
 function renderAll() {
   const f = activeFormat();
   if (!f) return;
-  renderSentenceBar(panes.sentences);
-  renderSource(panes.source, f);
-  renderLegend(panes.legend, f);
-  renderAnnotated(panes.annotated, f);
-  renderAssistant(panes.assistant, f);
-  renderChat(panes.chat, f);
+  if (panes.sentences) renderSentenceBar(panes.sentences);
+  if (panes.source) renderSource(panes.source, f);
+  if (panes.legend) renderLegend(panes.legend, f);
+  if (panes.annotated) renderAnnotated(panes.annotated, f);
+  if (panes.assistant) renderAssistant(panes.assistant, f);
+  if (panes.chat) renderChat(panes.chat, f);
 }
 
 function subscribe() {
@@ -151,6 +158,7 @@ async function useDoc(doc) {
 
 function fillDocSelect() {
   const sel = $('#doc-select');
+  if (!sel) return;                       // missing control, already reported by wire()
   sel.innerHTML = '';
   sel.append(el('option', { value: '', disabled: '' }, t('app.importedDocs')));
   for (const d of state.docIndex) {
@@ -160,6 +168,7 @@ function fillDocSelect() {
 
 function fillFormatSelect() {
   const sel = $('#format-select');
+  if (!sel) return;                       // missing control, already reported by wire()
   sel.innerHTML = '';
   const ids = new Set([...availableFormatIds(), ...listFormats().map((f) => f.id)]);
   for (const id of ids) {
@@ -203,8 +212,31 @@ async function importSample(lang) {
   toast(t('app.sampleDone'));
 }
 
+/**
+ * Attach one handler, and never let a missing element take down the rest.
+ *
+ * These used to be bare `$('#id').onclick = …` in a row. A single element that
+ * was not in the DOM — a stale cached index.html, a hand-edit, a typo — threw
+ * on that line and every wiring *after* it silently never happened. The
+ * language button sits near the end of the list, so the symptom was "the
+ * English button does nothing" while the rest of the toolbar looked fine, with
+ * nothing at all in the console. One missing button must cost exactly that one
+ * button, and it must say so.
+ */
+function wire(selector, prop, handler) {
+  const node = $(selector);
+  if (!node) {
+    missingNodes.push(selector);
+    logError('app', t('app.missingNode', { sel: selector }));
+    return null;
+  }
+  node[prop] = handler;
+  return node;
+}
+const missingNodes = [];
+
 function wireToolbar() {
-  $('#format-select').onchange = async (e) => {
+  wire('#format-select', 'onchange', async (e) => {
     await loadFormat(e.target.value).catch(() => {});
     state.formatId = e.target.value;
     persist();
@@ -212,41 +244,43 @@ function wireToolbar() {
     state.theme = f.themes?.[0]?.id || 'json';
     const match = state.docIndex.find((d) => d.format === state.formatId);
     if (match) await openDoc(match.id); else set({}, 'format');
-  };
-  $('#doc-select').onchange = (e) => { if (e.target.value) openDoc(e.target.value); };
+  });
+  wire('#doc-select', 'onchange', (e) => { if (e.target.value) openDoc(e.target.value); });
 
-  $('#btn-local').onclick = async () => {
+  wire('#btn-local', 'onclick', async () => {
     try { await useDoc(await openLocalFile()); } catch (err) { logError('app', describeError(err), err); toast(err.message, true); }
-  };
-  $('#btn-drive').onclick = async () => {
+  });
+  wire('#btn-drive', 'onclick', async () => {
     try { await useDoc(await importFromDrive()); } catch (err) { logError('app', describeError(err), err); toast(err.message, true); }
-  };
-  $('#btn-drive-demo-en').onclick = () => importSample('en').catch((err) => { logError('app', describeError(err), err); toast(err.message, true); });
-  $('#btn-drive-demo-zh').onclick = () => importSample('zh').catch((err) => { logError('app', describeError(err), err); toast(err.message, true); });
-  $('#btn-drive-demo-wiki').onclick = () => importSample('wiki').catch((err) => { logError('app', describeError(err), err); toast(err.message, true); });
+  });
+  const sample = (which) => () => importSample(which).catch((err) => { logError('app', describeError(err), err); toast(err.message, true); });
+  wire('#btn-drive-demo-en', 'onclick', sample('en'));
+  wire('#btn-drive-demo-zh', 'onclick', sample('zh'));
+  wire('#btn-drive-demo-wiki', 'onclick', sample('wiki'));
 
-  $('#btn-export').onclick = () => { if (!exportDocumentFile()) toast(t('app.noDoc'), true); };
-  $('#btn-proposals').onclick = exportProposals;
-  $('#btn-studio').onclick = () => openStudio((format) => {
+  wire('#btn-export', 'onclick', () => { if (!exportDocumentFile()) toast(t('app.noDoc'), true); });
+  wire('#btn-proposals', 'onclick', exportProposals);
+  wire('#btn-studio', 'onclick', () => openStudio((format) => {
     fillFormatSelect();
     $('#format-select').value = format.id;
     state.formatId = format.id;
     state.theme = format.themes?.[0]?.id;
     set({}, 'format');
     toast(t('studio.applied', { label: format.label }));
-  });
+  }));
 
-  $('#btn-lang').onclick = () => toggleLang();
+  wire('#btn-lang', 'onclick', () => toggleLang());
 
-  const modeSel = $('#mode-select');
-  modeSel.value = state.runMode;
-  modeSel.onchange = (e) => {
+  const modeSel = wire('#mode-select', 'onchange', (e) => {
     if (e.target.value === 'live' && !state.apiKeys[state.provider]) {
       toast(t('app.needKey'), true);
       openSettings();
     }
     set({ runMode: e.target.value }, 'runMode');
-  };
+  });
+  if (modeSel) modeSel.value = state.runMode;
+
+  if (missingNodes.length) toast(t('app.missingNodes', { n: missingNodes.length }), true);
 }
 
 function wireMenus() {
