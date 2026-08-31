@@ -24,17 +24,18 @@ import { logInfo, logWarn } from '../core/log.js';
 import { download } from '../core/dom.js';
 import { advanceSentence } from '../core/pipeline.js';
 import { t } from '../core/i18n.js';
+import { fetchAsset } from '../core/net.js';
 
 const DEMO_BASE = 'data/demo';
 
 export async function listDemos() {
-  const res = await fetch(`${DEMO_BASE}/index.json`);
+  const res = await fetchAsset(`${DEMO_BASE}/index.json`);
   if (!res.ok) throw new Error(t('sources.noIndex'));
   return res.json();
 }
 
 export async function loadDemo(id) {
-  const res = await fetch(`${DEMO_BASE}/${id}.json`);
+  const res = await fetchAsset(`${DEMO_BASE}/${id}.json`);
   if (!res.ok) throw new Error(t('sources.noDemo', { id }));
   const doc = await res.json();
   normalizeDoc(doc);

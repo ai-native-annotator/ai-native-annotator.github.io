@@ -20,6 +20,7 @@ import { runSkillCall } from './runner.js';
 import { logInfo, logWarn } from './log.js';
 import { loadEffectiveText } from './skills.js';
 import { t } from './i18n.js';
+import { fetchAsset } from './net.js';
 
 // Depth at which clause recursion stops and phrases are forced atomic/np —
 // mirrors umr_parser/pipeline.py's MAX_DEPTH / FORCE_ATOMIC_DEPTH exactly.
@@ -54,7 +55,7 @@ const fetchText = loadEffectiveText;
 
 async function loadAbstractRolesets() {
   if (abstractRolesets) return abstractRolesets;
-  const res = await fetch(`${DATA_BASE}/resources/abstract_rolesets.json`);
+  const res = await fetchAsset(`${DATA_BASE}/resources/abstract_rolesets.json`);
   abstractRolesets = res.ok ? await res.json() : {};
   return abstractRolesets;
 }

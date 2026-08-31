@@ -22,6 +22,7 @@
 <div id="boot-error" class="boot-error" role="alert">
   <strong>页面没有启动 · The app did not start</strong>
   <span id="boot-error-why"></span>
+  <span class="boot-step-line">最后到达的步骤 · last step reached: <code id="boot-step">(js/app.js 还没开始跑 · js/app.js has not run yet)</code></span>
 </div>
 <script>
   (function () {
@@ -40,11 +41,26 @@
           + '  ·  Failed to load ' + (e.target.src || 'js/app.js') + '.';
       }
     }, true);
+    // Report where it stopped, not merely that it stopped. A step name turns
+    // "it did not finish" into something actionable: a fetch step means the
+    // server or a file, a wiring step means the DOM.
     setTimeout(function () {
       var box = document.getElementById('boot-error');
-      if (box && !why.textContent) {
-        why.textContent = 'js/app.js 没有跑完 boot()。请打开浏览器控制台看具体报错。'
-          + '  ·  js/app.js did not finish boot(). Open the browser console for the actual error.';
+      if (!box || why.textContent) return;
+      var at = window.__bootStep;
+      if (!at) {
+        why.textContent = 'js/app.js 一步都没跑起来 —— 多半是模块加载失败（路径不对、文件缺失，或语法错误）。'
+          + '请打开控制台看红色报错，并强制刷新（Ctrl/Cmd+Shift+R）。'
+          + '  ·  js/app.js never started: the module failed to load (bad path, missing file, or a syntax error). '
+          + 'Check the console and hard-refresh.';
+      } else if (at.indexOf('fetch') !== -1) {
+        why.textContent = '卡在「' + at + '」—— 这一步在向本地服务器要文件。'
+          + '请确认 python3 -m http.server 还活着、而且是在仓库根目录（能看到 index.html 和 js/ 的那一层）起的。'
+          + '  ·  Stuck at "' + at + '", which is fetching from your local server. Check the server is still '
+          + 'running and was started in the repository root.';
+      } else {
+        why.textContent = '卡在「' + at + '」。请打开控制台看具体报错。'
+          + '  ·  Stuck at "' + at + '". Check the console for the actual error.';
       }
     }, 4000);
   }());

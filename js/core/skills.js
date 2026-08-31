@@ -15,6 +15,7 @@
 
 import { logInfo, logWarn } from './log.js';
 import { t } from './i18n.js';
+import { fetchAsset } from './net.js';
 
 const STORE_KEY = 'annotator_skill_overrides';
 const baseCache = new Map();     // relPath -> original file text
@@ -30,7 +31,7 @@ function persist() {
 /** The unmodified file as shipped in data/. */
 export async function loadBaseText(relPath) {
   if (baseCache.has(relPath)) return baseCache.get(relPath);
-  const res = await fetch(`data/${relPath}`);
+  const res = await fetchAsset(`data/${relPath}`);
   const text = res.ok ? await res.text() : '';
   if (!res.ok) logWarn('skills', t('pipe.skillMissing', { path: relPath }));
   baseCache.set(relPath, text);

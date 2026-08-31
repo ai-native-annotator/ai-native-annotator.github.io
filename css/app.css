@@ -512,3 +512,5 @@ select:focus, input:focus, textarea:focus {
 .edit-tabs { display: flex; gap: 6px; margin: 6px 0; }
 .edit-box { font-family: var(--mono); }
 .edit-status { line-height: 1.5; }
+.boot-step-line { font-size: 11.5px; opacity: .9; }
+.boot-step-line code { font-family: var(--mono); background: rgba(0,0,0,.25); padding: 1px 5px; border-radius: 3px; }

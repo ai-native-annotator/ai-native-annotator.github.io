@@ -28,38 +28,70 @@ import { t, applyStaticI18n, toggleLang, detectLang } from './core/i18n.js';
 
 const panes = {};
 
+/**
+ * Name the step we are about to attempt, on `window` so the plain inline script
+ * in index.html can read it without importing anything.
+ *
+ * "js/app.js did not finish boot()" is barely more useful than silence: it says
+ * something broke but not what, and boot can stop for reasons that never reach
+ * a catch (a fetch that hangs rather than fails). With the step recorded, the
+ * banner can say *where* it stopped, which is the whole difference between a
+ * bug report we can act on and one we cannot.
+ */
+function step(name) {
+  window.__bootStep = name;
+  const node = document.getElementById('boot-step');
+  if (node) node.textContent = name;
+}
+
 async function boot() {
+  step('loadPersisted');
   loadPersisted();
   // first run: follow the browser's language until the user chooses one
   if (!localStorage.getItem('annotator')) state.lang = detectLang();
+  step('applyStaticI18n');
   applyStaticI18n();
+  step('loadSecrets');
   loadSecrets();
+  step('cacheNodes');
   cacheNodes();
+  step('wireToolbar');
   wireToolbar();
+  step('wireMenus');
   wireMenus();
+  step('mountLogPanel');
   mountLogPanel();
+  step('mountSettingsButton');
   mountSettingsButton();
+  step('mountGithubButton');
   mountGithubButton(async (doc) => { await useDoc(doc); });
+  step('subscribe');
   subscribe();
 
+  step("loadFormat('umr')  [fetch js/formats/umr.js]");
   await loadFormat('umr');
+  step("loadFormat('sentiment')  [fetch js/formats/sentiment.js]");
   await loadFormat('sentiment');
 
+  step('listDemos()  [fetch data/demo/index.json]');
   try {
     state.docIndex = await listDemos();
   } catch (err) {
     logError('app', t('app.docIndexFailed', { err: describeError(err) }), err);
     toast(t('app.docIndexFailed', { err: err.message }), true);
   }
+  step('fillDocSelect / fillFormatSelect / updateModeUi');
   fillDocSelect();
   fillFormatSelect();
   updateModeUi();
 
   const first = state.docIndex.find((d) => d.format === state.formatId) || state.docIndex[0];
+  step(first ? `openDoc('${first.id}')  [fetch data/demo/${first.id}.json]` : 'renderAll');
   if (first) await openDoc(first.id);
   else renderAll();
   // Reaching here is the only proof the app is actually wired up; until now the
   // page has been showing the boot-failure banner from index.html.
+  step('done');
   document.getElementById('boot-error')?.remove();
   logInfo('app', t('app.ready'));
 }
@@ -300,8 +332,13 @@ function wireMenus() {
 
 boot().catch((err) => {
   // A boot that throws leaves a fully-rendered but dead page. Say so in the
-  // banner rather than letting every button quietly do nothing.
+  // banner, and name the step, rather than letting every button quietly do
+  // nothing.
+  const at = window.__bootStep || '(before the first step)';
   const why = document.getElementById('boot-error-why');
-  if (why) why.textContent = `boot() 抛错：${err?.message || err}  ·  boot() threw: ${err?.message || err}`;
-  console.error('[app] boot failed', err);
+  if (why) {
+    why.textContent = `boot() 在「${at}」这一步抛错：${err?.message || err}`
+      + `  ·  boot() threw at step "${at}": ${err?.message || err}`;
+  }
+  console.error('[app] boot failed at step:', at, err);
 });

@@ -383,6 +383,11 @@ const D = {
   'run.replayGap': [
     'replay 模式没有这一步的录制数据（skill={skill}）。这份文档有 {n} 条录制调用，但当年导出时漏掉了这一步（就是这个「待运行」标记的由来）—— 请切换到「live」模式补全它。',
     'Replay mode has no recorded call for this step (skill={skill}). This document has {n} recorded calls, but this one was dropped when it was exported — that is exactly why this pending marker exists. Switch to live mode to fill it in.'],
+  /* ----------------------------------------------------------------- net */
+  'net.timeout': ['请求超时（{s} 秒没有响应）：{url}。本地服务器可能已经停了，或者不是在仓库根目录起的。',
+    'Request timed out after {s}s: {url}. The local server may have stopped, or was not started in the repository root.'],
+  'net.failed': ['请求失败：{url} —— {err}', 'Request failed: {url} — {err}'],
+
   /* ---------------------------------------------------------- human edits */
   'edits.applied': ['已采用人工修改：{skill} · {span}', 'Human correction applied: {skill} · {span}'],
   'edits.reverted': ['已还原模型原始输出：{skill} · {span}', 'Reverted to the model output: {skill} · {span}'],
