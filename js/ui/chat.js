@@ -96,7 +96,9 @@ export function renderChat(container, format) {
   }
   bar.append(el('button', { class: 'btn', onclick: send }, t('chat.send')));
 
-  container.append(scope, otherThreadsBar(key, format), log, bar);
+  // native append() stringifies null into a literal "null" text node, so drop
+  // the thread bar when there is nothing to put in it
+  container.append(...[scope, otherThreadsBar(key, format), log, bar].filter(Boolean));
   log.scrollTop = log.scrollHeight;
 }
 

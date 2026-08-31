@@ -56,6 +56,12 @@ const D = {
   'pane.source': ['原始文件', 'Source'],
   'pane.annotated': ['标注后文件', 'Annotated'],
   'pane.assistant': ['AI 标注助手', 'AI assistant'],
+  // The small grey word after each pane title is an English gloss for the
+  // Chinese heading. In English it would just repeat the heading, so it goes
+  // away — except the assistant's, which says something the title does not.
+  'pane.sourceGloss': ['source', ''],
+  'pane.annotatedGloss': ['annotated', ''],
+  'pane.assistantGloss': ['skill call', 'skill call'],
   'pane.chat': ['AI 对话 · rationale 交锋', 'Dialogue · rationale clash'],
   'panes.legend': ['图例', 'Legend'],
   'panes.serialHint': ['串行：可逐层展开，点击待运行节点标注', 'Serial: expand level by level; click a pending row to annotate'],
