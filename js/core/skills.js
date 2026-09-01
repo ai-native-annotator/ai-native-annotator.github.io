@@ -14,6 +14,7 @@
  */
 
 import { logInfo, logWarn } from './log.js';
+import { set } from './state.js';
 import { t } from './i18n.js';
 import { fetchAsset } from './net.js';
 
@@ -60,6 +61,10 @@ export function addAmendment(relPath, text) {
   overrides[relPath] = overrides[relPath] ? `${overrides[relPath]}\n\n${trimmed}` : trimmed;
   persist();
   logInfo('skills', t('skills.applied', { file: relPath }));
+  // The next prompt already carries it (loadEffectiveText), but the annotator
+  // cannot see that. Announce it so the assistant pane can show the amendment
+  // on the spot rather than leaving them to take it on faith.
+  set({}, 'skills');
   return overrides[relPath];
 }
 
@@ -67,6 +72,7 @@ export function clearOverride(relPath) {
   delete overrides[relPath];
   persist();
   logInfo('skills', t('skills.reverted', { file: relPath }));
+  set({}, 'skills');
 }
 
 export function clearAllOverrides() {

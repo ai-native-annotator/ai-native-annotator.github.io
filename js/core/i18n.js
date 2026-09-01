@@ -39,8 +39,9 @@ const D = {
   'toolbar.mode': ['模式', 'Mode'],
   'toolbar.log': ['日志', 'Log'],
   'toolbar.settings': ['设置', 'Settings'],
-  'toolbar.lang': ['English', '中文'],
-  'toolbar.langTitle': ['Switch to English', '切换为中文'],
+  'toolbar.lang': ['语言', 'Language'],
+  'toolbar.langTitle': ['切换界面语言', 'Switch interface language'],
+  'lang.partial': ['部分翻译，其余显示英文', 'partly translated, the rest shows in English'],
   'mode.replay': ['replay（回放 / 演示）', 'replay (recorded / demo)'],
   'mode.live': ['live（真实调用模型）', 'live (real model calls)'],
   'menu.localFile': ['本地文件（.json / .txt / .umr）', 'Local file (.json / .txt / .umr)'],
@@ -388,6 +389,12 @@ const D = {
     'Request timed out after {s}s: {url}. The local server may have stopped, or was not started in the repository root.'],
   'net.failed': ['请求失败：{url} —— {err}', 'Request failed: {url} — {err}'],
 
+  'skills.liveBadge': ['本地修订已生效', 'local amendment · in effect'],
+  'skills.liveHint': ['这段已经追加在该技能的说明后面，下一次调用这个 skill 就会带上它。可在 GitHub 面板提交回仓库。',
+    'This is appended to the skill’s instructions, so the next call to it carries the rule. Commit it back through the GitHub panel.'],
+  'skills.revertedToast': ['已撤销本地修订，下一次调用恢复原始说明',
+    'Local amendment removed — the next call uses the original instructions'],
+
   /* ---------------------------------------------------------- human edits */
   'edits.applied': ['已采用人工修改：{skill} · {span}', 'Human correction applied: {skill} · {span}'],
   'edits.reverted': ['已还原模型原始输出：{skill} · {span}', 'Reverted to the model output: {skill} · {span}'],
@@ -586,30 +593,72 @@ const D = {
   'sent.docCounts': ['时序{t} 情态{m} 共指{c}', 'temporal {t}, modal {m}, coref {c}'],
 };
 
-export const LANGS = ['zh', 'en'];
+/**
+ * The languages on offer.
+ *
+ * `zh` and `en` live in the pair above, side by side, so those two can never
+ * drift apart. Any further language is a separate file under core/locales/
+ * exporting a flat {key: string} map, loaded on demand — adding a language is
+ * dropping in one file and adding one line here, with no change to any pane.
+ *
+ * `coverage` is stated honestly and shown in the picker: a locale that only
+ * covers part of the interface falls back to English per missing key, and the
+ * user should know that before choosing it rather than discover it.
+ */
+export const LOCALES = [
+  { id: 'zh', name: '中文', htmlLang: 'zh', index: 0 },
+  { id: 'en', name: 'English', htmlLang: 'en', index: 1 },
+  { id: 'ja', name: '日本語', htmlLang: 'ja', file: 'ja', coverage: 'partial' },
+];
+
+export const LANGS = LOCALES.map((l) => l.id);
+const localeOf = (id) => LOCALES.find((l) => l.id === id);
+const overlays = new Map();     // lang id -> {key: string}
+
+/** Load a file-backed locale. Built-in languages need nothing. */
+export async function loadLocale(id) {
+  const loc = localeOf(id);
+  if (!loc?.file || overlays.has(id)) return;
+  try {
+    const mod = await import(`./locales/${loc.file}.js`);
+    overlays.set(id, mod.default || {});
+  } catch (err) {
+    // A missing or broken locale file must not take the interface down: fall
+    // back to English and say so, rather than leaving every label as a raw key.
+    overlays.set(id, {});
+    console.error(`[i18n] locale "${id}" failed to load, falling back to English`, err);
+  }
+}
 
 export function t(key, vars) {
   const entry = D[key];
-  let s = entry ? (state.lang === 'en' ? entry[1] : entry[0]) : key;
+  const loc = localeOf(state.lang);
+  let s;
+  if (loc?.file) {
+    // file-backed: its own string, else English, else the key itself
+    s = overlays.get(state.lang)?.[key] ?? entry?.[1] ?? key;
+  } else {
+    s = entry ? entry[loc?.index ?? 0] : key;
+  }
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.split(`{${k}}`).join(String(v));
   return s;
 }
 
 export function currentLang() { return state.lang; }
 
-export function setLang(lang) {
+export async function setLang(lang) {
   if (!LANGS.includes(lang) || lang === state.lang) return;
+  await loadLocale(lang);
   set({ lang }, 'lang');
   persist();
-  document.documentElement.lang = lang === 'en' ? 'en' : 'zh';
+  document.documentElement.lang = localeOf(lang)?.htmlLang || 'en';
 }
-
-export function toggleLang() { setLang(state.lang === 'zh' ? 'en' : 'zh'); }
 
 /** First-run default: follow the browser unless the user has chosen before. */
 export function detectLang() {
-  const nav = (navigator.language || 'zh').toLowerCase();
-  return nav.startsWith('zh') ? 'zh' : 'en';
+  const nav = (navigator.language || 'en').toLowerCase();
+  const match = LOCALES.find((l) => nav.startsWith(l.id));
+  return match ? match.id : 'en';
 }
 
 /** Translate static markup: any element carrying data-i18n / data-i18n-title. */
@@ -621,5 +670,5 @@ export function applyStaticI18n(root = document) {
     node.title = t(node.dataset.i18nTitle);
   }
   document.title = `${t('app.title')} · Annotation Workbench`;
-  document.documentElement.lang = state.lang === 'en' ? 'en' : 'zh';
+  document.documentElement.lang = localeOf(state.lang)?.htmlLang || 'en';
 }

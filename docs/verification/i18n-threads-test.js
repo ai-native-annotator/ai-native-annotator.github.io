@@ -41,7 +41,7 @@ const S1 = 'The museum opened a new exhibit last week.';
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(500);
 
-  console.log('=========== 1. 界面语言切换 ===========');
+  console.log('=========== 1. 界面语言切换（下拉菜单） ===========');
   const langNow = async () => (await page.getAttribute('html', 'lang'));
   const snap = async () => ({
     lang: await langNow(),
@@ -49,15 +49,23 @@ const S1 = 'The museum opened a new exhibit last week.';
     pane: await page.textContent('.pane-left .pane-head'),
     legend: await page.textContent('#legend'),
     tree: await page.textContent('#pane-annotated'),
-    btn: (await page.textContent('#btn-lang')).trim(),
   });
+
+  const options = await page.$$eval('#lang-select option', (os) => os.map((o) => ({ v: o.value, t: o.textContent.trim() })));
+  console.log('  可选语言:', options.map((o) => `${o.v}=${o.t}`).join(', '));
+  console.log('  是下拉菜单而不是按钮:', Boolean(await page.$('#lang-select')) && !(await page.$('#btn-lang')));
+  console.log('  语言不止两种:', options.length >= 3);
+  console.log('  每种语言用它自己的文字写:',
+    options.some((o) => o.t === '中文') && options.some((o) => o.t === 'English') && options.some((o) => o.t === '日本語'));
+
   const A = await snap();
   console.log(`  首次进入跟随浏览器语言 -> ${A.lang} (navigator=${await page.evaluate(() => navigator.language)})`);
   await page.screenshot({ path: SHOT(`lang-${A.lang}`) });
 
-  await page.click('#btn-lang'); await page.waitForTimeout(400);
+  await page.selectOption('#lang-select', A.lang === 'zh' ? 'en' : 'zh');
+  await page.waitForTimeout(400);
   const B = await snap();
-  console.log(`  点一下切到 -> ${B.lang}`);
+  console.log(`  选一下切到 -> ${B.lang}`);
   console.log('  语言确实变了:', A.lang !== B.lang);
   await page.screenshot({ path: SHOT(`lang-${B.lang}`) });
 
@@ -66,29 +74,44 @@ const S1 = 'The museum opened a new exhibit last week.';
   console.log('  中文态: 面板「原始文件」:', zh.pane.includes('原始文件'));
   console.log('  中文态: 图例「图例」+「篇章关系切分」:', zh.legend.includes('图例') && zh.legend.includes('篇章关系切分'));
   console.log('  中文态: 标注树标题:', zh.tree.includes('标注树'));
-  console.log('  中文态: 按钮显示 English:', zh.btn === 'English');
   console.log('  英文态: 工具栏 Format/Import:', en.toolbar.includes('Format') && en.toolbar.includes('Import'));
   console.log('  英文态: 无残留中文「格式」:', !en.toolbar.includes('格式'));
   console.log('  英文态: 面板 Source:', en.pane.includes('Source'));
   console.log('  英文态: 图例 Legend + discourse segmentation:', en.legend.includes('Legend') && en.legend.includes('discourse segmentation'));
   console.log('  英文态: 标注树 Annotation tree:', en.tree.includes('Annotation tree'));
-  console.log('  英文态: 按钮显示 中文:', en.btn === '中文');
+
+  console.log('\n  -- 第三种语言（文件式 locale，缺的键回落英文）--');
+  await page.selectOption('#lang-select', 'ja');
+  await page.waitForTimeout(500);
+  const ja = await snap();
+  console.log('  html lang = ja:', ja.lang === 'ja');
+  console.log('  工具栏译成日文:', ja.toolbar.includes('形式') && ja.toolbar.includes('読み込み'));
+  console.log('  面板译成日文:', ja.pane.includes('原文'));
+  console.log('  标注树译成日文:', ja.tree.includes('注釈ツリー'));
+  // "no CJK" is meaningless here — Japanese kanji share the range with Chinese.
+  // What must not happen is a fall back to CHINESE: a file-backed locale falls
+  // back to English per missing key, never to the other built-in language.
+  console.log('  没有回落到中文（应回落英文）:',
+    !ja.toolbar.includes('导入') && !ja.tree.includes('标注树') && !ja.pane.includes('原始文件'));
+  console.log('  未翻译的键确实回落到英文:', ja.legend.includes('discourse segmentation'));
+  await page.screenshot({ path: SHOT('lang-ja') });
 
   console.log('\n  -- 设置面板跟随语言 --');
+  await page.selectOption('#lang-select', 'en'); await page.waitForTimeout(400);
   await page.click('#btn-settings'); await page.waitForTimeout(250);
   const setTxt = await page.textContent('.settings-modal');
-  const isEn = (await langNow()) === 'en';
-  console.log('  设置面板语言正确:', isEn ? setTxt.includes('Local credentials file') : setTxt.includes('本地凭据文件'));
+  console.log('  设置面板语言正确:', setTxt.includes('Local credentials file'));
   await page.click('.modal-head .btn.ghost');
 
   console.log('\n  -- 刷新后语言保持 --');
-  const beforeReload = await langNow();
+  await page.selectOption('#lang-select', 'ja'); await page.waitForTimeout(400);
   await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(500);
-  console.log(`  刷新前 ${beforeReload} / 刷新后 ${await langNow()} -> 保持:`, beforeReload === (await langNow()));
+  await page.waitForTimeout(700);
+  console.log('  刷新后仍是 ja:', (await langNow()) === 'ja');
+  console.log('  刷新后日文仍在（locale 文件被重新加载）:', (await page.textContent('.toolbar')).includes('形式'));
 
   // force Chinese for the thread test so the selectors below are stable
-  if ((await langNow()) !== 'zh') { await page.click('#btn-lang'); await page.waitForTimeout(400); }
+  await page.selectOption('#lang-select', 'zh'); await page.waitForTimeout(400);
   console.log('  线程测试前已切到:', await langNow());
 
   console.log('\n=========== 2. 每个节点独立对话 ===========');

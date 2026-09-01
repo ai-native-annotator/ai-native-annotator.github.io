@@ -516,3 +516,23 @@ select:focus, input:focus, textarea:focus {
 .boot-step-line code { font-family: var(--mono); background: rgba(0,0,0,.25); padding: 1px 5px; border-radius: 3px; }
 
 .field-caption { font-size: 12px; font-weight: 600; color: var(--muted); display: block; margin-bottom: 4px; }
+
+/* the language picker labels itself for assistive tech without taking space */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+.lang-ctl select { min-width: 96px; }
+
+/* ============================ a skill's live local amendment (see skills.js) */
+.amendment {
+  margin: 8px 0 4px; padding: 8px 10px; border-radius: 6px;
+  background: var(--accent-soft, rgba(120,160,255,.10));
+  border: 1px solid var(--accent, #6a8cff);
+}
+.amendment-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+.amendment-badge { font-size: 11px; font-weight: 700; color: var(--accent, #6a8cff); }
+.amendment-text {
+  font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap;
+  margin: 0 0 5px; color: var(--text);
+}

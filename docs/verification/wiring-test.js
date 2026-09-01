@@ -3,7 +3,7 @@
  *
  * The toolbar used to be wired as a run of bare `$('#id').onclick = …`. A
  * single element that was not in the DOM threw on its line and every wiring
- * AFTER it silently never happened. `#btn-lang` sits near the end, so the
+ * AFTER it silently never happened. `#lang-select` sits near the end, so the
  * symptom was "the English button does nothing" while the rest of the toolbar
  * looked fine and the console was empty. That is the bug this pins.
  *
@@ -40,10 +40,10 @@ const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`
     check('the element really is gone', !(await page.$(`#${missing}`)));
 
     const before = await page.getAttribute('html', 'lang');
-    await page.click('#btn-lang');
+    await page.selectOption('#lang-select', before === 'zh' ? 'en' : 'zh');
     await page.waitForTimeout(400);
     const after = await page.getAttribute('html', 'lang');
-    check('language button still works', before !== after, `${before} -> ${after}`);
+    check('language picker still works', before !== after, `${before} -> ${after}`);
 
     await page.click('#btn-log'); await page.waitForTimeout(300);
     const log = await page.textContent('#log-panel-body');

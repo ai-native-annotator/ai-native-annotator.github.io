@@ -57,7 +57,7 @@ function scan(where, text) {
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(500);
-  if ((await page.getAttribute('html', 'lang')) !== 'en') { await page.click('#btn-lang'); await page.waitForTimeout(300); }
+  if ((await page.getAttribute('html', 'lang')) !== 'en') { await page.selectOption('#lang-select', 'en'); await page.waitForTimeout(300); }
   console.log('interface language:', await page.getAttribute('html', 'lang'));
 
   // live mode with a fake key, then an English document, annotated end to end
@@ -81,12 +81,12 @@ function scan(where, text) {
   }
 
   // Two things in the toolbar are legitimately Chinese in English mode and are
-  // excluded by DOM, not by string matching: the language button (whose label
-  // is the *other* language's name) and the document picker (whose options are
+  // excluded by DOM, not by string matching: the language picker (whose options
+  // name each language in that language) and the document picker (whose options are
   // the corpora's own titles, one of which is a Chinese corpus).
   scan('toolbar', await page.evaluate(() => {
     const bar = document.querySelector('.toolbar').cloneNode(true);
-    bar.querySelector('#btn-lang')?.remove();
+    bar.querySelector('.lang-ctl')?.remove();
     bar.querySelectorAll('select').forEach((s) => s.remove());
     return bar.textContent;
   }));

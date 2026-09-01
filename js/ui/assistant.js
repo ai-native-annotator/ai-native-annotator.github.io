@@ -16,6 +16,7 @@ import { t } from '../core/i18n.js';
 import {
   applyEdit, revertEdit, isEdited, outputToPenman, penmanToOutput, applyChildRoles,
 } from '../core/edits.js';
+import { getOverride, clearOverride } from '../core/skills.js';
 
 /**
  * Saving re-renders this whole pane, which throws away the status element the
@@ -53,6 +54,7 @@ export function renderAssistant(container, format) {
     ),
     def?.describes ? el('div', { class: 'skill-desc' }, def.describes) : null,
     def?.file ? el('div', { class: 'skill-file' }, t('assist.skillFile', { file: def.file })) : null,
+    amendmentBox(def),
 
     section(t('assist.span'), el('div', { class: 'span-box' }, node.span || '—')),
     section(t('assist.input'), el('pre', { class: 'code sm' }, node.input || '—')),
@@ -64,6 +66,32 @@ export function renderAssistant(container, format) {
       : null,
     editor(path, node),
   );
+}
+
+/**
+ * A skill's live local amendment, shown on the skill it changes.
+ *
+ * Accepting an amendment in the chat already puts it in the very next prompt,
+ * but nothing on screen said so — the annotator had to take it on trust. This
+ * is the receipt: the exact text now being appended to that skill's
+ * instructions, on the pane where its effect will show up, revertible in place.
+ */
+function amendmentBox(def) {
+  // def.file already carries the `skills/` prefix (see formats/umr.js), and it
+  // is the exact string chat.js hands addAmendment and pipeline.js fetches, so
+  // this must use it verbatim — prefixing again would look right and match
+  // nothing, which is how the replay index broke.
+  const text = def?.file ? getOverride(def.file) : '';
+  if (!text) return null;
+  return el('div', { class: 'amendment' },
+    el('div', { class: 'amendment-head' },
+      el('span', { class: 'amendment-badge' }, t('skills.liveBadge')),
+      el('button', {
+        class: 'btn sm ghost',
+        onclick: () => { clearOverride(def.file); toast(t('skills.revertedToast')); },
+      }, t('assist.revert'))),
+    el('pre', { class: 'amendment-text' }, text),
+    el('div', { class: 'hint' }, t('skills.liveHint')));
 }
 
 function sourceText(node) {

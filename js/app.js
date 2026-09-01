@@ -24,7 +24,7 @@ import {
 import { importFromDrive } from './io/drive.js';
 import { PROVIDERS } from './core/providers.js';
 import { logInfo, logError, describeError } from './core/log.js';
-import { t, applyStaticI18n, toggleLang, detectLang } from './core/i18n.js';
+import { t, applyStaticI18n, setLang, loadLocale, detectLang, LOCALES } from './core/i18n.js';
 
 const panes = {};
 
@@ -49,6 +49,10 @@ async function boot() {
   loadPersisted();
   // first run: follow the browser's language until the user chooses one
   if (!localStorage.getItem('annotator')) state.lang = detectLang();
+  // A file-backed locale has to be in hand before the first paint, or the UI
+  // renders in English and then flips, which reads as a bug.
+  step('loadLocale');
+  await loadLocale(state.lang);
   step('applyStaticI18n');
   applyStaticI18n();
   step('loadSecrets');
@@ -139,6 +143,9 @@ function subscribe() {
   });
   on('tree', () => { renderAnnotated(panes.annotated, activeFormat()); renderSentenceBar(panes.sentences); });
   on('artifact', () => renderAnnotated(panes.annotated, activeFormat()));
+  // a skill amendment accepted in the chat changes what the next call sends,
+  // so the pane that shows that skill has to repaint at once
+  on('skills', () => renderAssistant(panes.assistant, activeFormat()));
   on('selectedNode', () => {
     const f = activeFormat();
     renderAnnotated(panes.annotated, f);
@@ -186,6 +193,25 @@ async function useDoc(doc) {
   if ([...sel.options].some((o) => o.value === doc.id)) sel.value = doc.id;
   else sel.value = '';
   logInfo('app', t('app.docLoaded', { id: doc.id }));
+}
+
+/**
+ * The language picker. Every locale's own name is written in that language
+ * (中文, English, 日本語) — a picker that names a language in a language you
+ * cannot read is no use — and a partially-translated locale says so, so the
+ * user is not surprised by English text mid-pane.
+ */
+function fillLangSelect() {
+  const sel = $('#lang-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  for (const loc of LOCALES) {
+    const label = loc.coverage === 'partial' ? `${loc.name} (${t('lang.partial')})` : loc.name;
+    sel.append(el('option', { value: loc.id, title: label }, loc.name));
+  }
+  sel.value = state.lang;
+  const active = LOCALES.find((l) => l.id === state.lang);
+  sel.title = active?.coverage === 'partial' ? t('lang.partial') : t('toolbar.langTitle');
 }
 
 function fillDocSelect() {
@@ -301,7 +327,11 @@ function wireToolbar() {
     toast(t('studio.applied', { label: format.label }));
   }));
 
-  wire('#btn-lang', 'onclick', () => toggleLang());
+  const langSel = wire('#lang-select', 'onchange', async (e) => {
+    await setLang(e.target.value);
+    fillLangSelect();          // the option labels are themselves translated
+  });
+  if (langSel) fillLangSelect();
 
   const modeSel = wire('#mode-select', 'onchange', (e) => {
     if (e.target.value === 'live' && !state.apiKeys[state.provider]) {

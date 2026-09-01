@@ -89,7 +89,7 @@ const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(500);
-  if ((await page.getAttribute('html', 'lang')) !== 'zh') { await page.click('#btn-lang'); await page.waitForTimeout(300); }
+  if ((await page.getAttribute('html', 'lang')) !== 'zh') { await page.selectOption('#lang-select', 'zh'); await page.waitForTimeout(300); }
 
   console.log('\n--- 1. import an unannotated file: nothing annotated, one starter row ---');
   await page.click('#btn-settings'); await page.waitForTimeout(200);
