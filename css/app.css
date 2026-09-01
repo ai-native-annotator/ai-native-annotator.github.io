@@ -181,11 +181,44 @@ select:focus, input:focus, textarea:focus {
 .doc-prov { margin-left: auto; font-size: 11px; color: var(--faint); white-space: nowrap; padding-left: 10px; }
 
 /* ============================================================== workspace */
+/*
+ * Column widths come from CSS custom properties rather than a fixed template,
+ * so collapsing a pane is one variable change instead of a rebuilt grid — and
+ * the transition animates.
+ */
 .workspace {
   flex: 1; display: grid;
-  grid-template-columns: 1.1fr 180px 1.4fr 1.3fr;
+  --w-source: 1fr; --w-skills: 190px; --w-annotated: 1.4fr; --w-assistant: 1.3fr;
+  grid-template-columns: var(--w-source) var(--w-skills) var(--w-annotated) var(--w-assistant);
   gap: 1px; background: var(--line); overflow: hidden; min-height: 0;
+  transition: grid-template-columns .18s ease;
 }
+.workspace.c-source { --w-source: 34px; }
+.workspace.c-skills { --w-skills: 34px; }
+.workspace.c-annotated { --w-annotated: 34px; }
+.workspace.c-assistant { --w-assistant: 34px; }
+
+/* A collapsed pane keeps its title, turned on its side, so the column still
+   says what it is and where to click to get it back. */
+.pane.collapsed > .pane-body,
+.pane.collapsed > .pane-chat,
+.pane.collapsed > .pane-head.sub { display: none; }
+.pane.collapsed > .pane-head {
+  flex: 1; flex-direction: column; align-items: center; justify-content: flex-start;
+  gap: 10px; padding: 8px 4px; overflow: hidden;
+}
+.pane.collapsed .pane-title {
+  writing-mode: vertical-rl; white-space: nowrap; font-size: 11.5px;
+  color: var(--muted); letter-spacing: .04em;
+}
+.pane.collapsed .pane-toggle { transform: rotate(180deg); }
+.pane-toggle {
+  flex: none; width: 18px; height: 18px; line-height: 1; padding: 0;
+  border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  background: var(--panel-2); color: var(--muted); font-size: 11px;
+}
+.pane-toggle:hover { color: var(--text); border-color: var(--accent); }
+.pane-title { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
 .pane { background: var(--panel); display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .pane-head {
   padding: 10px 14px; font-size: 12px; font-weight: 650; border-bottom: 1px solid var(--line);
@@ -206,7 +239,7 @@ select:focus, input:focus, textarea:focus {
 .plain-text { font-size: 14.5px; line-height: 1.85; white-space: pre-wrap; }
 
 /* legend */
-.legend { background: var(--panel-2); padding: 12px 10px; overflow: auto; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.legend { background: var(--panel-2); padding: 10px 8px; }
 .legend-title { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); margin-bottom: 8px; }
 .legend-item { display: flex; align-items: flex-start; gap: 6px; padding: 5px 2px; font-size: 11.5px; }
 .legend-dot { width: 9px; height: 9px; border-radius: 3px; margin-top: 3px; flex: none; }
@@ -536,3 +569,105 @@ select:focus, input:focus, textarea:focus {
   font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap;
   margin: 0 0 5px; color: var(--text);
 }
+
+/* ==================================================== skill panel (was legend) */
+.skill-card {
+  display: flex; align-items: flex-start; gap: 7px; width: 100%;
+  padding: 6px 7px; margin-bottom: 3px; text-align: left; cursor: pointer;
+  background: transparent; border: 1px solid transparent; border-radius: 6px;
+  color: inherit; font: inherit;
+}
+.skill-card:hover { background: var(--panel); border-color: var(--line); }
+.skill-card.on { background: var(--panel); border-color: var(--accent); }
+.skill-card-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
+.skill-card-name { font-size: 10.5px; color: var(--faint); line-height: 1.3; }
+.skill-flag {
+  flex: none; font-size: 10px; font-weight: 700; border-radius: 999px;
+  min-width: 15px; height: 15px; padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.skill-flag.amended { color: var(--accent); }
+.skill-flag.issues { background: var(--danger); color: #fff; }
+.legend-title.mt { margin-top: 14px; }
+
+/* ------------------------------------------------------------ skill detail */
+.skill-modal { max-width: 780px; width: 92vw; }
+.skill-detail-body { max-height: 74vh; overflow: auto; }
+.skill-file-text { white-space: pre-wrap; font-size: 11.5px; line-height: 1.65; max-height: 46vh; overflow: auto; }
+.file-amendment { color: var(--accent); }
+
+/* ------------------------------------------------- reflection journal rows */
+.issue-list { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.issue-row { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; background: var(--panel-2); }
+.issue-row.dismissed { opacity: .5; }
+.issue-row.kept { border-color: var(--accent); }
+.issue-row.reflected { border-color: var(--success); opacity: .75; }
+.issue-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.issue-kind {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 1px 6px; border-radius: 999px; background: var(--line); color: var(--muted);
+}
+.issue-kind.edit { background: #2f9e6e22; color: #2f9e6e; }
+.issue-kind.rerun { background: #2b7fd422; color: #2b7fd4; }
+.issue-kind.swap { background: #c08a1e22; color: #c08a1e; }
+.issue-kind.objection { background: #b34ba022; color: #b34ba0; }
+.issue-span { font-family: var(--mono); font-size: 11px; }
+.issue-reason { font-size: 12px; margin: 5px 0; line-height: 1.55; }
+.issue-diff { margin: 4px 0; max-height: 120px; overflow: auto; }
+.issue-actions { display: flex; gap: 6px; align-items: center; margin-top: 5px; }
+.issue-status { font-size: 11px; color: var(--muted); }
+.issue-status.kept { color: var(--accent); }
+.issue-status.reflected { color: var(--success); }
+
+/* Collapsed: show only the main title, not its English gloss — the strip is
+   34px wide and two stacked words in it read as one garbled one. */
+.pane.collapsed .pane-title .muted { display: none; }
+.pane.collapsed .pane-title { margin-top: 6px; }
+
+/* -------------------------------------- per-node actions (re-run / swap kind) */
+.node-acts { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; opacity: 0; transition: opacity .12s; }
+.node-row:hover .node-acts, .node-row.selected .node-acts { opacity: 1; }
+.node-act {
+  border: 1px solid var(--line); background: var(--panel-2); color: var(--muted);
+  border-radius: 5px; width: 20px; height: 20px; line-height: 1; padding: 0;
+  cursor: pointer; font-size: 12px;
+}
+.node-act:hover { color: var(--accent); border-color: var(--accent); }
+.node-act:disabled { opacity: .4; cursor: not-allowed; }
+.node-swap { font-size: 10.5px; padding: 1px 4px; border-radius: 5px; max-width: 92px; }
+
+/* ============================================= chained passes (refine format) */
+.chain { display: flex; flex-direction: column; padding: 4px 2px; }
+.chain-row {
+  display: flex; align-items: center; gap: 8px; padding: 7px 9px;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--panel);
+  cursor: default;
+}
+.chain-row.done { cursor: pointer; }
+.chain-row.done:hover { border-color: var(--faint); }
+.chain-row.selected { border-color: var(--accent); background: var(--accent-soft); }
+.chain-row.next { border-color: var(--accent); border-style: dashed; }
+.chain-row.blocked { opacity: .45; }
+.chain-row.running { border-color: var(--hi); }
+.chain-step {
+  flex: none; width: 18px; height: 18px; border-radius: 999px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 10.5px; color: var(--muted);
+}
+.chain-row.done .chain-step { background: var(--success); border-color: var(--success); color: #fff; }
+.chain-label { font-size: 12px; flex: 1; min-width: 0; }
+.chain-diff { display: inline-flex; gap: 5px; font-family: var(--mono); font-size: 10.5px; }
+.diff-add { color: var(--success); }
+.diff-del { color: var(--danger); }
+.chain-link { width: 2px; height: 10px; margin-left: 18px; background: var(--line); }
+.chain-link.done { background: var(--success); }
+.chain-foot { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); color: var(--faint); font-size: 10.5px; line-height: 1.6; }
+.chain-foot.done { color: var(--success); }
+
+.diff-block { max-height: 320px; overflow: auto; }
+.diff-add-line { color: var(--success); }
+.diff-del-line { color: var(--danger); }
+.change-list { margin: 4px 0; padding-left: 18px; font-size: 12px; line-height: 1.65; }
+.collapsed-input { max-height: 160px; overflow: auto; }
+.artifact.malformed { border-left: 3px solid var(--danger); }

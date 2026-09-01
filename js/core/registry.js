@@ -18,6 +18,7 @@ const formats = new Map();
 const loaders = {
   umr: () => import('../formats/umr.js'),
   sentiment: () => import('../formats/sentiment.js'),
+  refine: () => import('../formats/refine.js'),
 };
 
 export function registerFormat(format) {

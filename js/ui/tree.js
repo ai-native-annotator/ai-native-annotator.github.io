@@ -15,8 +15,9 @@
 
 import { state, set, pathKey, currentSentence } from '../core/state.js';
 import { el } from '../core/dom.js';
-import { runPendingAt, getAt } from '../core/pipeline.js';
+import { runPendingAt, getAt, rerunAt, kindOfNode, SWAPPABLE_KINDS } from '../core/pipeline.js';
 import { isEdited } from '../core/edits.js';
+import { record } from '../core/reflection.js';
 import { logInfo, logError, describeError } from '../core/log.js';
 import { stepCoverage } from '../core/coverage.js';
 import { toast } from './toast.js';
@@ -71,6 +72,7 @@ function nodeEl(node, path, format) {
     node.source ? el('span', { class: `src-dot ${node.source}`, title: sourceLabel(node) }) : null,
     coverageFlag(node),
     edited ? el('span', { class: 'edited-flag', title: t('tree.edited') }, '✎') : null,
+    nodeActions(node, path, format),
   );
 
   const wrap = el('div', { class: 'node' }, row);
@@ -80,6 +82,85 @@ function nodeEl(node, path, format) {
     wrap.append(kids);
   }
   return wrap;
+}
+
+/**
+ * Per-node actions: run it again, or run it as a different kind of thing.
+ *
+ * Re-run exists because a skill's instructions change — after an amendment the
+ * old answer is stale, and re-running is how you see what the new instructions
+ * actually do to a case you already know.
+ *
+ * Swap exists because the pipeline decides what each span IS (a clause, a noun
+ * phrase, a named entity) before anything analyses it, and when that first
+ * guess is wrong every result under it is wrong for the same reason. Editing
+ * the output by hand would paper over it; re-running as the right kind fixes
+ * the actual mistake.
+ *
+ * Both are interventions, so both are filed against the skill — not applied to
+ * it. See core/reflection.js.
+ */
+function nodeActions(node, path, format) {
+  if (node.skill === '(stop)') return null;      // decided in code, nothing to re-run
+  const busy = state.running.size > 0;
+
+  const rerun = el('button', {
+    class: 'node-act', title: t('tree.rerunTitle'), disabled: busy ? '' : undefined,
+    onclick: async (e) => {
+      e.stopPropagation();
+      record({
+        skill: node.skill, file: skillFile(node, format), kind: 'rerun',
+        sentenceIndex: state.selectedSentence, path, span: node.span,
+        before: node.output, after: null, detail: t('tree.rerunDetail'),
+      });
+      await runNode(format, path, () => rerunAt(state.doc, state.selectedSentence, path));
+    },
+  }, '↻');
+
+  const swap = el('select', {
+    class: 'node-swap', title: t('tree.swapTitle'), disabled: busy ? '' : undefined,
+    onclick: (e) => e.stopPropagation(),
+    onchange: async (e) => {
+      const asKind = e.target.value;
+      e.stopPropagation();
+      if (!asKind || asKind === kindOfNode(node)) return;
+      record({
+        skill: node.skill, file: skillFile(node, format), kind: 'swap',
+        sentenceIndex: state.selectedSentence, path, span: node.span,
+        before: kindOfNode(node), after: asKind,
+        detail: t('tree.swapDetail', { from: kindOfNode(node), to: asKind }),
+      });
+      await runNode(format, path, () => rerunAt(state.doc, state.selectedSentence, path, { asKind }));
+    },
+  });
+  const current = kindOfNode(node);
+  swap.append(el('option', { value: '' }, t('tree.swapAs')));
+  for (const k of SWAPPABLE_KINDS) {
+    swap.append(el('option', { value: k, selected: k === current ? '' : undefined }, t(`kind.${k}`)));
+  }
+
+  return el('span', { class: 'node-acts', onclick: (e) => e.stopPropagation() }, rerun, swap);
+}
+
+const skillFile = (node, format) =>
+  (format.skills || []).find((s) => s.id === node.skill)?.file || '';
+
+/** Shared run wrapper: spinner, error surfacing, repaint. */
+async function runNode(format, path, fn) {
+  const runKey = pathKey(path);
+  state.running.add(runKey);
+  set({}, 'tree');
+  try {
+    await fn();
+    set({}, 'tree', 'artifact', 'selectedNode');
+  } catch (err) {
+    logError('ui', t('tree.runFailedLog', { kind: 'rerun', err: describeError(err) }), err);
+    toast(t('tree.runFailed', { err: describeError(err) }), true);
+  } finally {
+    state.running.delete(runKey);
+    set({}, 'tree');
+  }
+  void format;
 }
 
 function pendingRow(marker, path, format) {

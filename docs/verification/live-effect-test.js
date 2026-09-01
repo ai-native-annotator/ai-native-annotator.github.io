@@ -108,7 +108,7 @@ const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`
     !/^- \w+: open-01/m.test(listing),
     /^- \w+: open-01/m.test(listing) ? 'STILL LISTING open-01' : '');
 
-  console.log('\n--- 2. a skill amendment must be in the very next prompt for that skill ---');
+  console.log('\n--- 2. an objection is FILED, not applied (see reflection-test.js) ---');
   // finish the sentence so an np_phrase node exists to argue about
   for (let i = 0; i < 6; i++) {
     const row = await page.$('.pending-row:not(.blocked)');
@@ -125,29 +125,35 @@ const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`
   await page.fill('.chat-input', '这里应该保留完整的名词短语，不能只留中心词。');
   await page.click('.chat-bar button:has-text("发送")');
   await page.waitForTimeout(700);
-  const applyBtn = await page.$('button:has-text("应用到技能文件")');
-  check('a proposal with an apply button appeared', Boolean(applyBtn));
-  await applyBtn.click();
-  await page.waitForTimeout(500);
+  const recordBtn = await page.$('button:has-text("记入问题记录")');
+  check('the proposal offers to FILE the issue, not apply it', Boolean(recordBtn));
+  await recordBtn.click();
+  await page.waitForTimeout(400);
+  const filed = await page.evaluate(async () => {
+    const rf = await import('./js/core/reflection.js');
+    const sk = await import('./js/core/skills.js');
+    return {
+      issues: rf.issuesFor('np_phrase').length,
+      amendment: sk.getOverride('skills/shared/np_phrase.md') || '',
+    };
+  });
+  check('the issue is on the journal', filed.issues > 0, `${filed.issues} issue(s)`);
+  check('and the skill file is deliberately untouched', filed.amendment === '', filed.amendment || '(empty)');
 
-  check('the amendment now shows on the skill it changes, without a reload',
-    Boolean(await page.$('.amendment')));
-  const amendText = await page.textContent('.amendment').catch(() => '');
-  check('and it shows the rule text itself', amendText.includes('名词短语') || amendText.includes('noun phrase'),
-    amendText.replace(/\s+/g, ' ').slice(0, 120));
-  check('labelled as in effect', amendText.includes('已生效') || amendText.includes('in effect'));
-
-  // the standard that actually matters: the next prompt for that skill
+  console.log('\n--- 2b. once an amendment IS in force it reaches the very next prompt ---');
   const rule = await page.evaluate(async () => {
     const sk = await import('./js/core/skills.js');
+    sk.addAmendment('skills/shared/np_phrase.md', '- Always keep the full noun phrase.');
     return sk.getOverride('skills/shared/np_phrase.md');
   });
-  check('stored against the same key the pipeline fetches', Boolean(rule), rule ? rule.slice(0, 80) : '(nothing stored)');
+  check('stored against the key the pipeline fetches', Boolean(rule), rule ? rule.slice(0, 60) : '(nothing)');
   const effective = await page.evaluate(async () => {
     const sk = await import('./js/core/skills.js');
     return sk.loadEffectiveText('skills/shared/np_phrase.md');
   });
-  check('the next np_phrase prompt carries the rule', Boolean(rule) && effective.includes(rule.slice(0, 20)));
+  check('the next np_phrase prompt carries the rule', effective.includes('Always keep the full noun phrase'));
+  check('the amendment shows on the skill it changes, without a reload',
+    Boolean(await page.$('.amendment')));
 
   console.log('\n--- 3. reverting it is equally immediate ---');
   await page.click('.amendment .btn.ghost');

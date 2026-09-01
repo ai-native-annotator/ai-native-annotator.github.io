@@ -19,5 +19,11 @@
   "language": "zh",
   "sentences": 6,
   "title": "sentiment-demo (中文评论，情感标注示例)"
+ },
+ {
+  "id": "refine-english_umr-0003",
+  "title": "Refinement demo (English, from gold umr-0003)",
+  "format": "refine",
+  "sentences": 5
  }
 ]

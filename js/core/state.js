@@ -26,6 +26,9 @@ export const state = {
   running: new Set(),     // path-keys currently mid-flight (for spinners/disabling)
   lang: 'zh',             // interface language ('zh' | 'en') — see core/i18n.js
   editMode: 'penman',     // how the assistant's edit box shows output ('penman' | 'json')
+  collapsed_panes: [],    // pane ids the user folded away ('source'|'skills'|'annotated'|'assistant')
+  openSkill: null,        // skill id whose detail view is open, for the panel's highlight
+  selectedPass: null,     // index of the chain pass under inspection (chained formats)
   edits: new Map(),       // editKey -> human-edited output (also written through onto node.output)
   proposals: [],          // skill-update proposals from rationale clashes
   // One conversation PER NODE, keyed by threadKey() below, plus a 'general'
@@ -103,7 +106,7 @@ export function pushToThread(key, message) {
 // persist the few things worth persisting (no backend by design). API keys
 // and the GitHub token live in their own localStorage keys (settings.js /
 // io/github.js) so they can be exported/imported as a standalone file.
-const PERSIST = ['runMode', 'theme', 'formatId', 'provider', 'models', 'lang', 'editMode'];
+const PERSIST = ['runMode', 'theme', 'formatId', 'provider', 'models', 'lang', 'editMode', 'collapsed_panes'];
 export function loadPersisted() {
   try {
     const saved = JSON.parse(localStorage.getItem('annotator') || '{}');

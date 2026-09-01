@@ -41,7 +41,18 @@ export function parsePenman(text) {
     for (;;) {
       skipWs();
       if (i >= src.length || src[i] === ')') { i++; break; }
-      if (src[i] !== ':') { readToken(); continue; } // tolerate junk
+      // Every branch below MUST advance `i`. readToken() stops at `(`, `)` and
+      // whitespace and can legitimately return an empty string — so on junk
+      // like "(((" it consumed nothing and this loop spun forever, hanging the
+      // tab rather than failing to parse. A model returning malformed Penman is
+      // an ordinary event here, so the parser has to survive it: remember where
+      // we were, and if a pass made no progress, step over one character.
+      const mark = i;
+      if (src[i] !== ':') {                     // tolerate junk
+        readToken();
+        if (i === mark) i++;
+        continue;
+      }
       const role = readToken();
       skipWs();
       if (src[i] === '(') relations.push([role, parseNode()]);
@@ -49,6 +60,7 @@ export function parsePenman(text) {
         const tok = readToken();
         relations.push([role, tok]);
       }
+      if (i === mark) i++;                      // nothing consumed: force progress
     }
     return { var: variable, concept, relations };
   };

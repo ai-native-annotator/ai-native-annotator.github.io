@@ -81,3 +81,17 @@ export function labelledRow(labelText, control, extra = null, rowClass = 'settin
   const label = el('label', { class: labelClass, for: control?.id || undefined }, labelText);
   return el('div', { class: rowClass }, label, control, extra);
 }
+
+/**
+ * Append children to an existing element, skipping the empty ones.
+ *
+ * `el()` already filters null/undefined/false out of its children, but native
+ * `append()` does not — it stringifies null into a literal "null" text node.
+ * Every pane that builds a list with `cond ? el(...) : null` and appends it
+ * directly has hit this, twice now in different files, and each time it shipped
+ * a visible "null" in the UI. This is the one-line fix, in one place.
+ */
+export function mount(container, ...children) {
+  container.append(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));
+  return container;
+}

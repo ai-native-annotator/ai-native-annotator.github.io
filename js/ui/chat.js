@@ -10,8 +10,9 @@
  *
  * A human disagreeing with a label is cheap data; a human *stating why*
  * against a model that also stated why is an argument about the skill's
- * instructions. That is what gets turned into a concrete amendment — and,
- * via core/skills.js, actually applied to the skill.
+ * instructions. That argument is filed as an issue against the skill
+ * (core/reflection.js) — deliberately NOT applied. One case is an anecdote;
+ * the amendment is written later, from a reviewed batch, in the skill panel.
  */
 
 import {
@@ -21,7 +22,7 @@ import { el, esc, download } from '../core/dom.js';
 import { callProvider, PROVIDERS } from '../core/providers.js';
 import { extractJson } from '../core/runner.js';
 import { logInfo, logError, describeError } from '../core/log.js';
-import { addAmendment } from '../core/skills.js';
+import { record } from '../core/reflection.js';
 import { editedOutput } from '../core/edits.js';
 import { t } from '../core/i18n.js';
 import { toast } from './toast.js';
@@ -159,7 +160,7 @@ function messageEl(msg, format) {
   if (msg.role === 'proposal') {
     const status = el('span', { class: 'edit-status' });
     box.append(el('div', { class: 'proposal-actions' },
-      el('button', { class: 'btn sm', onclick: () => applyProposal(msg, status) }, t('chat.applyToSkill')),
+      el('button', { class: 'btn sm', onclick: () => recordProposal(msg, status) }, t('chat.recordIssue')),
       el('button', {
         class: 'btn sm ghost',
         onclick: () => download(
@@ -172,20 +173,34 @@ function messageEl(msg, format) {
 }
 
 /**
- * Close the loop: take the amendment out of the proposal and put it into the
- * skill's instructions, so the next call to that skill actually runs with it.
- * Without this the proposal is just a suggestion box.
+ * File the disagreement as an issue against the skill — and stop there.
+ *
+ * This used to write the rule straight into the skill file, which meant a rule
+ * derived from ONE case was in the prompts before anyone had looked at it. One
+ * correction is an anecdote; what justifies a rule is a pattern across several.
+ * So the proposal goes into the reflection journal (core/reflection.js), a
+ * human reviews the accumulated batch in the skill panel, and only then does
+ * reflection write an amendment covering the pattern.
  */
-function applyProposal(msg, status) {
-  const file = msg.clash?.file;
-  if (!file) { status.textContent = t('chat.applyNoFile'); status.className = 'edit-status err'; return; }
-  const rule = extractRule(msg.patch || msg.text);
-  if (!rule) { status.textContent = t('chat.applyNoRule'); status.className = 'edit-status err'; return; }
-  addAmendment(file, rule);
+function recordProposal(msg, status) {
+  const c = msg.clash || {};
+  if (!c.file) { status.textContent = t('chat.applyNoFile'); status.className = 'edit-status err'; return; }
+  record({
+    skill: msg.skill || c.skill,
+    file: c.file,
+    kind: 'objection',
+    sentenceIndex: state.selectedSentence,
+    path: c.path || null,
+    span: c.span || '',
+    before: c.modelOutput ?? null,
+    after: c.humanOutput ?? null,
+    reason: c.humanRationale || '',
+    detail: extractRule(msg.patch || msg.text) || (msg.patch || msg.text || '').slice(0, 600),
+  });
   set({}, 'chat');
-  status.textContent = t('chat.applied', { file, skill: msg.skill });
+  status.textContent = t('chat.recorded', { skill: msg.skill || c.skill });
   status.className = 'edit-status ok';
-  toast(t('chat.appliedToast', { file, skill: msg.skill }));
+  toast(t('reflect.recordedToast', { skill: msg.skill || c.skill }));
 }
 
 /** Pull the `>` quoted rule out of a proposal. */
@@ -221,6 +236,7 @@ async function respond(text, sel, format) {
   const clash = {
     skill: node.skill,
     file: def?.file || `skills/${node.skill}.md`,
+    path,
     span: node.span,
     modelOutput: node.output,
     modelRationale: node.rationale || '(no rationale given)',

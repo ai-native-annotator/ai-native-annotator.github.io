@@ -9,6 +9,7 @@
 import { state, set, currentSentence } from '../core/state.js';
 import { el } from '../core/dom.js';
 import { renderTree } from './tree.js';
+import { renderChain } from './chain.js';
 import { sentenceDone } from '../core/pipeline.js';
 import { sentenceCoverage } from '../core/coverage.js';
 import { t } from '../core/i18n.js';
@@ -20,19 +21,6 @@ export function renderSource(container, format) {
   container.insertAdjacentHTML('beforeend', format.renderSource(sentence));
 }
 
-export function renderLegend(container, format) {
-  container.innerHTML = '';
-  const items = format.legend?.() || [];
-  container.append(el('div', { class: 'legend-title' }, t('panes.legend')));
-  for (const it of items) {
-    container.append(el('div', { class: 'legend-item', title: it.note || '' },
-      el('span', { class: 'legend-dot', style: `background:${it.color}` }),
-      el('span', { class: 'legend-label' }, it.label),
-      it.note ? el('span', { class: 'legend-note' }, it.note) : null));
-  }
-  container.append(el('div', { class: 'legend-foot' },
-    t(format.serial ? 'panes.serialHint' : 'panes.parallelHint')));
-}
 
 export function renderAnnotated(container, format) {
   const sentence = currentSentence();
@@ -52,6 +40,19 @@ export function renderAnnotated(container, format) {
   artifact.insertAdjacentHTML('beforeend', format.renderArtifact(sentence, themeId));
   const extra = format.renderExtra?.(sentence);
   if (extra) artifact.insertAdjacentHTML('beforeend', extra);
+
+  // A chained format has passes, not a tree of calls: the pipeline and its
+  // per-pass diff say what a tree cannot (see ui/chain.js).
+  if (format.chain) {
+    const chainHead = el('div', { class: 'pane-subbar' },
+      el('span', { class: 'sub-label' }, t('chain.title')),
+      el('span', { class: 'muted sm' }, t('chain.progress', {
+        n: (sentence.passes || []).filter(Boolean).length, total: (format.skills || []).length })));
+    const chain = el('div', { class: 'tree-wrap' });
+    container.append(bar, artifact, chainHead, chain);
+    renderChain(chain, format);
+    return;
+  }
 
   const treeHead = el('div', { class: 'pane-subbar' },
     el('span', { class: 'sub-label' }, t('panes.treeTitle')),

@@ -643,6 +643,57 @@ function setAt(tree, path, value) {
  * never swallows a failure, so the caller's one catch block is the only
  * place an error is handled (see ui/tree.js).
  */
+/**
+ * Which kind of pending marker would produce this resolved node again.
+ *
+ * Re-running has to reconstruct the *request*, not the answer, and the request
+ * is the `kind` the parent handed down. `arguments` and `predicate` both come
+ * out of one clause call, so both map back to 'clause'.
+ */
+const SKILL_TO_KIND = {
+  discourse: 'discourse', arguments: 'clause', predicate: 'clause',
+  np_phrase: 'np', special_entity: 'special', '(stop)': 'atomic',
+  reentrancy: 'reentrancy', doc_level: 'doc_level',
+};
+
+/** The kinds a human may switch a node to when the pipeline chose wrongly. */
+export const SWAPPABLE_KINDS = ['clause', 'np', 'special', 'atomic'];
+
+export function kindOfNode(node) {
+  return SKILL_TO_KIND[node?.skill] || 'np';
+}
+
+/**
+ * Run a node again — either as-is (to pick up an amended skill) or as a
+ * different kind (when the pipeline classified the span wrongly).
+ *
+ * It works by turning the resolved node back into the pending marker that
+ * produced it and re-running that, so re-running goes down exactly the same
+ * path as running it the first time. Anything below it is discarded, because
+ * those children were derived from the answer being replaced — keeping them
+ * would leave the tree describing two different analyses at once.
+ */
+export async function rerunAt(doc, sentenceIndex, path, { asKind } = {}) {
+  const sentence = doc.sentences[sentenceIndex];
+  const node = getAt(sentence.tree, path);
+  if (!node) throw new Error(t('pipe.notFound'));
+  if (node.pending) return runPendingAt(doc, sentenceIndex, path);
+
+  const marker = {
+    pending: true,
+    kind: asKind || kindOfNode(node),
+    phrase: node.span,
+    role: node.role ?? null,
+    depth: node.depth ?? path.length,
+    sub: node.sub ?? null,
+  };
+  const parent = path.length === 1 ? { children: sentence.tree } : getAt(sentence.tree, path.slice(0, -1));
+  const idx = path[path.length - 1];
+  const container = path.length === 1 ? sentence.tree : parent.children;
+  container[idx] = marker;
+  return runPendingAt(doc, sentenceIndex, path);
+}
+
 export async function runPendingAt(doc, sentenceIndex, path) {
   const sentence = doc.sentences[sentenceIndex];
   const marker = getAt(sentence.tree, path);

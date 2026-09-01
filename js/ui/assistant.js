@@ -10,13 +10,15 @@
  */
 
 import { state, set, editKey } from '../core/state.js';
-import { el, jsonHtml, fmtMs } from '../core/dom.js';
+import { el, jsonHtml, fmtMs, mount } from '../core/dom.js';
 import { toast } from './toast.js';
 import { t } from '../core/i18n.js';
 import {
   applyEdit, revertEdit, isEdited, outputToPenman, penmanToOutput, applyChildRoles,
 } from '../core/edits.js';
 import { getOverride, clearOverride } from '../core/skills.js';
+import { record } from '../core/reflection.js';
+import { renderPassDetail } from './chain.js';
 
 /**
  * Saving re-renders this whole pane, which throws away the status element the
@@ -28,6 +30,10 @@ import { getOverride, clearOverride } from '../core/skills.js';
 let lastStatus = null;   // {key, text, cls}
 
 export function renderAssistant(container, format) {
+  // In a chained format the unit of inspection is a pass, not a node.
+  if (format.chain && state.selectedPass !== null && state.selectedPass !== undefined) {
+    if (renderPassDetail(container, format)) return;
+  }
   const sel = state.selectedNode;
   container.innerHTML = '';
 
@@ -45,7 +51,7 @@ export function renderAssistant(container, format) {
   const edited = isEdited(state.selectedSentence, path);
   const shown = node.output;
 
-  container.append(
+  mount(container,
     el('div', { class: 'assist-head' },
       el('span', { class: 'skill-chip lg', style: `--c:${format.skillColor?.(node.skill) || '#888'}` },
          node.skill),
@@ -64,7 +70,7 @@ export function renderAssistant(container, format) {
       ? section(t('assist.rationale'),
           el('div', { class: 'rationale model' }, node.rationale))
       : null,
-    editor(path, node),
+    editor(path, node, def),
   );
 }
 
@@ -114,7 +120,7 @@ function section(title, body) {
  * editor is open by default — correcting the model is a normal part of the
  * job, not something to go hunting for behind a disclosure triangle.
  */
-function editor(path, node) {
+function editor(path, node, def) {
   const key = editKey(state.selectedSentence, path);
   if (lastStatus && lastStatus.key !== key) lastStatus = null;
   const status = el('span', { class: lastStatus?.cls || 'edit-status' }, lastStatus?.text || '');
@@ -158,8 +164,17 @@ function editor(path, node) {
         return;
       }
     }
+    const previous = node.originalOutput ?? node.output;
     applyEdit(state.selectedSentence, path, node, output);
     if (childRoles) applyChildRoles(childRoles);
+    // The correction itself is evidence about the skill that produced it. It
+    // is filed, not applied — see core/reflection.js.
+    record({
+      skill: node.skill, file: def?.file, kind: 'edit',
+      sentenceIndex: state.selectedSentence, path, span: node.span,
+      before: previous, after: output,
+      reason: '', detail: t('reflect.fromEditor'),
+    });
     if (ignored.length) {
       lastStatus = { key, text: `${t('edits.ignoredSome', { n: ignored.length })} ${ignored.join('; ')}`, cls: 'edit-status err' };
       toast(t('edits.ignoredSome', { n: ignored.length }), true);

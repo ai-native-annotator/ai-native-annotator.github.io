@@ -102,8 +102,15 @@ function tokenize(line) {
 /* --------------------------------------------------------- normalization */
 
 function normalizeDoc(doc) {
+  // Only the recursive umr format has a tree to repair. A chained document
+  // (refine) carries `passes` instead, and a flat one carries `annotation`;
+  // seeding pending markers into either would invent work that format has no
+  // way to run.
   if (doc.format !== 'umr') {
-    for (const s of doc.sentences || []) s.tree = s.tree || [];
+    for (const s of doc.sentences || []) {
+      s.tree = s.tree || [];
+      if (doc.format === 'refine') s.passes = s.passes || [];
+    }
     return;
   }
   for (const s of doc.sentences || []) {

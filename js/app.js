@@ -9,7 +9,8 @@ import { state, set, on, loadPersisted, persist } from './core/state.js';
 import { loadFormat, getFormat, listFormats, availableFormatIds } from './core/registry.js';
 import { loadSecrets } from './core/settings.js';
 import { $, el } from './core/dom.js';
-import { renderSource, renderAnnotated, renderLegend, renderSentenceBar } from './ui/panes.js';
+import { renderSource, renderAnnotated, renderSentenceBar } from './ui/panes.js';
+import { renderSkillPanel } from './ui/skill-panel.js';
 import { renderTree, expandAll } from './ui/tree.js';
 import { renderAssistant } from './ui/assistant.js';
 import { renderChat, exportProposals } from './ui/chat.js';
@@ -125,7 +126,7 @@ function renderAll() {
   if (!f) return;
   if (panes.sentences) renderSentenceBar(panes.sentences);
   if (panes.source) renderSource(panes.source, f);
-  if (panes.legend) renderLegend(panes.legend, f);
+  if (panes.legend) renderSkillPanel(panes.legend, f);
   if (panes.annotated) renderAnnotated(panes.annotated, f);
   if (panes.assistant) renderAssistant(panes.assistant, f);
   if (panes.chat) renderChat(panes.chat, f);
@@ -145,7 +146,13 @@ function subscribe() {
   on('artifact', () => renderAnnotated(panes.annotated, activeFormat()));
   // a skill amendment accepted in the chat changes what the next call sends,
   // so the pane that shows that skill has to repaint at once
-  on('skills', () => renderAssistant(panes.assistant, activeFormat()));
+  // a skill amendment or a new journal entry changes what the skill panel and
+  // the assistant show, so both repaint
+  on('skills', () => {
+    renderAssistant(panes.assistant, activeFormat());
+    if (panes.legend) renderSkillPanel(panes.legend, activeFormat());
+  });
+  on('reflection', () => { if (panes.legend) renderSkillPanel(panes.legend, activeFormat()); });
   on('selectedNode', () => {
     const f = activeFormat();
     renderAnnotated(panes.annotated, f);
@@ -201,6 +208,33 @@ async function useDoc(doc) {
  * cannot read is no use — and a partially-translated locale says so, so the
  * user is not surprised by English text mid-pane.
  */
+/**
+ * Fold a column away. Four panes on one screen is a lot when you are reading a
+ * long graph, and the one you need widest changes with the task — so each is
+ * foldable, and which ones are folded is remembered.
+ */
+function togglePane(id) {
+  if (!id) return;
+  const folded = new Set(state.collapsed_panes || []);
+  if (folded.has(id)) folded.delete(id); else folded.add(id);
+  // Never let the last pane be folded: an empty workspace is not a view.
+  if (folded.size >= 4) { toast(t('pane.keepOne'), true); return; }
+  set({ collapsed_panes: [...folded] });
+  persist();
+  applyCollapsed();
+}
+
+function applyCollapsed() {
+  const ws = $('#workspace');
+  if (!ws) return;
+  const folded = new Set(state.collapsed_panes || []);
+  for (const id of ['source', 'skills', 'annotated', 'assistant']) {
+    ws.classList.toggle(`c-${id}`, folded.has(id));
+    const pane = ws.querySelector(`[data-pane="${id}"]`);
+    if (pane) pane.classList.toggle('collapsed', folded.has(id));
+  }
+}
+
 function fillLangSelect() {
   const sel = $('#lang-select');
   if (!sel) return;
@@ -326,6 +360,11 @@ function wireToolbar() {
     set({}, 'format');
     toast(t('studio.applied', { label: format.label }));
   }));
+
+  for (const btn of document.querySelectorAll('.pane-toggle')) {
+    btn.onclick = () => togglePane(btn.dataset.collapse);
+  }
+  applyCollapsed();
 
   const langSel = wire('#lang-select', 'onchange', async (e) => {
     await setLang(e.target.value);

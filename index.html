@@ -86,21 +86,36 @@
 
 <div id="sentence-bar" class="sentence-bar"></div>
 
-<main class="workspace">
-  <section class="pane pane-left">
-    <div class="pane-head"><span data-i18n="pane.source">原始文件</span> <span class="muted" data-i18n="pane.sourceGloss">source</span></div>
+<main class="workspace" id="workspace">
+  <section class="pane pane-left" data-pane="source">
+    <div class="pane-head">
+      <button class="pane-toggle" data-collapse="source" data-i18n-title="pane.collapse" title="折叠">‹</button>
+      <span class="pane-title"><span data-i18n="pane.source">原始文件</span> <span class="muted" data-i18n="pane.sourceGloss">source</span></span>
+    </div>
     <div id="pane-source" class="pane-body"></div>
   </section>
 
-  <aside id="legend" class="legend"></aside>
+  <section class="pane pane-skills" data-pane="skills">
+    <div class="pane-head">
+      <button class="pane-toggle" data-collapse="skills" data-i18n-title="pane.collapse" title="折叠">‹</button>
+      <span class="pane-title"><span data-i18n="pane.skills">技能</span> <span class="muted" data-i18n="pane.skillsGloss">skills</span></span>
+    </div>
+    <div id="legend" class="pane-body legend"></div>
+  </section>
 
-  <section class="pane pane-mid">
-    <div class="pane-head"><span data-i18n="pane.annotated">标注后文件</span> <span class="muted" data-i18n="pane.annotatedGloss">annotated</span></div>
+  <section class="pane pane-mid" data-pane="annotated">
+    <div class="pane-head">
+      <button class="pane-toggle" data-collapse="annotated" data-i18n-title="pane.collapse" title="折叠">‹</button>
+      <span class="pane-title"><span data-i18n="pane.annotated">标注后文件</span> <span class="muted" data-i18n="pane.annotatedGloss">annotated</span></span>
+    </div>
     <div id="pane-annotated" class="pane-body"></div>
   </section>
 
-  <section class="pane pane-right">
-    <div class="pane-head"><span data-i18n="pane.assistant">AI 标注助手</span> <span class="muted" data-i18n="pane.assistantGloss">skill call</span></div>
+  <section class="pane pane-right" data-pane="assistant">
+    <div class="pane-head">
+      <button class="pane-toggle" data-collapse="assistant" data-i18n-title="pane.collapse" title="折叠">‹</button>
+      <span class="pane-title"><span data-i18n="pane.assistant">AI 标注助手</span> <span class="muted" data-i18n="pane.assistantGloss">skill call</span></span>
+    </div>
     <div id="pane-assistant" class="pane-body"></div>
     <div class="pane-head sub" data-i18n="pane.chat">AI 对话 · rationale 交锋</div>
     <div id="pane-chat" class="pane-chat"></div>
