@@ -19,6 +19,7 @@ NODE_PATH=$(npm root -g) node docs/verification/<脚本>.js
 | 脚本 | 守着的东西 |
 |---|---|
 | `pipeline-test.js` | 最初的验收路径：导入未标注文件后**逐步点击**标注（不是一次性生成），无篇章关系与从句从属两条分支都走一遍，每个跑过的 skill 都必须出现在树上；并行格式的空白文档必须一次给出全部技能槽 |
+| `csp-test.js` | 在 `script-src 'self'`（**没有** unsafe-eval，**也没有** unsafe-inline）之下必须完整启动、**0 条 CSP 违规**——这就是"eval 报错不是本页面造成的"的证据；同时验证 boot guard 能记录并转述它没造成的违规 |
 | `devtools-issues-test.js` | 直接订阅浏览器 Issues 面板（CDP Audits），**必须一条都没有**——表单控件缺 id/name、label 没绑定控件、废弃 API、CSP 违规都会被抓到 |
 | `wiki-demo.js` | 拿一篇维基百科文本从零标到底，然后**回查每一步到底有没有覆盖原文**，逐句给出严格口径 / 后端宽松口径两个覆盖率和"真正丢失"的词 |
 | `skill-update-test.js` | 对话里接受的修订**真的进了下一次 prompt**（标准只有一条：新 prompt 里字面包含那条规则），且刷新后仍在 |

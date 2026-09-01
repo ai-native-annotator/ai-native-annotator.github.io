@@ -29,6 +29,27 @@ The requested module './state.js' does not provide an export named 'editKey'
 （页面顶部有一条红色横幅专门盯这件事：只要 `boot()` 没跑完横幅就在，并且会写明**卡在哪一步**、
 或者直接打印出模块的真实报错和文件行号；跑完了它自己消失。）
 
+## Chrome 报 “CSP blocks eval” 怎么办
+
+**这条报错不是本页面产生的。** 本项目不带任何 CSP（没有响应头、没有 meta 标签），
+也从不求值字符串（没有 `eval`、`new Function`、字符串形式的 `setTimeout`/`setInterval`）。
+`docs/verification/csp-test.js` 把这一点钉死：在
+
+```
+script-src 'self'      ← 既没有 unsafe-eval，也没有 unsafe-inline
+```
+
+之下，页面**完整启动、0 条 CSP 违规**。所以浏览器里看到的 eval 拦截来自页面之外。
+
+三步定位（Chrome）：
+
+1. **开一个无痕窗口**（默认关闭扩展）打开同一个地址。如果好了 → 是某个扩展。
+2. 展开 Issues 里那条，看 **Source location**。如果是 `chrome-extension://…` → 就是那个扩展。
+3. 打开 `chrome://policy`，搜 CSP / URLBlocklist 之类。有内容 → 是企业策略，需要找 IT。
+
+页面自己也会报：顶部横幅在 boot 失败时会把浏览器报告的 CSP 违规原样列出来，
+并注明"这条不是本页面造成的"，省得你去一份没有 eval 的代码里找 eval。
+
 ## 上线
 
 仓库 **Settings → Pages → Source 设为 "GitHub Actions"**——这一步必须由有仓库管理权限的人手动做一次，
