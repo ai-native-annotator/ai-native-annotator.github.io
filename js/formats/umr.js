@@ -14,7 +14,7 @@
 import { defineSkill } from '../core/registry.js';
 import { esc, jsonHtml } from '../core/dom.js';
 import { parsePenman, toJson, toPenman, reentrancies, nodeToPenman } from '../core/penman.js';
-import { rootContentNode, graphNodeOf } from '../core/pipeline.js';
+import { rootContentNode, graphNodeOf, advanceSentence } from '../core/pipeline.js';
 import { t } from '../core/i18n.js';
 
 const SKILL_IDS = ['discourse', 'predicate', 'arguments', 'np_phrase',
@@ -43,6 +43,14 @@ export default {
     { id: 'penman', label: 'Penman' },
   ],
   skillColor: (id) => SKILL_COLOR[id] || '#8a8f98',
+
+  /**
+   * The opening move when this format is applied to a sentence: queue the
+   * first thing to click. Called whenever the format is switched onto a
+   * document (core/work.js), and idempotent, so a sentence that already has a
+   * tree keeps it and only gets whatever slot comes next.
+   */
+  seedSentence(sentence) { advanceSentence(sentence); },
 
   /** Left pane: original text, one token per line (per the format spec). */
   renderSource(sentence) {

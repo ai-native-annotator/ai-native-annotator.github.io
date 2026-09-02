@@ -313,6 +313,10 @@ const D = {
     '{n} interface element(s) missing, so those buttons will not respond — hard-refresh the page (Ctrl/Cmd+Shift+R). See the log.'],
   'app.sampleMissing': ['示例文件缺失：{path}', 'Sample file missing: {path}'],
   'app.demoOption': ['{title} · {n} 句', '{title} · {n} sentences'],
+  'app.formatFailed': ['标注方式「{id}」加载失败：{err}', 'Could not load the “{id}” method: {err}'],
+  'app.formatSwitched': ['已切换标注方式：{format}（文档「{doc}」不变，原来的标注已保留）',
+    'Method switched to {format} — same document “{doc}”, the previous annotation is kept'],
+  'app.formatWorked': ['{label} · 已有标注', '{label} · has work'],
 
   /* --------------------------------------------- provider hints (settings) */
   'provider.anthropic.model': ['例如 claude-sonnet-5 / claude-opus-5 —— 按你账户可用的型号填写',

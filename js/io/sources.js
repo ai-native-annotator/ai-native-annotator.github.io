@@ -22,7 +22,7 @@
 import { state, traceKey } from '../core/state.js';
 import { logInfo, logWarn } from '../core/log.js';
 import { download } from '../core/dom.js';
-import { advanceSentence } from '../core/pipeline.js';
+import { stashWork } from '../core/work.js';
 import { t } from '../core/i18n.js';
 import { fetchAsset } from '../core/net.js';
 
@@ -75,8 +75,13 @@ export function parseDocument(text, filename = 'untitled') {
   }
   const lines = trimmed.split('\n').map((l) => l.trim()).filter(Boolean);
   const doc = {
+    // No `format`. A raw file is text, and text is not a UMR document any more
+    // than it is a sentiment document — it carries no annotation, so there is
+    // nothing here to say which method made one. Whichever method is active
+    // when it opens gets to work on it, and every other method stays available
+    // (see core/work.js). `format` on a document means "the annotation inside
+    // this file was made this way", which a raw import has none of.
     id: filename.replace(/\.[^.]+$/, ''),
-    format: state.formatId,
     language: /[一-鿿]/.test(trimmed) ? 'zh' : 'en',
     provenance: `imported: ${filename}`,
     sentences: lines.map((line, i) => ({
@@ -102,36 +107,20 @@ function tokenize(line) {
 /* --------------------------------------------------------- normalization */
 
 function normalizeDoc(doc) {
-  // Only the recursive umr format has a tree to repair. A chained document
-  // (refine) carries `passes` instead, and a flat one carries `annotation`;
-  // seeding pending markers into either would invent work that format has no
-  // way to run.
-  if (doc.format !== 'umr') {
-    for (const s of doc.sentences || []) {
-      s.tree = s.tree || [];
-      if (doc.format === 'refine') s.passes = s.passes || [];
-    }
-    return;
-  }
   for (const s of doc.sentences || []) {
     s.tree = s.tree || [];
-    const before = countPending(s.tree) + countResolved(s.tree);
-    repairNode({ children: s.tree }, 1);
+    s.passes = s.passes || [];
+  }
+  // Only a *recorded umr tree* can have the export gap described at the top of
+  // this file, so only that is repaired here. Seeding the first pending row is
+  // a different job and belongs to whichever format is about to be applied —
+  // see core/work.js, which calls the format's own seedSentence().
+  if (doc.format !== 'umr') return;
+  for (const s of doc.sentences || []) {
     const gaps = fillMissingPending(s.tree);
     if (gaps) logWarn('sources', t('sources.repaired', { n: s.index, gaps }));
-    advanceSentence(s);
   }
   doc._trace = buildTraceIndex(doc);
-}
-
-function countPending(nodes) { return (nodes || []).reduce((n, x) => n + (x.pending ? 1 : 0) + countPending(x.children), 0); }
-function countResolved(nodes) { return (nodes || []).reduce((n, x) => n + (x.pending ? 0 : 1) + countResolved(x.children), 0); }
-
-/** Recurse into already-resolved children so nested gaps are fixed too. */
-function repairNode(node, depth) {
-  for (const child of node.children || []) {
-    if (!child.pending) repairNode(child, depth + 1);
-  }
 }
 
 /**
@@ -204,10 +193,21 @@ function buildTraceIndex(doc) {
 export function exportDocument() {
   const doc = state.doc;
   if (!doc) return null;
+  // Park what is on screen first, or a document annotated two ways would ship
+  // with the parked copy of the method you are looking at being one edit stale.
+  stashWork(doc, state.formatId);
   const out = structuredClone(stripTrace(doc));
+  out.format = state.formatId;
   out.exportedAt = new Date().toISOString();
   out.humanEdits = [...state.edits.entries()].map(([path, output]) => ({ path, output }));
   out.skillProposals = state.proposals.map((p) => ({ skill: p.skill, text: p.text }));
+  // The active format's work is already in the sentence fields; shipping it in
+  // `_work` as well would double the file. Re-opening re-parks it (initWork).
+  for (const s of out.sentences || []) {
+    if (!s._work) continue;
+    delete s._work[out.format];
+    if (!Object.keys(s._work).length) delete s._work;
+  }
   return out;
 }
 

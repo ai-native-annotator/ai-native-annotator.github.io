@@ -142,16 +142,21 @@ const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`
   check('the :condition role shows in the tree', tree3.includes('condition'));
 
   console.log('\n--- 4. a parallel (flat) format is a different code path ---');
+  // Choosing a method applies it to the document already open — it does not go
+  // and fetch a different one (see format-switch-test.js). So this is the umr
+  // document from section 3, now offered to a flat format: the skill tree is
+  // parked and all three sentiment skills are available at once.
   await page.selectOption('#format-select', 'sentiment');
   await page.waitForTimeout(700);
+  const sentRows = await page.$$('.pending-row');
+  check('the flat method offers every skill at once, on the same document',
+    sentRows.length === 3, `${sentRows.length} rows`);
   const sentTree = await page.textContent('#pane-annotated');
-  check('sentiment demo renders its own skills', ['polarity', 'aspect', 'intensity'].every((s) => sentTree.includes(s)));
+  check('the umr tree is parked, not mixed in', !sentTree.includes('np_phrase'));
 
-  // Switching format loads the *recorded* sentiment demo, whose skills are all
-  // resolved — so pending rows are correctly absent there. The path that
-  // matters is a BLANK document: flat formats offer every skill at once (no
-  // recursion), and this is the case a named-vs-default export bug once broke
-  // completely while the pre-filled demo hid it.
+  // The same path from a BLANK document, which is where a named-vs-default
+  // export bug once broke flat formats completely while the pre-filled demo
+  // hid it.
   await page.evaluate(async () => {
     const st = await import('./js/core/state.js');
     const src = await import('./js/io/sources.js');

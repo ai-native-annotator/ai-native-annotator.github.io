@@ -7,10 +7,11 @@
  */
 
 import { state, set, currentSentence } from '../core/state.js';
-import { el } from '../core/dom.js';
+import { el, mount } from '../core/dom.js';
 import { renderTree } from './tree.js';
 import { renderChain } from './chain.js';
 import { sentenceDone } from '../core/pipeline.js';
+import { chainDone } from '../core/chain.js';
 import { sentenceCoverage } from '../core/coverage.js';
 import { t } from '../core/i18n.js';
 
@@ -56,11 +57,15 @@ export function renderAnnotated(container, format) {
 
   const treeHead = el('div', { class: 'pane-subbar' },
     el('span', { class: 'sub-label' }, t('panes.treeTitle')),
-    sentenceDone(sentence) ? el('span', { class: 'done-badge' }, t('panes.sentenceDone')) : null,
+    isDone(sentence, format) ? el('span', { class: 'done-badge' }, t('panes.sentenceDone')) : null,
     el('span', { class: 'muted sm' }, t('panes.callCount', { n: countCalls(sentence.tree) })));
   const tree = el('div', { class: 'tree-wrap' });
 
-  container.append(bar, artifact, coverageBar(sentence), treeHead, tree);
+  // mount(), not append(): coverageBar returns null until something is
+  // resolved, and native append() stringifies that into a literal "null" on
+  // screen — which is what every unannotated sentence was showing, right under
+  // the "not annotated yet" hint.
+  mount(container, bar, artifact, coverageBar(sentence), treeHead, tree);
   renderTree(tree, format);
 }
 
@@ -104,13 +109,28 @@ function countCalls(nodes = []) {
   return nodes.reduce((n, x) => n + (x.pending ? 0 : 1) + countCalls(x.children), 0);
 }
 
-export function renderSentenceBar(container) {
+/** Whether this sentence is finished *under this method*. */
+function isDone(sentence, format) {
+  if (!format) return false;
+  if (format.chain) return chainDone(sentence, format);
+  if (format.flat) {
+    const ran = (sentence.tree || []).some((n) => !n.pending);
+    return ran && (format.pendingSlots?.(sentence) || []).length === 0;
+  }
+  return sentenceDone(sentence);
+}
+
+export function renderSentenceBar(container, format) {
   const doc = state.doc;
   container.innerHTML = '';
   if (!doc) return;
   container.append(el('span', { class: 'sub-label' }, t('panes.sentences')));
   doc.sentences.forEach((s, i) => {
-    const done = doc.format === 'umr' ? sentenceDone(s) : Object.keys(s.annotation || {}).length > 0;
+    // "Finished" is a question about the METHOD, not about the file: the same
+    // sentence can be done as a refine chain and untouched as a skill tree.
+    // Reading it off doc.format meant the ticks stopped moving the moment you
+    // annotated a document any way other than the one it shipped with.
+    const done = isDone(s, format);
     container.append(el('button', {
       class: `chip sentence-chip${i === state.selectedSentence ? ' on' : ''}${done ? ' done' : ''}`,
       title: s.text.slice(0, 60),

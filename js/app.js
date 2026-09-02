@@ -22,6 +22,7 @@ import { mountGithubButton } from './ui/github-panel.js';
 import {
   listDemos, loadDemo, openLocalFile, parseDocument, exportDocumentFile,
 } from './io/sources.js';
+import { initWork, stashWork, restoreWork, workedFormats } from './core/work.js';
 import { importFromDrive } from './io/drive.js';
 import { PROVIDERS } from './core/providers.js';
 import { logInfo, logError, describeError } from './core/log.js';
@@ -77,6 +78,12 @@ async function boot() {
   await loadFormat('umr');
   step("loadFormat('sentiment')  [fetch js/formats/sentiment.js]");
   await loadFormat('sentiment');
+  // Loaded up front so the picker can show every method by its real name: the
+  // point of the picker is choosing how to annotate what you have open, and a
+  // list with one entry reading "refine" because its module has not been
+  // fetched yet reads like a bug.
+  step("loadFormat('refine')  [fetch js/formats/refine.js]");
+  await loadFormat('refine');
 
   step('listDemos()  [fetch data/demo/index.json]');
   try {
@@ -124,7 +131,7 @@ function activeFormat() {
 function renderAll() {
   const f = activeFormat();
   if (!f) return;
-  if (panes.sentences) renderSentenceBar(panes.sentences);
+  if (panes.sentences) renderSentenceBar(panes.sentences, f);
   if (panes.source) renderSource(panes.source, f);
   if (panes.legend) renderSkillPanel(panes.legend, f);
   if (panes.annotated) renderAnnotated(panes.annotated, f);
@@ -137,12 +144,12 @@ function subscribe() {
   on('sentence', () => {
     const f = activeFormat();
     expandAll();
-    renderSentenceBar(panes.sentences);
+    renderSentenceBar(panes.sentences, f);
     renderSource(panes.source, f);
     renderAnnotated(panes.annotated, f);
     renderAssistant(panes.assistant, f);
   });
-  on('tree', () => { renderAnnotated(panes.annotated, activeFormat()); renderSentenceBar(panes.sentences); });
+  on('tree', () => { const f = activeFormat(); renderAnnotated(panes.annotated, f); renderSentenceBar(panes.sentences, f); });
   on('artifact', () => renderAnnotated(panes.annotated, activeFormat()));
   // a skill amendment accepted in the chat changes what the next call sends,
   // so the pane that shows that skill has to repaint at once
@@ -183,23 +190,70 @@ async function openDoc(id) {
   }
 }
 
+/**
+ * Open a document. `doc.format` says how the annotation in the file was made,
+ * so it is worth following — opening the recorded sentiment demo should show
+ * you that recording rather than an empty pane. It is a fact about the file,
+ * not a restriction on the text: a raw import carries no format at all and is
+ * annotated with whatever method is already selected, and either way every
+ * other method stays one click away (see core/work.js).
+ */
 async function useDoc(doc) {
+  initWork(doc);
   if (doc.format && doc.format !== state.formatId) {
-    try { await loadFormat(doc.format); state.formatId = doc.format; fillFormatSelect(); }
+    try { await loadFormat(doc.format); state.formatId = doc.format; fillFormatSelect(); persist(); }
     catch { /* keep current format; renderers degrade to JSON */ }
   }
   const f = activeFormat();
   state.theme = (f.themes || []).some((th) => th.id === state.theme) ? state.theme : f.themes?.[0]?.id;
-  set({
-    doc, selectedSentence: 0, selectedNode: null,
-    edits: new Map(), proposals: [], chat: [],
-  }, 'doc');
+  // Assigned without emitting, then restored, then painted once: repainting
+  // between the two would show the document with the *previous* method's work
+  // still on screen for a frame.
+  Object.assign(state, {
+    doc, selectedSentence: 0, selectedNode: null, selectedPass: null,
+    edits: new Map(), proposals: [], chats: {},
+  });
+  restoreWork(doc, state.formatId, f);
+  fillFormatSelect();          // which methods this document already has work in
   expandAll();
-  set({}, 'tree');
+  set({}, 'doc');
   const sel = $('#doc-select');
   if ([...sel.options].some((o) => o.value === doc.id)) sel.value = doc.id;
   else sel.value = '';
   logInfo('app', t('app.docLoaded', { id: doc.id }));
+}
+
+/**
+ * Change the method applied to the document you are on — not the document.
+ *
+ * The picker used to hunt the demo index for a document whose `format` matched
+ * and open that instead, which meant choosing a method silently discarded the
+ * text you were annotating. Nothing about a sentence requires one method, so
+ * the sentence stays and the method changes: the outgoing work is parked, the
+ * incoming work is restored (or started fresh), and switching back and forth
+ * costs nothing.
+ */
+async function switchFormat(id) {
+  if (id === state.formatId) return;
+  try { await loadFormat(id); } catch (err) {
+    logError('app', t('app.formatFailed', { id, err: describeError(err) }), err);
+    toast(t('app.formatFailed', { id, err: err.message }), true);
+    const sel = $('#format-select');
+    if (sel) sel.value = state.formatId;
+    return;
+  }
+  if (state.doc) stashWork(state.doc, state.formatId);
+  state.formatId = id;
+  persist();
+  const f = activeFormat();
+  state.theme = f.themes?.[0]?.id || 'json';
+  if (state.doc) {
+    restoreWork(state.doc, id, f);
+    expandAll();
+    logInfo('app', t('app.formatSwitched', { format: f.label, doc: state.doc.id }));
+  }
+  fillFormatSelect();          // the "has work" markers moved
+  set({ selectedNode: null, selectedPass: null }, 'format');
 }
 
 /**
@@ -258,14 +312,23 @@ function fillDocSelect() {
   }
 }
 
+/**
+ * The method picker. Every format is offered for whatever document is open —
+ * a document is text, and any of these can be applied to it. Formats this
+ * document already has work in are marked, so switching away and back is a
+ * visible round trip rather than an act of faith.
+ */
 function fillFormatSelect() {
   const sel = $('#format-select');
   if (!sel) return;                       // missing control, already reported by wire()
   sel.innerHTML = '';
   const ids = new Set([...availableFormatIds(), ...listFormats().map((f) => f.id)]);
+  const worked = new Set(state.doc ? workedFormats(state.doc) : []);
   for (const id of ids) {
     const f = getFormat(id);
-    sel.append(el('option', { value: id }, f ? f.label : id));
+    const label = f ? f.label : id;
+    sel.append(el('option', { value: id },
+      worked.has(id) && id !== state.formatId ? t('app.formatWorked', { label }) : label));
   }
   sel.value = state.formatId;
 }
@@ -297,9 +360,11 @@ async function importSample(lang) {
   const res = await fetch(path);
   if (!res.ok) throw new Error(t('app.sampleMissing', { path }));
   const text = await res.text();
-  state.formatId = 'umr';
+  // Deliberately no format change: an imported file is text, and the method
+  // stays whatever the annotator chose. Forcing 'umr' here is what made
+  // "import" mean "import as UMR".
   const doc = parseDocument(text, path.split('/').pop());
-  doc.provenance = 'imported: simulated Google Drive import (unannotated UMR file)';
+  doc.provenance = 'imported: simulated Google Drive import (unannotated file)';
   await useDoc(doc);
   toast(t('app.sampleDone'));
 }
@@ -328,15 +393,7 @@ function wire(selector, prop, handler) {
 const missingNodes = [];
 
 function wireToolbar() {
-  wire('#format-select', 'onchange', async (e) => {
-    await loadFormat(e.target.value).catch(() => {});
-    state.formatId = e.target.value;
-    persist();
-    const f = activeFormat();
-    state.theme = f.themes?.[0]?.id || 'json';
-    const match = state.docIndex.find((d) => d.format === state.formatId);
-    if (match) await openDoc(match.id); else set({}, 'format');
-  });
+  wire('#format-select', 'onchange', (e) => switchFormat(e.target.value));
   wire('#doc-select', 'onchange', (e) => { if (e.target.value) openDoc(e.target.value); });
 
   wire('#btn-local', 'onclick', async () => {
@@ -355,9 +412,11 @@ function wireToolbar() {
   wire('#btn-studio', 'onclick', () => openStudio((format) => {
     fillFormatSelect();
     $('#format-select').value = format.id;
+    if (state.doc) stashWork(state.doc, state.formatId);
     state.formatId = format.id;
     state.theme = format.themes?.[0]?.id;
-    set({}, 'format');
+    if (state.doc) { restoreWork(state.doc, format.id, format); expandAll(); }
+    set({ selectedNode: null, selectedPass: null }, 'format');
     toast(t('studio.applied', { label: format.label }));
   }));
 

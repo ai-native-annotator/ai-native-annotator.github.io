@@ -462,6 +462,27 @@ const loaders = { umr: () => import('../formats/umr.js'), sentiment: … };
 
 ---
 
+#### `core/work.js` — 哪份标注属于哪种方式（约 110 行）
+
+**文档是文本，标注方式是另一件事**。同一篇导入的文章，可以逐个 skill 建树（`umr`），可以一次出草稿再串联精修（`refine`），也可以打平标（`sentiment`）——句子本身没有任何理由只许一种。
+
+以前是绑死的：`parseDocument` 把当前格式盖在文档上、导入示例先强制 `state.formatId='umr'`、格式下拉框换格式的反应是**去演示语料里找一份格式对得上的文档打开**——于是"换一种方式"变成了"把你正在标的文本扔掉"。
+
+难点在于三种方式写的是同一个句子对象：递归和打平写 `tree`，串联写 `passes` + `graph`，打平的结果在 `annotation`。所以这里按格式**分格存放**：
+
+| 函数 | 作用 |
+|---|---|
+| `initWork(doc)` | 文档刚打开时，把它自带的那份标注按 `doc.format` 存进自己的格子 |
+| `stashWork(doc, formatId)` | 把当前屏幕上的这份收进 `formatId` 的格子 |
+| `restoreWork(doc, formatId, format)` | 把 `formatId` 的那份拿出来（没有就开一份空的），并调用 `format.seedSentence?.()` 走这种方式的第一步 |
+| `workedFormats(doc)` | 这份文档在哪些方式下已经有成果——格式下拉框据此标注「已有标注」 |
+
+按路径索引的东西（`state.edits`、`state.chats`、`state.proposals`）同样分格：路径 `[1]` 在 umr 和 sentiment 里是两个不同的节点。它们放在模块内的 side table 而不是文档里，因为 `state.edits` 是 `Map`，塞进导出的 JSON 会静悄悄变成 `{}`。
+
+`doc.format` 的含义也随之变了：不是"这是一份 UMR 文档"，而是**"文件里带的这份标注是这么做出来的"**——是关于录制的事实，不是对文本的限制。所以纯文本导入干脆不带 `format`。
+
+---
+
 #### `core/pipeline.js` — UMR 递归流程（约 660 行，**全项目最重要**）
 
 这是 `modular-parsing` 里 `umr_parser/pipeline.py` + `modules/*.py` 的浏览器移植版。分七块读。
@@ -869,7 +890,8 @@ try {
 | 改标注流程顺序 / 加一个新 skill 步骤 | `core/pipeline.js` 的 `resolveByKind()` + `advanceSentence()` |
 | 加一个大模型厂商 | `core/providers.js` 加一项（**别处不用动**） |
 | 改递归深度上限 | `core/pipeline.js` 顶部 `MAX_DEPTH` / `FORCE_ATOMIC_DEPTH` |
-| 加一种标注格式 | 新建 `formats/xxx.js` + 在 `core/registry.js` 的 `loaders` 里登记 |
+| 加一种标注格式 | 新建 `formats/xxx.js` + 在 `core/registry.js` 的 `loaders` 里登记；成果写在句子的哪个字段上，要在 `core/work.js` 的 `WORK_FIELDS` 里有名字，否则换方式时会被覆盖 |
+| 给一种方式一个"开局动作" | 在格式对象上写 `seedSentence(sentence)`（umr 用它排上第一个待运行行） |
 | 改标注树每行显示什么 | 对应格式的 `nodeSummary()`；行的结构在 `ui/tree.js` 的 `nodeEl()` |
 | 改成品视图 | 对应格式的 `renderArtifact()` |
 | 改配色/间距/深色模式 | `css/app.css` 顶部的 CSS 变量 |
