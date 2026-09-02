@@ -67,6 +67,12 @@ function nodeEl(node, path, format) {
       },
     }, hasKids ? (isOpen ? '▾' : '▸') : '·'),
     el('span', { class: 'skill-chip', style: `--c:${format.skillColor?.(node.skill) || '#888'}` }, node.skill),
+    // The role is the edge this node hangs off its parent by — `:condition`,
+    // `:ARG0`. A pending row has always shown it; a *resolved* one did not, so
+    // the moment a slot was filled the tree stopped saying what the artifact
+    // plainly said on the right, and a `:condition` clause read as an
+    // unexplained second child. Same chip, same place, resolved or not.
+    node.role ? el('span', { class: 'role-chip' }, node.role) : null,
     el('span', { class: 'node-title' }, truncate(title, 46)),
     detail ? el('span', { class: 'node-detail' }, truncate(detail, 34)) : null,
     node.source ? el('span', { class: `src-dot ${node.source}`, title: sourceLabel(node) }) : null,

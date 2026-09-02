@@ -722,7 +722,7 @@ const D = {
 | 函数 | 作用 |
 |---|---|
 | `renderTree(container, format)` | 入口。并行格式：`已解析节点 + format.pendingSlots()` 拼一起；UMR：直接用 `sentence.tree` |
-| `nodeEl(node, path, format)` | 画一个**已解析**节点：折叠三角 + 彩色 skill 标签 + 标题 + 摘要 + 来源圆点（绿=live/蓝=replay/灰=rule）+ 人工修改铅笔标 |
+| `nodeEl(node, path, format)` | 画一个**已解析**节点：折叠三角 + 彩色 skill 标签 + **关系标签**（`:condition`、`:ARG0`，和待运行行同一个 chip）+ 标题 + 摘要 + 来源圆点（绿=live/蓝=replay/灰=rule）+ 人工修改铅笔标 + 重跑/换类型 |
 | `pendingRow(marker, path, format)` | 画一个**待运行**行：▶ 图标 + 类型名 + 角色 + 短语 + "待运行"。运行中变 ◐ 并旋转；有别的调用在跑时变灰不可点 |
 | `runPending(...)` | **第 3 章那条链路的起点**，见下 |
 | `expandAll()` | 清空折叠集合（切句子时调用） |
@@ -761,7 +761,9 @@ try {
 
 显示选中节点的**全过程**：skill 标签 + 中文名 + 来源徽章（live 还会显示模型名和耗时）→ 技能描述 → 技能文件路径 → 作用范围 → **输入原文** → 输出 JSON → 模型判断依据 → 人工修改框。
 
-`editor(key, shown, node)` 里的「保存修改」：`JSON.parse` 用户改的文本 → 存进 `state.edits`（**原始记录不动**）→ 触发重绘 → 弹 toast 提醒"请在下方说明理由以生成 skill 提案"。解析失败就在旁边显示错误，不会丢掉用户输入。
+`editor(path, node, def)` 里的「保存修改」：默认按 **Penman** 解析（JSON 是备用标签页）→ `core/edits.js` 把结果**写回 `node.output`**，所以「标注后文件」当场就变；原始输出存到 `node.originalOutput`，还原时用。解析失败就在旁边显示错误，不会丢掉用户输入。
+
+保存还会**改动树的形状**（`syncPendingChildren`）：输出里的 `<np: 短语>` 就是待展开的位置，所以手写一个就多一行可点的待运行，把一个改写成 `(x / concept)` 就等于你自己标好了、那一行随之消失。已经跑过的子节点是独立的 skill 调用，在这里只能改它的关系标签，删不掉——删了会在状态栏里说明原因。这次修改本身会被记进该技能的问题记录（`core/reflection.js`），但**不会**立刻改技能文件。
 
 ---
 

@@ -200,7 +200,8 @@ function atomicConcept(phrase, language) {
 
 /* --------------------------------------------------------- tree plumbing */
 
-function makePendingMarker({ kind, phrase, role, depth, sub }) {
+/** The one place a pending leaf's shape is defined — core/edits.js builds them too. */
+export function makePendingMarker({ kind, phrase, role, depth, sub }) {
   return { pending: true, kind: kind || 'np', phrase: String(phrase || '').trim(),
     role: role || null, depth: depth || 0, sub: sub || null };
 }

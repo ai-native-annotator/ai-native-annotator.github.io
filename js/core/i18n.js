@@ -513,17 +513,21 @@ const D = {
   'edits.reverted': ['已还原模型原始输出：{skill} · {span}', 'Reverted to the model output: {skill} · {span}'],
   'edits.penmanParse': ['Penman 解析失败：请检查括号是否配对，格式形如 (x1 / concept :role value)',
     'Could not parse the Penman: check the parentheses. Shape is (x1 / concept :role value)'],
-  'edits.ignoredChild': ['没有对应的子节点，已忽略：{role} ({concept})',
-    'No matching child node, ignored: {role} ({concept})'],
+  'edits.ignoredConcept': ['子节点 {role} 的 concept 不能在这里改成 {concept} —— 请在标注树里选中它自己再改',
+    'The concept of child {role} cannot be changed to {concept} here — select that child in the tree'],
   'edits.ignoredMissing': ['子节点 {role} 不能在这里删除 —— 它是一次独立的 skill 调用，请在标注树里处理',
     'Child edge {role} cannot be deleted here — it is its own skill call; use the annotation tree'],
   'edits.rolesChanged': ['改写了 {n} 条子节点的关系标签', 'Relabelled {n} child edge(s)'],
+  'edits.slotsAdded': ['标注树新增了 {n} 个待运行位置', 'Added {n} pending slot(s) to the annotation tree'],
+  'edits.slotsFilled': ['{n} 个位置已由人工写好，不再需要展开', '{n} slot(s) written by hand — no longer need expanding'],
   'edits.tabPenman': ['Penman', 'Penman'],
   'edits.tabJson': ['JSON', 'JSON'],
-  'edits.penmanHint': ['直接改 concept、关系标签和常量值。子节点写作 (x / concept)，只能改它的关系标签；'
-    + '增删子节点请在左边的标注树里做。<np: 短语> 是还没展开的待运行位置。',
-    'Edit the concept, the roles and the constant values. A child shows as (x / concept) and only its role '
-    + 'is editable here; add or remove children from the annotation tree. <np: phrase> is a pending slot.'],
+  'edits.penmanHint': ['直接改 concept、关系标签和常量值。<np: 短语> 是还没展开的待运行位置：'
+    + '把它改写成 (x / concept) 就算你自己标好了，左边那一行随之消失；新写一个 <np: 短语> 则会多出一个待运行位置。'
+    + '已经跑过的子节点也写作 (x / concept)，在这里只能改它的关系标签。',
+    'Edit the concept, the roles and the constant values. <np: phrase> is a pending slot: replace it with '
+    + '(x / concept) and it counts as annotated (the row on the left disappears); write a new <np: phrase> '
+    + 'to add a slot. A child that has already run also shows as (x / concept), and only its role is editable here.'],
   'edits.ignoredSome': ['已保存，但有 {n} 处没能应用：', 'Saved, but {n} part(s) could not be applied:'],
   'edits.savedShown': ['已保存 —— 右侧「标注后文件」已同步更新',
     'Saved — the annotated result on the right is updated'],

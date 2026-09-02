@@ -93,19 +93,29 @@ const check = (label, ok, extra = '') => {
 
   console.log('\n--- 2b. a save must not shred anything it did not touch ---');
   // Penman tokenizes on whitespace, so a pending slot written bare as
-  // <np: Edmund Pope> comes back as "<np:" and the phrase is silently gone.
+  // <np: Edmund Pope> used to come back as "<np:" with the phrase gone — which
+  // is exactly how the editor's own hint text tells you to write one.
+  // And every edge must appear ONCE: the `{expand:true}` the model answered
+  // with and the child that has since filled it are the same edge, and drawing
+  // both showed a placeholder for work already done.
   const roundTrip = await page.evaluate(async () => {
     const st = await import('./js/core/state.js');
     const ed = await import('./js/core/edits.js');
     const node = st.state.doc.sentences[0].tree.find((n) => n.skill === 'arguments');
     const text = ed.outputToPenman(node);
     const back = ed.penmanToOutput(text, node);
-    const slots = (back.output.relations || []).filter(([, v]) => v && v.expand === true);
-    return { text, slots: slots.map(([r, v]) => `${r}=${v.phrase}`), ignored: back.ignored };
+    const typed = ed.penmanToOutput(text.replace(/\)$/, '\n    :manner <np: in a hurry>)'), node);
+    const slot = (typed.output.relations.find(([r]) => r === ':manner') || [])[1];
+    return {
+      text,
+      ignored: back.ignored,
+      dupes: [':ARG0', ':ARG1'].filter((r) => text.split(r).length - 1 !== 1),
+      slot: slot?.expand ? `${slot.kind}:${slot.phrase}` : String(slot),
+    };
   });
-  check('pending slots keep their phrases through a save',
-    roundTrip.slots.every((s) => s.split('=')[1]?.length > 1),
-    roundTrip.slots.join(', ') || '(no pending slots on this node)');
+  check('a hand-typed slot keeps its whole phrase', roundTrip.slot === 'np:in a hurry', roundTrip.slot);
+  check('every edge appears exactly once', roundTrip.dupes.length === 0,
+    roundTrip.dupes.length ? `duplicated: ${roundTrip.dupes.join(', ')}` : roundTrip.text.replace(/\n\s*/g, ' '));
   check('the round trip drops nothing', roundTrip.ignored.length === 0, roundTrip.ignored.join('; '));
 
   console.log('\n--- 3. the edit survives into the export ---');

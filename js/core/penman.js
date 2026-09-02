@@ -24,6 +24,16 @@ export function parsePenman(text) {
       i = j + 1;
       return tok;
     }
+    // A pending slot `<np: the phrase>` is ONE token. It contains spaces, so
+    // splitting on whitespace shredded it into `<np:` plus loose words that
+    // then read as junk — which is how a half-finished graph lost every
+    // unexpanded phrase the moment it was re-parsed (the JSON view of the
+    // artifact goes through here, and so does anything hand-typed from the
+    // editor's own hint text).
+    if (src[i] === '<') {
+      const close = src.indexOf('>', i);
+      if (close !== -1) { const tok = src.slice(i, close + 1); i = close + 1; return tok; }
+    }
     const start = i;
     while (i < src.length && !/[\s()]/.test(src[i])) i++;
     return src.slice(start, i);

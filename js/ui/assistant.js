@@ -165,8 +165,11 @@ function editor(path, node, def) {
       }
     }
     const previous = node.originalOutput ?? node.output;
-    applyEdit(state.selectedSentence, path, node, output);
+    // Roles first: applyEdit re-derives the pending rows from the saved output
+    // and matches them to children by role, so the children have to be
+    // wearing their new labels before it looks at them.
     if (childRoles) applyChildRoles(childRoles);
+    applyEdit(state.selectedSentence, path, node, output);
     // The correction itself is evidence about the skill that produced it. It
     // is filed, not applied — see core/reflection.js.
     record({
