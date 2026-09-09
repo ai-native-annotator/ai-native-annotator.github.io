@@ -172,7 +172,11 @@ async function runNode(format, path, fn) {
 function pendingRow(marker, path, format) {
   const runKey = runKeyOf(marker, path);
   const running = state.running.has(runKey);
-  const blocked = state.running.size > 0 && !running;
+  // Only a "run the rest" sweep blocks the other rows. Two unresolved slots
+  // are independent questions about different phrases — making the annotator
+  // wait for one before asking the other turned a sentence into a queue of
+  // round trips, and round trips are the whole cost.
+  const blocked = state.sweeping && !running;
   const label = format.flat
     ? (format.skills?.find((s) => s.id === marker.kind)?.label || marker.kind)
     : KIND_LABEL(marker.kind);
@@ -223,7 +227,7 @@ function runKeyOf(marker, path) {
 }
 
 async function runPending(format, marker, path, runKey) {
-  if (state.running.size) return;
+  if (state.running.has(runKey)) return;
   state.running.add(runKey);
   set({}, 'tree');
   const sentence = currentSentence();
@@ -258,3 +262,97 @@ function truncate(s, n) {
 export function expandAll() {
   state.collapsed.clear();
 }
+
+/* --------------------------------------------------------- run everything */
+
+/**
+ * How many calls may be in flight at once. The limit is not politeness — it is
+ * that provider rate limits answer a burst with 429s, and a 429 costs more time
+ * than the call it replaced.
+ */
+const MAX_IN_FLIGHT = 4;
+
+/**
+ * Resolve the whole sentence without clicking every row.
+ *
+ * Runs in waves: take every slot that is unresolved *right now*, run up to
+ * MAX_IN_FLIGHT of them together, then look again — because resolving a slot is
+ * what reveals the next ones. Sibling slots are independent questions about
+ * different phrases, so a wave is genuinely parallel; the chain from a clause
+ * down to its arguments is not, and falls out naturally as successive waves.
+ *
+ * A wave that resolves nothing stops the sweep. That is the honest terminator:
+ * either everything is done, or something is failing and repeating it would
+ * just spend the annotator's money on the same error.
+ */
+export async function runAllPending(format) {
+  if (state.sweeping) return { waves: 0, ran: 0 };
+  const sentence = currentSentence();
+  if (!sentence) return { waves: 0, ran: 0 };
+
+  state.sweeping = true;
+  set({}, 'tree');
+  let waves = 0, ran = 0;
+  try {
+    for (;;) {
+      const slots = pendingPaths(sentence, format).slice(0, MAX_IN_FLIGHT);
+      if (!slots.length) break;
+      waves++;
+      const before = countResolved(sentence.tree);
+      const results = await Promise.allSettled(slots.map(({ marker, path }) =>
+        runOneSweep(format, marker, path)));
+      ran += results.filter((r) => r.status === 'fulfilled').length;
+      set({}, 'tree', 'artifact');
+      // No progress means the same wave would repeat forever. Say so once.
+      if (countResolved(sentence.tree) === before) {
+        const why = results.find((r) => r.status === 'rejected')?.reason;
+        logError('ui', t('tree.sweepStalled', { err: why ? describeError(why) : '—' }), why);
+        toast(t('tree.sweepStalled', { err: why ? describeError(why) : '—' }), true);
+        break;
+      }
+      if (waves > 40) break;                 // a sentence this deep is a bug, not a sentence
+    }
+  } finally {
+    state.sweeping = false;
+    set({}, 'tree', 'artifact', 'selectedNode');
+  }
+  logInfo('ui', t('tree.sweepDone', { n: ran, waves }));
+  return { waves, ran };
+}
+
+/** One slot inside a sweep: same path as a click, minus the repaint per step. */
+async function runOneSweep(format, marker, path) {
+  const runKey = runKeyOf(marker, path);
+  state.running.add(runKey);
+  try {
+    if (format.flat) {
+      const sentence = currentSentence();
+      const node = await format.runSkill(marker.kind, sentence, state.doc.language || 'en');
+      sentence.tree.push(node);
+    } else {
+      await runPendingAt(state.doc, state.selectedSentence, path);
+    }
+  } finally {
+    state.running.delete(runKey);
+  }
+}
+
+/** Every unresolved slot in the sentence, deepest first so paths stay valid. */
+function pendingPaths(sentence, format) {
+  if (format.flat) {
+    return (format.pendingSlots?.(sentence) || []).map((marker) => ({ marker, path: null }));
+  }
+  const out = [];
+  const walk = (nodes, prefix) => {
+    (nodes || []).forEach((n, i) => {
+      const path = [...prefix, i];
+      if (n.pending) out.push({ marker: n, path });
+      else walk(n.children, path);
+    });
+  };
+  walk(sentence.tree, []);
+  return out.reverse();
+}
+
+const countResolved = (nodes = []) =>
+  nodes.reduce((n, x) => n + (x.pending ? 0 : 1 + countResolved(x.children)), 0);

@@ -74,7 +74,7 @@ function findRecorded(skillId, span) {
  * Run one skill call. `span` identifies the call for replay lookup (usually
  * the phrase/sentence the skill was asked about).
  */
-export async function runSkillCall({ skillId, span, prompt, language }) {
+export async function runSkillCall({ skillId, span, system, prompt, language }) {
   if (state.runMode === 'replay') {
     const recorded = findRecorded(skillId, span);
     if (!recorded) {
@@ -99,7 +99,7 @@ export async function runSkillCall({ skillId, span, prompt, language }) {
   logInfo('runner', `live: ${skillId} · ${truncate(span)} · provider=${provider}`);
   let text;
   try {
-    text = await callProvider(provider, { apiKey, model, prompt });
+    text = await callProvider(provider, { apiKey, model, system, prompt });
   } catch (err) {
     logError('runner', `${skillId} call failed: ${describeError(err)}`, err);
     throw err;

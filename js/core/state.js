@@ -24,6 +24,7 @@ export const state = {
   apiKeys: {},            // provider id -> key, mirrors localStorage (see settings.js)
   models: {},             // provider id -> model override
   running: new Set(),     // path-keys currently mid-flight (for spinners/disabling)
+  sweeping: false,        // a "run the rest" sweep owns the sentence right now
   lang: 'zh',             // interface language ('zh' | 'en') — see core/i18n.js
   editMode: 'penman',     // how the assistant's edit box shows output ('penman' | 'json')
   collapsed_panes: [],    // pane ids the user folded away ('source'|'skills'|'annotated'|'assistant')

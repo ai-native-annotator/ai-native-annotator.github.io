@@ -3,6 +3,7 @@
  * 2. Per-node chat threads: each node keeps its own conversation
  */
 const { chromium } = require('playwright');
+const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
 const SHOT = (n) => `${process.env.SHOT_DIR || '/tmp'}/${n}.png`;
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
@@ -18,7 +19,7 @@ const S1 = 'The museum opened a new exhibit last week.';
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
 
   await page.route('https://api.anthropic.com/v1/messages', async (route) => {
-    const p = JSON.parse(route.request().postData()).messages[0].content;
+    const p = promptOf(route.request().postData());
     if (p.includes('annotation guidelines') || p.includes('标注规范维护者')) {
       return route.fulfill({ status: 200, contentType: 'application/json', body: body('The model kept only the date.\n\n> Always cover the full temporal span.') });
     }

@@ -17,6 +17,7 @@
  * Run: NODE_PATH=<playwright> node docs/verification/refine-chain-test.js
  */
 const { chromium } = require('playwright');
+const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
 const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
@@ -46,7 +47,7 @@ const G3 = '(s1t / taste-01\n    :ARG0 (s1p / person)\n    :ARG1 (s1f / freedom)
 
   let breakGraph = false;
   await page.route('https://api.anthropic.com/**', (route) => {
-    const p = JSON.parse(route.request().postData()).messages[0].content;
+    const p = promptOf(route.request().postData());
     sent.push(p);
     const reply = (o) => route.fulfill({ status: 200, contentType: 'application/json', body: body(o) });
     if (breakGraph) return reply({ graph: '(((not penman at all', changes: ['broke it'], note: 'oops' });

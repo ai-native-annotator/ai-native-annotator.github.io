@@ -117,6 +117,15 @@ const D = {
   'tree.runFailed': ['标注失败：{err}', 'Annotation step failed: {err}'],
   'tree.runFailedLog': ['标注步骤失败（{kind}）：{err}', 'Annotation step failed ({kind}): {err}'],
   'tree.running.log': ['运行 {kind} · "{text}"', 'Running {kind} · "{text}"'],
+  'chain.runRest': ['跑完剩下的', 'Run the rest'],
+  'chain.runRestTitle': ['按顺序把剩下的步骤跑完（每一步都要读上一步的图，所以只能串着来）',
+    'Run the remaining passes in order (each one reads the graph the last one produced, so they cannot overlap)'],
+  'tree.runAll': ['跑完本句', 'Run the rest'],
+  'tree.runAllTitle': ['把这一句剩下的待运行位置全部跑完 —— 互不依赖的会并行发出',
+    'Resolve every remaining slot in this sentence — independent ones go out in parallel'],
+  'tree.sweeping': ['正在跑…', 'running…'],
+  'tree.sweepDone': ['跑完 {n} 步，共 {waves} 轮', 'Ran {n} step(s) in {waves} wave(s)'],
+  'tree.sweepStalled': ['这一轮什么也没跑出来，已停下：{err}', 'A wave resolved nothing, so the sweep stopped: {err}'],
 
   /* ---------------------------------------------------------- assistant */
   'assist.empty': ['在中间的标注树里点一个「待运行」节点来标注，或点一个已完成的节点查看它的输入 / 输出 / 判断依据。',

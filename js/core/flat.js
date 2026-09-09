@@ -13,8 +13,8 @@ export async function runFlatSkill(skillDef, sentence, language) {
   const skillText = skillDef.file ? await loadSkillText(skillDef.file) : '';
   const input = `## Task input\nSentence: ${sentence.text}\n\n`
     + `Produce the "${skillDef.id}" field(s) described above; answer with the JSON only.`;
-  const prompt = [skillText, input].filter(Boolean).join('\n\n---\n\n');
-  const res = await runSkillCall({ skillId: skillDef.id, span: sentence.text, prompt, language });
+  // Instructions in `system` (stable, cached by the provider), task in `prompt`.
+  const res = await runSkillCall({ skillId: skillDef.id, span: sentence.text, system: skillText, prompt: input, language });
   sentence.annotation = { ...(sentence.annotation || {}), ...(res.output && typeof res.output === 'object' ? res.output : {}) };
   return {
     skill: skillDef.id, span: sentence.text, input, output: res.output, rationale: res.rationale,

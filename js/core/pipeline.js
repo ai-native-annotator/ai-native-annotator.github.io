@@ -60,19 +60,24 @@ async function loadAbstractRolesets() {
   return abstractRolesets;
 }
 
-/** Assemble the full prompt for one skill call: skill file + language overlay + node schema + task input. */
+/**
+ * Assemble one skill call as {system, prompt}.
+ *
+ * The split is not cosmetic. Everything in `system` — the skill file, the
+ * language overlay, the node schema — is byte-identical across every call to
+ * this skill in this session, and everything in `prompt` changes per call. Sent
+ * that way, the provider caches the stable half, so a sentence that takes a
+ * dozen calls sends the instructions once rather than a dozen times.
+ */
 async function buildPrompt(skillId, language, taskInput) {
   const meta = SKILL_META[skillId];
   const parts = [await fetchText(`skills/${meta.file}`)];
   parts.push(await fetchText(`skills/${language}/overlay.md`));
   if (meta.schema) parts.push(await fetchText('skills/shared/_node_schema.md'));
-  if (meta.notes) {
-    // notes files are mined-example addenda in the research repo; not vendored
-    // here (they are large and ablation-only) — the shared skill file plus
-    // language overlay already carries the operative rules.
-  }
-  parts.push(taskInput);
-  return parts.filter((p) => p && p.trim()).join('\n\n---\n\n');
+  return {
+    system: parts.filter((p) => p && p.trim()).join('\n\n---\n\n'),
+    prompt: taskInput,
+  };
 }
 
 /* ------------------------------------------------------------ task input */
@@ -249,8 +254,8 @@ async function resolveByKind(kind, marker, ctx) {
 
   if (kind === 'special') {
     const input = taskSpecialEntity(phrase, sentence.text);
-    const prompt = await buildPrompt('special_entity', language, input);
-    const res = await runSkillCall({ skillId: 'special_entity', span: phrase, prompt, language });
+    const call = await buildPrompt('special_entity', language, input);
+    const res = await runSkillCall({ skillId: 'special_entity', span: phrase, ...call, language });
     if (!res.output?.concept) {
       logWarn('pipeline', t('pipe.specialFallback', { phrase: truncateForLog(phrase) }));
       res.output = { concept: 'string-entity', relations: [[':value', `"${phrase}"`]], phrase };
@@ -260,8 +265,8 @@ async function resolveByKind(kind, marker, ctx) {
 
   if (kind === 'np') {
     const input = taskNpPhrase(phrase, sentence.text);
-    const prompt = await buildPrompt('np_phrase', language, input);
-    const res = await runSkillCall({ skillId: 'np_phrase', span: phrase, prompt, language });
+    const call = await buildPrompt('np_phrase', language, input);
+    const res = await runSkillCall({ skillId: 'np_phrase', span: phrase, ...call, language });
     if (!res.output?.concept) {
       logWarn('pipeline', t('pipe.npFallback', { phrase: truncateForLog(phrase) }));
       res.output = { concept: phrase.replace(/\s+/g, '-').toLowerCase() || 'thing', relations: [], phrase };
@@ -271,15 +276,15 @@ async function resolveByKind(kind, marker, ctx) {
 
   // clause: predicate -> arguments, predicate call shown as the first (non-expandable) child
   const predInput = await taskPredicate(phrase, sentence.text);
-  const predPrompt = await buildPrompt('predicate', language, predInput);
-  const predRes = await runSkillCall({ skillId: 'predicate', span: phrase, prompt: predPrompt, language });
+  const predCall = await buildPrompt('predicate', language, predInput);
+  const predRes = await runSkillCall({ skillId: 'predicate', span: phrase, ...predCall, language });
   if (!predRes.output || typeof predRes.output !== 'object') predRes.output = {};
   predRes.output.predicate_kind ??= 'verb';
   predRes.output.lemmas ??= [];
 
   const argInput = await taskArguments(phrase, sentence.text, predRes.output);
-  const argPrompt = await buildPrompt('arguments', language, argInput);
-  const argRes = await runSkillCall({ skillId: 'arguments', span: phrase, prompt: argPrompt, language });
+  const argCall = await buildPrompt('arguments', language, argInput);
+  const argRes = await runSkillCall({ skillId: 'arguments', span: phrase, ...argCall, language });
   if (!argRes.output?.concept) {
     const lemma = (predRes.output.lemmas || [])[0] || phrase.split(/\s+/)[0] || 'event';
     argRes.output = { concept: `${lemma}-01`, relations: [], phrase };
@@ -317,8 +322,8 @@ export async function resolvePendingLeaf(marker, ctx) {
       node.rationale = `${node.rationale || ''}\n（kind 由代码规则 quick_stop_test 判定为 ${quick}）`.trim();
     } else {
       const input = taskStopTest(marker.phrase);
-      const prompt = await buildPrompt('stop_test', language, input);
-      const stopRes = await runSkillCall({ skillId: 'stop_test', span: marker.phrase, prompt, language });
+      const call = await buildPrompt('stop_test', language, input);
+      const stopRes = await runSkillCall({ skillId: 'stop_test', span: marker.phrase, ...call, language });
       const decided = ['atomic', 'np', 'clause', 'special'].includes(stopRes.output?.kind) ? stopRes.output.kind : 'np';
       node = await resolveByKind(decided, { ...marker, kind: decided }, ctx);
       node.children.unshift(resultNode('stop_test', marker.phrase, input, stopRes));
@@ -341,8 +346,8 @@ export async function resolvePendingLeaf(marker, ctx) {
 export async function resolveDiscourse(ctx) {
   const { sentence, language } = ctx;
   const input = taskDiscourse(sentence.text, language);
-  const prompt = await buildPrompt('discourse', language, input);
-  const res = await runSkillCall({ skillId: 'discourse', span: sentence.text, prompt, language });
+  const call = await buildPrompt('discourse', language, input);
+  const res = await runSkillCall({ skillId: 'discourse', span: sentence.text, ...call, language });
   const out = (res.output && typeof res.output === 'object' && 'has_discourse' in res.output)
     ? res.output : { has_discourse: false };
   res.output = out;
@@ -412,8 +417,8 @@ export async function resolveReentrancy(ctx) {
   }
   const listing = nodes.map((n) => `- ${n.output.id}: ${n.output.concept} | "${n.output.phrase || ''}"`).join('\n');
   const input = taskReentrancy(sentence.text, listing);
-  const prompt = await buildPrompt('reentrancy', language, input);
-  const res = await runSkillCall({ skillId: 'reentrancy', span: sentence.text, prompt, language });
+  const call = await buildPrompt('reentrancy', language, input);
+  const res = await runSkillCall({ skillId: 'reentrancy', span: sentence.text, ...call, language });
   const merges = Array.isArray(res.output?.merge) ? res.output.merge : [];
 
   const byId = new Map(nodes.map((n) => [String(n.output.id), n]));
@@ -521,8 +526,8 @@ export async function resolveDocLevel(ctx) {
     + `Registry of previous sentences' variables:\n${regTxt}\n\n`
     + `Default modal triples (adjust if needed): ${JSON.stringify(defaultModal)}\n\n`
     + 'Produce temporal/modal/coref; answer with the JSON only.';
-  const prompt = await buildPrompt('doc_level', language, input);
-  const res = await runSkillCall({ skillId: 'doc_level', span: sentence.text, prompt, language });
+  const call = await buildPrompt('doc_level', language, input);
+  const res = await runSkillCall({ skillId: 'doc_level', span: sentence.text, ...call, language });
 
   const modal = defaultModal;
   const knownVars = new Set([...current.map((e) => e.var), ...registry.map((e) => e.var),

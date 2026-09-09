@@ -27,12 +27,16 @@ import { logInfo, logWarn } from './log.js';
 import { parsePenman, toPenman } from './penman.js';
 import { t } from './i18n.js';
 
-/** Assemble the prompt for one pass: skill file + the graph so far + the task. */
+/**
+ * Assemble one pass as {system, prompt}: the stable instructions in `system`
+ * (cached by the provider across every pass in the session), the graph and the
+ * task in `prompt`, where they belong — they change every call.
+ */
 async function buildPassPrompt(def, sentence, graph, language) {
   const parts = [await loadEffectiveText(def.file)];
   const overlay = await loadEffectiveText(`skills/${language}/overlay.md`);
   if (overlay) parts.push(overlay);
-  parts.push([
+  const task = [
     '## Task input',
     `Sentence: ${sentence.text}`,
     sentence.tokens?.length ? `Tokens: ${sentence.tokens.join(' ')}` : '',
@@ -45,8 +49,8 @@ async function buildPassPrompt(def, sentence, graph, language) {
     ' "changes": ["one short line per change you made"],',
     ' "note": "one sentence on why"}',
     'If nothing needs changing, return the graph unchanged and an empty changes list.',
-  ].filter(Boolean).join('\n'));
-  return parts.filter(Boolean).join('\n\n---\n\n');
+  ].filter(Boolean).join('\n');
+  return { system: parts.filter(Boolean).join('\n\n---\n\n'), prompt: task };
 }
 
 /**
@@ -66,9 +70,9 @@ export async function runPass(doc, sentenceIndex, passIndex, format) {
   sentence.passes = sentence.passes || [];
   const before = passIndex === 0 ? '' : (sentence.passes[passIndex - 1]?.graph || sentence.graph || '');
   const language = doc.language || 'en';
-  const prompt = await buildPassPrompt(def, sentence, before, language);
+  const call = await buildPassPrompt(def, sentence, before, language);
 
-  const res = await runSkillCall({ skillId: def.id, span: sentence.text, prompt, language });
+  const res = await runSkillCall({ skillId: def.id, span: sentence.text, ...call, language });
   let out = res.output;
   // replay records may hold the raw text rather than the object
   if (typeof out === 'string') { try { out = extractJson(out); } catch { out = { graph: out }; } }
@@ -105,7 +109,7 @@ export async function runPass(doc, sentenceIndex, passIndex, format) {
     source: res.source,
     model: res.model || '',
     latencyMs: res.latencyMs || 0,
-    input: prompt,
+    input: call.prompt,
     ranAt: new Date().toISOString(),
   };
   sentence.passes[passIndex] = record;

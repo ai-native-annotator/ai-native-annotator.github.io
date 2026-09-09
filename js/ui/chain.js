@@ -99,6 +99,32 @@ async function runOne(format, i) {
 }
 
 /**
+ * Run every pass that has not run yet, in order.
+ *
+ * Strictly serial, and that is not a shortcut: every pass reads the graph the
+ * pass before it produced. What it saves is eight round trips of *clicking*,
+ * not eight round trips to the model.
+ */
+export async function runRemainingPasses(format) {
+  if (state.sweeping) return;
+  state.sweeping = true;
+  set({}, 'tree');
+  try {
+    for (let guard = 0; guard < (format.skills || []).length + 1; guard++) {
+      const sentence = state.doc?.sentences?.[state.selectedSentence];
+      const next = sentence ? nextPassIndex(sentence, format) : -1;
+      if (next === -1) break;
+      const before = (sentence.passes || []).filter(Boolean).length;
+      await runOne(format, next);
+      if ((sentence.passes || []).filter(Boolean).length === before) break;   // it failed; stop
+    }
+  } finally {
+    state.sweeping = false;
+    set({}, 'tree', 'artifact', 'selectedNode');
+  }
+}
+
+/**
  * Re-run from a pass onward. Everything after it is dropped first, because
  * those passes read a graph this one is about to change — leaving them would
  * show later steps whose "before" no longer exists anywhere.

@@ -15,6 +15,7 @@
  * Run: NODE_PATH=<playwright> node docs/verification/edit-commit-test.js
  */
 const { chromium } = require('playwright');
+const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
 const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
@@ -33,7 +34,7 @@ const check = (label, ok, extra = '') => {
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
 
   await page.route('https://api.anthropic.com/v1/messages', async (route) => {
-    const p = JSON.parse(route.request().postData()).messages[0].content;
+    const p = promptOf(route.request().postData());
     if (p.includes(`Sentence (English):\n${S1}`)) return route.fulfill({ status: 200, contentType: 'application/json', body: body({ has_discourse: false }) });
     if (p.includes(`Clause to analyse: ${S1}`) && !p.includes('## PropBank'))
       return route.fulfill({ status: 200, contentType: 'application/json', body: body({ predicate_kind: 'verb', lemmas: ['open'], predicate_text: 'opened' }) });

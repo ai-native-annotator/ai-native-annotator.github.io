@@ -8,6 +8,7 @@
  * back-check finds, it finds.
  */
 const { chromium } = require('playwright');
+const { promptOf } = require('./_prompt.js');
 const fs = require('fs');
 const BASE = 'http://localhost:8899';
 const OUT = '/tmp/claude-0/-home-user/23712ac6-6571-52e0-9f3a-1aeb04979579/scratchpad';
@@ -152,7 +153,7 @@ function reentrancyAnswer(prompt) {
   const transcript = [];
   const unmatched = [];
   await page.route('https://api.anthropic.com/v1/messages', async (route) => {
-    const prompt = JSON.parse(route.request().postData()).messages[0].content;
+    const prompt = promptOf(route.request().postData());
     let answer;
     if (prompt.includes('Nodes in the parsed graph')) answer = reentrancyAnswer(prompt);
     else if (prompt.includes('Produce temporal/modal/coref')) answer = { temporal: [], modal: [], coref: [] };

@@ -8,8 +8,8 @@
 
 import { state, set, currentSentence } from '../core/state.js';
 import { el, mount } from '../core/dom.js';
-import { renderTree } from './tree.js';
-import { renderChain } from './chain.js';
+import { renderTree, runAllPending } from './tree.js';
+import { renderChain, runRemainingPasses } from './chain.js';
 import { sentenceDone } from '../core/pipeline.js';
 import { chainDone } from '../core/chain.js';
 import { sentenceCoverage } from '../core/coverage.js';
@@ -45,20 +45,33 @@ export function renderAnnotated(container, format) {
   // A chained format has passes, not a tree of calls: the pipeline and its
   // per-pass diff say what a tree cannot (see ui/chain.js).
   if (format.chain) {
+    const done = (sentence.passes || []).filter(Boolean).length;
     const chainHead = el('div', { class: 'pane-subbar' },
       el('span', { class: 'sub-label' }, t('chain.title')),
-      el('span', { class: 'muted sm' }, t('chain.progress', {
-        n: (sentence.passes || []).filter(Boolean).length, total: (format.skills || []).length })));
+      el('span', { class: 'muted sm' }, t('chain.progress', { n: done, total: (format.skills || []).length })),
+      done < (format.skills || []).length ? el('button', {
+        class: 'btn xs', title: t('chain.runRestTitle'),
+        disabled: state.sweeping ? '' : undefined,
+        onclick: () => runRemainingPasses(format),
+      }, state.sweeping ? t('tree.sweeping') : t('chain.runRest')) : null);
     const chain = el('div', { class: 'tree-wrap' });
     container.append(bar, artifact, chainHead, chain);
     renderChain(chain, format);
     return;
   }
 
+  const remaining = format.flat
+    ? (format.pendingSlots?.(sentence) || []).length
+    : countPending(sentence.tree);
   const treeHead = el('div', { class: 'pane-subbar' },
     el('span', { class: 'sub-label' }, t('panes.treeTitle')),
     isDone(sentence, format) ? el('span', { class: 'done-badge' }, t('panes.sentenceDone')) : null,
-    el('span', { class: 'muted sm' }, t('panes.callCount', { n: countCalls(sentence.tree) })));
+    el('span', { class: 'muted sm' }, t('panes.callCount', { n: countCalls(sentence.tree) })),
+    remaining ? el('button', {
+      class: 'btn xs', title: t('tree.runAllTitle'),
+      disabled: state.sweeping ? '' : undefined,
+      onclick: () => runAllPending(format),
+    }, state.sweeping ? t('tree.sweeping') : t('tree.runAll')) : null);
   const tree = el('div', { class: 'tree-wrap' });
 
   // mount(), not append(): coverageBar returns null until something is
@@ -107,6 +120,10 @@ function truncate(s, n) {
 
 function countCalls(nodes = []) {
   return nodes.reduce((n, x) => n + (x.pending ? 0 : 1) + countCalls(x.children), 0);
+}
+
+function countPending(nodes = []) {
+  return nodes.reduce((n, x) => n + (x.pending ? 1 : countPending(x.children)), 0);
 }
 
 /** Whether this sentence is finished *under this method*. */
