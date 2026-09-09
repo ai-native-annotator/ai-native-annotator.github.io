@@ -139,12 +139,6 @@ export function markReflected(skill, amendment) {
   return n;
 }
 
-export function clearAll() {
-  journal = [];
-  persist();
-  set({}, 'reflection');
-  logInfo('reflect', 'reflection journal cleared');
-}
 
 /* -------------------------------------------------------------- reflection */
 

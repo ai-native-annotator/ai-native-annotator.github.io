@@ -25,7 +25,7 @@ export const state = {
   models: {},             // provider id -> model override
   running: new Set(),     // path-keys currently mid-flight (for spinners/disabling)
   sweeping: false,        // a "run the rest" sweep owns the sentence right now
-  lang: 'zh',             // interface language ('zh' | 'en') — see core/i18n.js
+  lang: 'en',             // interface language; first run follows the browser (i18n.detectLang)
   editMode: 'penman',     // how the assistant's edit box shows output ('penman' | 'json')
   collapsed_panes: [],    // pane ids the user folded away ('source'|'skills'|'annotated'|'assistant')
   openSkill: null,        // skill id whose detail view is open, for the panel's highlight

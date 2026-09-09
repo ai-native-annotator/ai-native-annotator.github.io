@@ -31,14 +31,14 @@ const FORCE_ATOMIC_DEPTH = 8;
 // are NOT here: the UI reads them from the format module (formats/umr.js),
 // which builds them through t('skill.<id>') so they follow the language.
 export const SKILL_META = {
-  discourse: { file: 'shared/discourse.md', notes: 'shared/discourse.md', schema: true },
-  predicate: { file: 'shared/predicate.md', notes: '', schema: false },
-  arguments: { file: 'shared/arguments.md', notes: 'shared/arguments.md', schema: true },
-  np_phrase: { file: 'shared/np_phrase.md', notes: 'shared/np_phrase.md', schema: true },
-  special_entity: { file: 'shared/special_entity.md', notes: 'shared/special_entity.md', schema: true },
-  stop_test: { file: 'shared/stop_test.md', notes: '', schema: false },
-  reentrancy: { file: 'shared/reentrancy.md', notes: '', schema: false },
-  doc_level: { file: 'shared/doc_level.md', notes: 'shared/doc_level.md', schema: false },
+  discourse: { file: 'shared/discourse.md', schema: true },
+  predicate: { file: 'shared/predicate.md', schema: false },
+  arguments: { file: 'shared/arguments.md', schema: true },
+  np_phrase: { file: 'shared/np_phrase.md', schema: true },
+  special_entity: { file: 'shared/special_entity.md', schema: true },
+  stop_test: { file: 'shared/stop_test.md', schema: false },
+  reentrancy: { file: 'shared/reentrancy.md', schema: false },
+  doc_level: { file: 'shared/doc_level.md', schema: false },
 };
 
 /* --------------------------------------------------------- vendored data */

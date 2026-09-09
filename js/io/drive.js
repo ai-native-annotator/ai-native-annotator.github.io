@@ -32,9 +32,6 @@ function loadScript(src) {
 export function driveClientId() {
   return localStorage.getItem('gdrive_client_id') || '';
 }
-export function setDriveClientId(id) {
-  localStorage.setItem('gdrive_client_id', id.trim());
-}
 
 export async function importFromDrive() {
   const clientId = driveClientId();

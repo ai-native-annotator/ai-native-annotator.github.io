@@ -56,7 +56,6 @@ export async function builtinSource(file) {
 /* ------------------------------------------------------------ per format */
 
 export function getImporter(formatId) { return custom[formatId] || null; }
-export function listImporters() { return Object.entries(custom).map(([format, v]) => ({ format, ...v })); }
 
 export function setImporter(formatId, source, name = '') {
   custom[formatId] = { name: name || t('imp.customName'), source, updatedAt: new Date().toISOString() };

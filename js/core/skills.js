@@ -1,16 +1,23 @@
 /**
- * Skill text: loading, and — the point of this module — *overriding*.
+ * Skill text: loading, and — the point of this module — *changing* it.
  *
- * Until now the rationale-clash loop stopped at "here is a proposal, export
- * it as markdown and go edit the file yourself". That is not a feedback loop,
- * it is a suggestion box: nothing the user agreed to had any effect on the
- * next call.
+ * A skill file IS the prompt. Everything this app does to improve annotation
+ * eventually comes back to editing one of these files, so both ways of doing
+ * that live here and both take effect on the very next call:
  *
- * An override is an amendment appended to a skill's markdown, stored locally
- * and applied at prompt-assembly time, so the *very next* call to that skill
- * runs with the revised instructions. Overrides are plain text, listed and
- * revertible, and can be committed back to the repo through io/github.js —
- * the browser copy is the working draft, git is where it becomes permanent.
+ *   - an **amendment**, reached the long way round: a correction files an
+ *     issue, a human reviews the batch, reflection drafts one rule, a human
+ *     applies it. That is the loop for a rule you discovered by annotating.
+ *   - a **rewrite**, reached by opening the file and typing. That is the loop
+ *     for a typo, and for anything you already know.
+ *
+ * Changes are plain text, revertible, and can be committed back to the repo
+ * through io/github.js — the browser copy is the working draft, git is where
+ * it becomes permanent.
+ *
+ * The same store holds a skill's *code* when it has one (see the refine
+ * chain's validate pass): it is a file in data/ with a local override, exactly
+ * like the instructions, because it is the same kind of thing.
  */
 
 import { logInfo, logWarn } from './log.js';
@@ -79,10 +86,6 @@ export function getOverride(relPath) {
   return over && over.mode !== 'replace' ? over.text : '';
 }
 export function getOverrideInfo(relPath) { return overrides[relPath] || null; }
-export function listOverrides() {
-  return Object.entries(overrides).map(([file, v]) => ({ file, mode: v.mode, text: v.text }));
-}
-export function hasOverride(relPath) { return Boolean(overrides[relPath]); }
 
 /**
  * Replace a skill file outright: the annotator opened it and wrote what it
@@ -127,13 +130,4 @@ export function clearOverride(relPath) {
   set({}, 'skills');
 }
 
-export function clearAllOverrides() {
-  overrides = {};
-  persist();
-  logInfo('skills', 'all local skill amendments reverted');
-}
 
-/** Full merged file text, for committing back to the repo. */
-export async function mergedFileText(relPath) {
-  return loadEffectiveText(relPath);
-}

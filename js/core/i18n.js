@@ -28,10 +28,7 @@ const D = {
 
   /* ------------------------------------------------------------ toolbar */
   'app.title': ['AI 标注助手', 'AI Annotation Workbench'],
-  'app.desc': [
-    '面向 UMR 等结构化标注任务的 AI 协作标注台：连接 Google Drive / GitHub，一步步用 skill 标注，语音输入，多人标注一致性合并。',
-    'A collaborative workbench for structured annotation such as UMR: connect Google Drive / GitHub, annotate skill by skill, dictate by voice, and reconcile annotators through a git merge.'],
-  'toolbar.format': ['格式', 'Format'],
+  'toolbar.format': ['标注方式', 'Method'],
   'toolbar.document': ['文档', 'Document'],
   'toolbar.import': ['导入 ▾', 'Import ▾'],
   'toolbar.export': ['导出 ▾', 'Export ▾'],
@@ -166,18 +163,12 @@ const D = {
   'chat.micTitle': ['语音输入', 'Voice input'],
   'chat.ttsTitle': ['朗读 AI 回复', 'Read replies aloud'],
   'chat.otherThreads': ['其他节点的对话：', 'Other threads:'],
-  'chat.threadCount': ['{n} 条', '{n}'],
   'chat.recordIssue': ['记入问题记录', 'Record as an issue'],
   'chat.recorded': ['已记入 {skill} 的问题记录 —— 去技能面板审核后再反思',
     'Recorded against {skill} — review it in the skill panel, then reflect'],
   'chat.applyToSkill': ['应用到技能文件', 'Apply to skill file'],
   'chat.exportMd': ['导出为 .md', 'Export as .md'],
   'chat.applyNoFile': ['这条提案没有对应的技能文件', 'This proposal has no target skill file'],
-  'chat.applyNoRule': ['提案里没有找到可写入的规则条款（应为 > 引用块）',
-    'No rule found in the proposal (expected a > quoted block)'],
-  'chat.applied': ['已写入 {file}，下一次调用 {skill} 生效', 'Written to {file}; effective on the next {skill} call'],
-  'chat.appliedToast': ['已应用到 {file} —— 下一次 {skill} 调用就会带上这条规则',
-    'Applied to {file} — the next {skill} call will carry this rule'],
   'chat.needNode': ['（未选中节点）请先在标注树里点选一个已完成的节点再说明意见；或者切到 live 模式 + 填好 API Key，我可以直接回答一般问题。',
     '(No node selected) Pick a finished node in the tree to argue about, or switch to live mode with an API key and I can answer general questions here.'],
   'chat.callFailed': ['调用失败：{err}', 'Call failed: {err}'],
@@ -215,7 +206,6 @@ const D = {
   'settings.savedGithub': ['已保存 GitHub Token（仅本机）', 'Saved the GitHub token (this machine only)'],
   'settings.imported': ['已从本地文件导入凭据', 'Credentials imported from the local file'],
   'settings.importFailed': ['导入失败：{err}', 'Import failed: {err}'],
-  'settings.langTitle': ['界面语言', 'Interface language'],
 
   /* ------------------------------------------------------------- github */
   'gh.title': ['GitHub', 'GitHub'],
@@ -534,7 +524,6 @@ const D = {
   'reflect.recordedToast': ['已记入「{skill}」的问题记录，等你审核后再反思',
     'Recorded against “{skill}” — review it, then reflect'],
   'reflect.fromEditor': ['来自助手面板的人工修改', 'hand edit from the assistant pane'],
-  'reflect.openPanel': ['去审核', 'Review'],
 
   /* ------------------------------------------------------------- sandbox */
   'sandbox.unavailable': ['这个环境跑不了沙箱（{err}）—— 自定义导入方法需要 Web Worker，用 http:// 打开页面即可',
@@ -648,8 +637,6 @@ const D = {
   'provider.emptyAnthropic': ['Anthropic 返回了空响应（可能被截断或触发了安全过滤）',
     'Anthropic returned an empty response (possibly truncated or filtered)'],
   'provider.emptyOpenai': ['OpenAI 返回了空响应', 'OpenAI returned an empty response'],
-  'provider.needModel': ['请先在设置里填写 OpenAI 的模型 id（每个账户可用型号不同，无法内置默认值）',
-    'Set an OpenAI model id in Settings (available models differ per account, so there is no built-in default)'],
   'gh.notConnected': ['尚未连接 GitHub —— 请先在设置里填入 Personal Access Token。',
     'Not connected to GitHub — set a personal access token in Settings first.'],
   'gh.bad401': ['GitHub Token 无效或已过期（401）。', 'GitHub token is invalid or expired (401).'],
@@ -691,31 +678,13 @@ const D = {
   /* ----------------------------------------------------------- pipeline */
   'pipe.atomicRationale': ['原子概念：单个词/代词/数字，代码直接判定为叶子节点，未调用模型。',
     'Atomic concept: a single word / pronoun / number, decided in code as a leaf — no model call.'],
-  'pipe.quickStop': ['（kind 由代码规则 quick_stop_test 判定为 {kind}）',
-    '(kind decided by the code rule quick_stop_test as {kind})'],
   'pipe.forcedAtomic': ['深度达到 {depth}（上限 {max}），代码强制作为 atomic 处理，未再展开。',
     'Depth {depth} reached the limit of {max}; forced to atomic in code, not expanded further.'],
   'pipe.forcedNp': ['深度达到 {depth}（超过 clause 递归上限 {max}），代码强制降级为 np 处理。',
     'Depth {depth} exceeds the clause recursion limit of {max}; downgraded to np in code.'],
-  'pipe.reentrancySkip': ['句内节点少于 3 个，跳过同指消解（与后端规则一致）。',
-    'Fewer than 3 nodes in the sentence; reentrancy skipped (same rule as the backend).'],
-  'pipe.reentrancySkipInput': ['(节点数 < 3，代码判定跳过)', '(fewer than 3 nodes — skipped in code)'],
-  'pipe.merged': ['已合并 {n} 组同指。', 'Merged {n} coreference group(s).'],
-  'pipe.defaultsAdded': ['代码为 {n} 处缺失的 :aspect/:modstr 补上了默认值。',
-    'Code filled in default :aspect/:modstr in {n} place(s).'],
-  'pipe.notANode': ['这个节点不是待处理状态（可能已被其他操作解析）。',
-    'This node is not pending (something else may have resolved it).'],
   'pipe.skillMissing': ['技能文件缺失，已跳过：{path}', 'Skill file missing, skipped: {path}'],
-  'pipe.badSpecial': ['special_entity 未返回合法节点（{phrase}），回退为 string-entity',
-    'special_entity returned no valid node ({phrase}); falling back to string-entity'],
-  'pipe.badNp': ['np_phrase 未返回合法节点（{phrase}），回退为原文小写拼接',
-    'np_phrase returned no valid node ({phrase}); falling back to the lowercased source words'],
-  'pipe.badArgs': ['arguments 未返回合法节点，回退为 {concept}',
-    'arguments returned no valid node; falling back to {concept}'],
 
   /* -------------------------------------------------------------- voice */
-  'voice.start': ['开始语音输入…', 'Listening…'],
-  'voice.recogError': ['语音识别出错：{err}', 'Speech recognition error: {err}'],
   'voice.startFailed': ['语音识别启动失败：{err}', 'Could not start speech recognition: {err}'],
   'voice.speakFailed': ['朗读失败：{err}', 'Text-to-speech failed: {err}'],
 
@@ -842,7 +811,6 @@ export function t(key, vars) {
   return s;
 }
 
-export function currentLang() { return state.lang; }
 
 export async function setLang(lang) {
   if (!LANGS.includes(lang) || lang === state.lang) return;
@@ -867,6 +835,6 @@ export function applyStaticI18n(root = document) {
   for (const node of root.querySelectorAll('[data-i18n-title]')) {
     node.title = t(node.dataset.i18nTitle);
   }
-  document.title = `${t('app.title')} · Annotation Workbench`;
+  document.title = t('app.title');
   document.documentElement.lang = localeOf(state.lang)?.htmlLang || 'en';
 }

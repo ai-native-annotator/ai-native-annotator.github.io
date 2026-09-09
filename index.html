@@ -1,11 +1,11 @@
 <!doctype html>
-<html lang="zh">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>AI 标注助手 · Annotation Workbench</title>
-<meta name="description" content="面向 UMR 等结构化标注任务的 AI 协作标注台：连接 Google Drive / GitHub，一步步用 skill 标注，语音输入，多人标注一致性合并。">
+<title>Annotation Workbench · AI 标注助手</title>
+<meta name="description" content="A backend-free workbench for structured annotation (UMR and others): annotate one skill call at a time with your own model key, edit what the model produced, and change the skills themselves. Runs entirely in the browser.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>◧</text></svg>">
 <link rel="stylesheet" href="css/app.css">
 </head>
@@ -20,70 +20,70 @@
   module, so it runs even when module loading is what is broken.
 -->
 <div id="boot-error" class="boot-error" role="alert">
-  <strong>页面没有启动 · The app did not start</strong>
+  <strong>The app did not start · 页面没有启动</strong>
   <span id="boot-error-why"></span>
-  <span class="boot-step-line">最后到达的步骤 · last step reached: <code id="boot-step">(js/app.js 还没开始跑 · js/app.js has not run yet)</code></span>
+  <span class="boot-step-line">last step reached · 最后到达的步骤: <code id="boot-step">(js/app.js has not run yet · js/app.js 还没开始跑)</code></span>
 </div>
 <script src="js/boot-guard.js"></script>
 
 <header class="toolbar">
   <div class="brand">
     <span class="logo">◧</span>
-    <span class="brand-name" data-i18n="app.title">AI 标注助手</span>
+    <span class="brand-name" data-i18n="app.title">Annotation Workbench</span>
   </div>
 
-  <label class="ctl" for="format-select"><span data-i18n="toolbar.format">格式</span>
+  <label class="ctl" for="format-select"><span data-i18n="toolbar.format">Method</span>
     <select id="format-select" name="format-select"></select>
   </label>
 
-  <label class="ctl" for="doc-select"><span data-i18n="toolbar.document">文档</span>
+  <label class="ctl" for="doc-select"><span data-i18n="toolbar.document">Document</span>
     <select id="doc-select" name="doc-select"></select>
   </label>
 
   <div class="spacer"></div>
 
   <div class="menu-wrap">
-    <button class="btn ghost sm" data-menu="menu-import" data-i18n="toolbar.import">导入 ▾</button>
+    <button class="btn ghost sm" data-menu="menu-import" data-i18n="toolbar.import">Import ▾</button>
     <div id="menu-import" class="dropdown-menu">
-      <button id="btn-local" class="menu-item" data-i18n="menu.localFile">本地文件（.json / .txt / .umr）</button>
+      <button id="btn-local" class="menu-item" data-i18n="menu.localFile">Local file</button>
       <button id="btn-drive" class="menu-item" data-i18n="menu.drive">Google Drive…</button>
       <div class="menu-sep"></div>
-      <div class="menu-label" data-i18n="menu.sampleLabel">测试用：模拟 Drive 导入未标注文件</div>
-      <button id="btn-drive-demo-en" class="menu-item" data-i18n="menu.sampleEn">示例文档（英文，未标注）</button>
-      <button id="btn-drive-demo-wiki" class="menu-item" data-i18n="menu.sampleWiki">维基百科示例（英文，未标注）</button>
-      <button id="btn-drive-demo-zh" class="menu-item" data-i18n="menu.sampleZh">示例文档（中文，未标注）</button>
+      <div class="menu-label" data-i18n="menu.sampleLabel">Samples (unannotated)</div>
+      <button id="btn-drive-demo-en" class="menu-item" data-i18n="menu.sampleEn">Sample document (English)</button>
+      <button id="btn-drive-demo-wiki" class="menu-item" data-i18n="menu.sampleWiki">Wikipedia sample (English)</button>
+      <button id="btn-drive-demo-zh" class="menu-item" data-i18n="menu.sampleZh">Sample document (Chinese)</button>
       <div class="menu-sep"></div>
-      <button id="btn-importer" class="menu-item" data-i18n="menu.importer">文件导入方法…</button>
+      <button id="btn-importer" class="menu-item" data-i18n="menu.importer">File reader…</button>
     </div>
   </div>
 
   <div class="menu-wrap">
-    <button class="btn ghost sm" data-menu="menu-export" data-i18n="toolbar.export">导出 ▾</button>
+    <button class="btn ghost sm" data-menu="menu-export" data-i18n="toolbar.export">Export ▾</button>
     <div id="menu-export" class="dropdown-menu">
-      <button id="btn-export" class="menu-item" data-i18n="menu.exportDoc">导出标注 JSON</button>
-      <button id="btn-proposals" class="menu-item" data-i18n="menu.exportProposals">导出 skill 更新提案</button>
+      <button id="btn-export" class="menu-item" data-i18n="menu.exportDoc">Export annotation JSON</button>
+      <button id="btn-proposals" class="menu-item" data-i18n="menu.exportProposals">Export skill proposals</button>
     </div>
   </div>
 
   <button id="btn-github" class="btn ghost sm">GitHub</button>
-  <button id="btn-studio" class="btn ghost sm" data-i18n="toolbar.studio">格式生成器</button>
+  <button id="btn-studio" class="btn ghost sm" data-i18n="toolbar.studio">Format studio</button>
 
-  <label class="ctl" for="mode-select"><span data-i18n="toolbar.mode">模式</span>
+  <label class="ctl" for="mode-select"><span data-i18n="toolbar.mode">Mode</span>
     <select id="mode-select" name="mode-select">
-      <option value="replay" data-i18n="mode.replay">replay（回放 / 演示）</option>
-      <option value="live" data-i18n="mode.live">live（真实调用模型）</option>
+      <option value="replay" data-i18n="mode.replay">replay (recorded)</option>
+      <option value="live" data-i18n="mode.live">live (calls a model)</option>
     </select>
   </label>
   <span id="provider-indicator" class="provider-indicator">replay</span>
 
-  <button id="btn-log" class="btn ghost sm icon-btn" data-i18n-title="log.title" title="运行日志">
-    <span data-i18n="toolbar.log">日志</span><span id="log-badge" class="badge"></span>
+  <button id="btn-log" class="btn ghost sm icon-btn" data-i18n-title="log.title" title="Activity log">
+    <span data-i18n="toolbar.log">Log</span><span id="log-badge" class="badge"></span>
   </button>
   <label class="ctl lang-ctl" for="lang-select" data-i18n-title="toolbar.langTitle">
-    <span class="sr-only" data-i18n="toolbar.lang">语言</span>
+    <span class="sr-only" data-i18n="toolbar.lang">Language</span>
     <select id="lang-select" name="lang-select"></select>
   </label>
-  <button id="btn-settings" class="btn ghost sm icon-btn" data-i18n-title="toolbar.settings" title="设置">⚙</button>
+  <button id="btn-settings" class="btn ghost sm icon-btn" data-i18n-title="toolbar.settings" title="Settings">⚙</button>
 </header>
 
 <div id="sentence-bar" class="sentence-bar"></div>
@@ -91,43 +91,43 @@
 <main class="workspace" id="workspace">
   <section class="pane pane-left" data-pane="source">
     <div class="pane-head">
-      <button class="pane-toggle" data-collapse="source" data-i18n-title="pane.collapse" title="折叠">‹</button>
-      <span class="pane-title"><span data-i18n="pane.source">原始文件</span> <span class="muted" data-i18n="pane.sourceGloss">source</span></span>
+      <button class="pane-toggle" data-collapse="source" data-i18n-title="pane.collapse" title="Collapse">‹</button>
+      <span class="pane-title"><span data-i18n="pane.source">Source</span> <span class="muted" data-i18n="pane.sourceGloss">source</span></span>
     </div>
     <div id="pane-source" class="pane-body"></div>
   </section>
 
   <section class="pane pane-skills" data-pane="skills">
     <div class="pane-head">
-      <button class="pane-toggle" data-collapse="skills" data-i18n-title="pane.collapse" title="折叠">‹</button>
-      <span class="pane-title"><span data-i18n="pane.skills">技能</span> <span class="muted" data-i18n="pane.skillsGloss">skills</span></span>
+      <button class="pane-toggle" data-collapse="skills" data-i18n-title="pane.collapse" title="Collapse">‹</button>
+      <span class="pane-title"><span data-i18n="pane.skills">Skills</span> <span class="muted" data-i18n="pane.skillsGloss">skills</span></span>
     </div>
     <div id="legend" class="pane-body legend"></div>
   </section>
 
   <section class="pane pane-mid" data-pane="annotated">
     <div class="pane-head">
-      <button class="pane-toggle" data-collapse="annotated" data-i18n-title="pane.collapse" title="折叠">‹</button>
-      <span class="pane-title"><span data-i18n="pane.annotated">标注后文件</span> <span class="muted" data-i18n="pane.annotatedGloss">annotated</span></span>
+      <button class="pane-toggle" data-collapse="annotated" data-i18n-title="pane.collapse" title="Collapse">‹</button>
+      <span class="pane-title"><span data-i18n="pane.annotated">Annotated</span> <span class="muted" data-i18n="pane.annotatedGloss">annotated</span></span>
     </div>
     <div id="pane-annotated" class="pane-body"></div>
   </section>
 
   <section class="pane pane-right" data-pane="assistant">
     <div class="pane-head">
-      <button class="pane-toggle" data-collapse="assistant" data-i18n-title="pane.collapse" title="折叠">‹</button>
-      <span class="pane-title"><span data-i18n="pane.assistant">AI 标注助手</span> <span class="muted" data-i18n="pane.assistantGloss">skill call</span></span>
+      <button class="pane-toggle" data-collapse="assistant" data-i18n-title="pane.collapse" title="Collapse">‹</button>
+      <span class="pane-title"><span data-i18n="pane.assistant">Skill call</span> <span class="muted" data-i18n="pane.assistantGloss">skill call</span></span>
     </div>
     <div id="pane-assistant" class="pane-body"></div>
-    <div class="pane-head sub" data-i18n="pane.chat">AI 对话 · rationale 交锋</div>
+    <div class="pane-head sub" data-i18n="pane.chat">Discussion · rationale clash</div>
     <div id="pane-chat" class="pane-chat"></div>
   </section>
 </main>
 
 <aside id="log-panel" class="log-panel">
   <div class="log-panel-head">
-    <h3 data-i18n="log.title">运行日志</h3>
-    <button id="log-panel-close" class="btn sm ghost" data-i18n="common.close">关闭</button>
+    <h3 data-i18n="log.title">Activity log</h3>
+    <button id="log-panel-close" class="btn sm ghost" data-i18n="common.close">Close</button>
   </div>
   <div id="log-panel-body" class="log-panel-body"></div>
 </aside>
