@@ -16,7 +16,7 @@
  */
 
 import { state, set } from '../core/state.js';
-import { parseDocument } from './sources.js';
+import { importDocument } from './sources.js';
 import { logInfo, logError, describeError } from '../core/log.js';
 import { t as tr } from '../core/i18n.js';
 
@@ -146,7 +146,7 @@ export async function importFromGithubFile(owner, repo, path, ref) {
   logInfo('github', tr('gh.readingLog', { repo: `${owner}/${repo}`, path, ref: ref || 'default' }));
   const file = await getFile(owner, repo, path, ref);
   if (!file) throw new Error(tr('gh.fileMissing', { repo: `${owner}/${repo}`, path }));
-  return parseDocument(file.text, path.split('/').pop());
+  return importDocument(file.text, path.split('/').pop());
 }
 
 export async function putFile(owner, repo, path, content, message, branch, sha) {

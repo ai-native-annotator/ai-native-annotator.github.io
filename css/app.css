@@ -671,3 +671,14 @@ select:focus, input:focus, textarea:focus {
 .change-list { margin: 4px 0; padding-left: 18px; font-size: 12px; line-height: 1.65; }
 .collapsed-input { max-height: 160px; overflow: auto; }
 .artifact.malformed { border-left: 3px solid var(--danger); }
+
+/* ============================================ importer / skill code editors */
+.modal.wide { max-width: 900px; width: 92vw; }
+.code-box { font-family: var(--mono); font-size: 11.5px; line-height: 1.55; white-space: pre; overflow-x: auto; }
+.importer-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 8px 0; }
+.importer-preview { margin-top: 10px; }
+.importer-sent {
+  display: flex; align-items: baseline; gap: 8px; padding: 3px 6px;
+  border-bottom: 1px solid var(--line-soft); font-size: 12px;
+}
+.importer-sent-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

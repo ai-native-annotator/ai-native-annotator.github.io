@@ -15,12 +15,13 @@ import { renderTree, expandAll } from './ui/tree.js';
 import { renderAssistant } from './ui/assistant.js';
 import { renderChat, exportProposals } from './ui/chat.js';
 import { openStudio } from './ui/studio.js';
+import { openImporterPanel } from './ui/importer-panel.js';
 import { toast } from './ui/toast.js';
 import { mountLogPanel } from './ui/log-panel.js';
 import { openSettings, mountSettingsButton } from './ui/settings-panel.js';
 import { mountGithubButton } from './ui/github-panel.js';
 import {
-  listDemos, loadDemo, openLocalFile, parseDocument, exportDocumentFile,
+  listDemos, loadDemo, openLocalFile, importDocument, exportDocumentFile,
 } from './io/sources.js';
 import { initWork, stashWork, restoreWork, workedFormats } from './core/work.js';
 import { importFromDrive } from './io/drive.js';
@@ -363,7 +364,7 @@ async function importSample(lang) {
   // Deliberately no format change: an imported file is text, and the method
   // stays whatever the annotator chose. Forcing 'umr' here is what made
   // "import" mean "import as UMR".
-  const doc = parseDocument(text, path.split('/').pop());
+  const doc = await importDocument(text, path.split('/').pop());
   doc.provenance = 'imported: simulated Google Drive import (unannotated file)';
   await useDoc(doc);
   toast(t('app.sampleDone'));
@@ -406,6 +407,7 @@ function wireToolbar() {
   wire('#btn-drive-demo-en', 'onclick', sample('en'));
   wire('#btn-drive-demo-zh', 'onclick', sample('zh'));
   wire('#btn-drive-demo-wiki', 'onclick', sample('wiki'));
+  wire('#btn-importer', 'onclick', () => openImporterPanel(state.formatId));
 
   wire('#btn-export', 'onclick', () => { if (!exportDocumentFile()) toast(t('app.noDoc'), true); });
   wire('#btn-proposals', 'onclick', exportProposals);

@@ -20,10 +20,28 @@ import { fetchAsset } from './net.js';
 
 const STORE_KEY = 'annotator_skill_overrides';
 const baseCache = new Map();     // relPath -> original file text
-let overrides = load();          // relPath -> amendment text
+
+/**
+ * relPath -> {mode, text}. Two kinds of local change, and the difference
+ * matters to everything downstream:
+ *
+ *   amend   — an addition, reached through review and reflection, shown as an
+ *             amendment beneath the original.
+ *   replace — the annotator opened the file and rewrote it. There is no
+ *             "original plus this"; there is just what they wrote.
+ *
+ * Older stores held a bare amendment string; those load as `amend`.
+ */
+let overrides = load();
 
 function load() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; }
+  let raw;
+  try { raw = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; }
+  const out = {};
+  for (const [k, v] of Object.entries(raw)) {
+    out[k] = typeof v === 'string' ? { mode: 'amend', text: v } : v;
+  }
+  return out;
 }
 function persist() {
   localStorage.setItem(STORE_KEY, JSON.stringify(overrides));
@@ -45,20 +63,54 @@ export async function loadBaseText(relPath) {
  */
 export async function loadEffectiveText(relPath) {
   const base = await loadBaseText(relPath);
-  const amendment = overrides[relPath];
-  if (!amendment) return base;
-  return `${base}\n\n${t('skills.amendHeading')}\n\n${amendment}`;
+  const over = overrides[relPath];
+  if (!over) return base;
+  if (over.mode === 'replace') return over.text;
+  return `${base}\n\n${t('skills.amendHeading')}\n\n${over.text}`;
 }
 
-export function getOverride(relPath) { return overrides[relPath] || ''; }
-export function listOverrides() { return Object.entries(overrides).map(([file, text]) => ({ file, text })); }
+/**
+ * The amendment in force, or '' — deliberately empty for a rewritten file.
+ * "Here is what was added to the original" is a claim about an amendment; for a
+ * rewrite there is no original left to add to, and the UI says something else.
+ */
+export function getOverride(relPath) {
+  const over = overrides[relPath];
+  return over && over.mode !== 'replace' ? over.text : '';
+}
+export function getOverrideInfo(relPath) { return overrides[relPath] || null; }
+export function listOverrides() {
+  return Object.entries(overrides).map(([file, v]) => ({ file, mode: v.mode, text: v.text }));
+}
 export function hasOverride(relPath) { return Boolean(overrides[relPath]); }
+
+/**
+ * Replace a skill file outright: the annotator opened it and wrote what it
+ * should say. Saving it back unchanged clears the override instead of storing a
+ * copy of the original, so "edited" keeps meaning something.
+ */
+export async function setFullText(relPath, text) {
+  const base = await loadBaseText(relPath);
+  if (String(text).trim() === String(base).trim()) { clearOverride(relPath); return false; }
+  overrides[relPath] = { mode: 'replace', text: String(text) };
+  persist();
+  logInfo('skills', t('skills.rewritten', { file: relPath }));
+  set({}, 'skills');
+  return true;
+}
 
 /** Accept an amendment. Appends to any existing one rather than replacing it. */
 export function addAmendment(relPath, text) {
   const trimmed = String(text || '').trim();
   if (!trimmed) return '';
-  overrides[relPath] = overrides[relPath] ? `${overrides[relPath]}\n\n${trimmed}` : trimmed;
+  const prev = overrides[relPath];
+  if (prev?.mode === 'replace') {
+    // The file has been rewritten by hand. Append to what is actually in force,
+    // not to a base text the annotator has already replaced.
+    overrides[relPath] = { mode: 'replace', text: `${prev.text}\n\n${t('skills.amendHeading')}\n\n${trimmed}` };
+  } else {
+    overrides[relPath] = { mode: 'amend', text: prev ? `${prev.text}\n\n${trimmed}` : trimmed };
+  }
   persist();
   logInfo('skills', t('skills.applied', { file: relPath }));
   // The next prompt already carries it (loadEffectiveText), but the annotator

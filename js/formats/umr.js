@@ -20,10 +20,20 @@ import { t } from '../core/i18n.js';
 const SKILL_IDS = ['discourse', 'predicate', 'arguments', 'np_phrase',
   'special_entity', 'stop_test', 'reentrancy', 'doc_level'];
 
+// The Python module each skill was ported from. Three of them come from the
+// same file because upstream `phrase.py` decides all three cases in one place —
+// which is itself worth seeing when you are reading what the prompt asks for.
+const REFERENCE = {
+  discourse: 'umr/discourse.py', predicate: 'umr/predicate.py', arguments: 'umr/arguments.py',
+  np_phrase: 'umr/phrase.py', special_entity: 'umr/phrase.py', stop_test: 'umr/phrase.py',
+  reentrancy: 'umr/reentrancy.py', doc_level: 'umr/doc_level.py',
+};
+
 // Built fresh on each read so labels follow the interface language.
 const skills = () => SKILL_IDS.map((id) => defineSkill({
   id, label: t(`skill.${id}`), file: `skills/shared/${id}.md`, describes: t(`desc.${id}`),
   serial: id === 'arguments' || id === 'np_phrase',
+  reference: REFERENCE[id] || '',
 }));
 
 const SKILL_COLOR = {

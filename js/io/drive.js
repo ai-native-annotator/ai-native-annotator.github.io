@@ -10,7 +10,7 @@
  * ready for step-by-step live annotation.
  */
 
-import { parseDocument } from './sources.js';
+import { importDocument } from './sources.js';
 import { logInfo, logError, describeError } from '../core/log.js';
 import { t } from '../core/i18n.js';
 
@@ -80,5 +80,5 @@ export async function importFromDrive() {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (!res.ok) throw new Error(t('drive.readFail', { status: res.status, text: res.statusText }));
-  return parseDocument(await res.text(), file.name);
+  return importDocument(await res.text(), file.name);
 }

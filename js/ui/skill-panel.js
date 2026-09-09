@@ -16,7 +16,10 @@
 import { el, esc, mount } from '../core/dom.js';
 import { state, set } from '../core/state.js';
 import { t } from '../core/i18n.js';
-import { loadBaseText, getOverride, clearOverride, addAmendment } from '../core/skills.js';
+import {
+  loadBaseText, loadEffectiveText, getOverride, getOverrideInfo,
+  clearOverride, addAmendment, setFullText,
+} from '../core/skills.js';
 import {
   issuesFor, openFor, keptFor, pendingCounts, keep, dismiss, markReflected,
   reflectionPrompt, localReflection, readyToReflect,
@@ -99,6 +102,9 @@ async function renderDetail(body, def, format, tab) {
   tabs.append(
     mk('about', t('skills.tabAbout')),
     mk('file', t('skills.tabFile')),
+    // The instructions say what to do; the implementation they came from says
+    // what that meant. Showing only the prose was showing half the skill.
+    (def.reference || def.code) ? mk('code', def.code ? t('skills.tabCodeRuns') : t('skills.tabCode')) : null,
     mk('issues', t('skills.tabIssues'), issues.filter((i) => i.status === 'open' || i.status === 'kept').length),
   );
   body.append(tabs);
@@ -126,15 +132,30 @@ async function renderDetail(body, def, format, tab) {
     return;
   }
 
+  // The instructions, editable. A skill file is the method; a tool that shows
+  // it read-only is asking you to file a bug against your own prompt.
   if (tab === 'file') {
-    const pre = el('pre', { class: 'code skill-file-text' }, t('common.loading'));
-    body.append(el('div', { class: 'hint' }, t('skills.fileHint')), pre);
-    const base = await loadBaseText(def.file);
-    const amendment = getOverride(def.file);
-    pre.textContent = base || t('skills.fileMissing', { file: def.file });
-    if (amendment) {
-      pre.append(el('span', { class: 'file-amendment' }, `\n\n${t('skills.amendHeading')}\n\n${amendment}`));
+    await fileEditor(body, def, format, tab, def.file, t('skills.fileHint'));
+    return;
+  }
+
+  if (tab === 'code') {
+    if (def.code) {
+      // A step that runs. Editing it changes what the pass does, so it is the
+      // same editor as the instructions — including the revert.
+      await fileEditor(body, def, format, tab, def.code, t('skills.codeRunsHint'));
+      return;
     }
+    const pre = el('pre', { class: 'code skill-file-text' }, t('common.loading'));
+    const provenance = el('div', { class: 'skill-file' }, '');
+    body.append(el('div', { class: 'hint' }, t('skills.codeHint')), provenance, pre);
+    const text = await loadBaseText(`reference/${def.reference}`);
+    pre.textContent = text || t('skills.fileMissing', { file: def.reference });
+    // The last NON-EMPTY line: the file ends with a newline, and `.pop()` on a
+    // raw split hands you the empty string after it.
+    const src = (await loadBaseText('reference/umr/SOURCE.txt') || '')
+      .split('\n').map((l) => l.trim()).filter(Boolean).pop();
+    provenance.textContent = `data/reference/${def.reference}${src ? ` · ${src}` : ''}`;
     return;
   }
 
@@ -184,6 +205,47 @@ async function renderDetail(body, def, format, tab) {
 }
 
 const trunc = (s, n = 200) => (String(s ?? '').length > n ? String(s).slice(0, n) + '…' : String(s ?? ''));
+
+/**
+ * Edit a skill file in place — the instructions, or the code of a step that
+ * runs. Both are "what this skill is", and both were read-only until now: the
+ * only way to change a skill was to argue with it in the chat and wait for
+ * reflection to draft an amendment. That is the right loop for a rule you
+ * discovered by annotating, and the wrong one for a typo.
+ *
+ * Saving stores a full replacement (core/skills.js), so the next call runs what
+ * is on screen. Saving it back unchanged reverts instead of storing a copy.
+ */
+async function fileEditor(body, def, format, tab, path, hint) {
+  const status = el('span', { class: 'edit-status' });
+  const ta = el('textarea', { class: 'edit-box code-box', spellcheck: 'false', rows: 20 });
+  const head = el('div', { class: 'skill-file' }, `data/${path}`);
+  body.append(el('div', { class: 'hint' }, hint), head, ta);
+
+  ta.value = t('common.loading');
+  const effective = await loadEffectiveText(path);
+  const base = await loadBaseText(path);
+  ta.value = effective || t('skills.fileMissing', { file: path });
+  const info = getOverrideInfo(path);
+  if (info) head.textContent = `data/${path} · ${t(info.mode === 'replace' ? 'skills.editedBadge' : 'skills.liveBadge')}`;
+
+  body.append(el('div', { class: 'modal-actions' },
+    el('button', {
+      class: 'btn sm',
+      onclick: async () => {
+        const changed = await setFullText(path, ta.value);
+        toast(changed ? t('skills.savedToast', { file: path }) : t('skills.revertedToast'));
+        await renderDetail(body, def, format, tab);
+      },
+    }, t('skills.saveFile')),
+    el('button', {
+      class: 'btn sm ghost',
+      disabled: info ? undefined : '',
+      onclick: async () => { clearOverride(path); toast(t('skills.revertedToast')); await renderDetail(body, def, format, tab); },
+    }, t('skills.restoreOriginal')),
+    status));
+  if (!base) body.append(el('div', { class: 'hint' }, t('skills.fileMissing', { file: path })));
+}
 
 /**
  * Reflect over the whole reviewed batch and propose ONE amendment. Even here

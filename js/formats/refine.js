@@ -41,12 +41,21 @@ const PASS_COLOR = {
 };
 
 // Built fresh on each read so labels follow the interface language.
+// `validate` is a program, not a prompt. Everything it checks — balanced
+// brackets, variables defined once and resolving, an :aspect on every eventive
+// node — is decidable, and asking a model to count parentheses costs a round
+// trip to get an answer it can get wrong for no reason. It runs in the sandbox
+// and is editable like any other skill; see data/reference/refine/validate.js.
+const CODE = { validate: 'reference/refine/validate.js' };
+
 const skills = () => PASSES.map((id) => defineSkill({
   id,
   label: t(`refine.skill.${id}`),
   file: `skills/refine/${id}.md`,
   describes: t(`refine.desc.${id}`),
   serial: true,
+  code: CODE[id] || '',
+  llm: !CODE[id],
 }));
 
 export default {

@@ -23,6 +23,8 @@ import { state, traceKey } from '../core/state.js';
 import { logInfo, logWarn } from '../core/log.js';
 import { download } from '../core/dom.js';
 import { stashWork } from '../core/work.js';
+import { importWith } from '../core/importers.js';
+import { toast } from '../ui/toast.js';
 import { t } from '../core/i18n.js';
 import { fetchAsset } from '../core/net.js';
 
@@ -47,14 +49,37 @@ export function openLocalFile() {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json,.umr,.txt';
+    input.accept = '.json,.umr,.txt,.conllu,.conll,.tsv,.csv';
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return reject(new Error(t('sources.noFile')));
-      file.text().then((text) => resolve(parseDocument(text, file.name))).catch(reject);
+      file.text().then((text) => importDocument(text, file.name)).then(resolve).catch(reject);
     };
     input.click();
   });
+}
+
+/**
+ * Read a file the way THIS format reads files.
+ *
+ * A format may have its own importer (core/importers.js); if it does, it wins,
+ * because "how do I read a CoNLL-U treebank" is a question about the corpus and
+ * the built-in reader has exactly one answer to it. An annotated JSON export is
+ * still recognised first — that is our own file coming home, and no custom
+ * reader should have to handle it.
+ */
+export async function importDocument(text, filename = 'untitled') {
+  if (text.trim().startsWith('{')) return parseDocument(text, filename);
+  try {
+    const doc = await importWith(state.formatId, text, filename);
+    if (doc) { normalizeDoc(doc); return doc; }
+  } catch (err) {
+    // A broken custom reader must not make the file unopenable: say what went
+    // wrong and fall back, rather than leaving the annotator with nothing.
+    logWarn('sources', t('imp.failed', { err: err.message }));
+    toast(t('imp.failed', { err: err.message }), true);
+  }
+  return parseDocument(text, filename);
 }
 
 /**

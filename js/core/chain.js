@@ -21,6 +21,7 @@
  */
 
 import { runSkillCall } from './runner.js';
+import { runUserCode } from './sandbox.js';
 import { loadEffectiveText } from './skills.js';
 import { extractJson } from './runner.js';
 import { logInfo, logWarn } from './log.js';
@@ -70,9 +71,19 @@ export async function runPass(doc, sentenceIndex, passIndex, format) {
   sentence.passes = sentence.passes || [];
   const before = passIndex === 0 ? '' : (sentence.passes[passIndex - 1]?.graph || sentence.graph || '');
   const language = doc.language || 'en';
-  const call = await buildPassPrompt(def, sentence, before, language);
 
-  const res = await runSkillCall({ skillId: def.id, span: sentence.text, ...call, language });
+  // A pass that carries code runs the code. Same contract either way — read the
+  // whole graph, return the whole graph — so the chain does not care which kind
+  // of pass this is, and neither does the diff.
+  let res;
+  if (def.code) {
+    res = await runCodePass(def, sentence, before, language);
+  } else {
+    const call = await buildPassPrompt(def, sentence, before, language);
+    res = { ...await runSkillCall({ skillId: def.id, span: sentence.text, ...call, language }),
+      input: call.prompt };
+  }
+
   let out = res.output;
   // replay records may hold the raw text rather than the object
   if (typeof out === 'string') { try { out = extractJson(out); } catch { out = { graph: out }; } }
@@ -109,7 +120,7 @@ export async function runPass(doc, sentenceIndex, passIndex, format) {
     source: res.source,
     model: res.model || '',
     latencyMs: res.latencyMs || 0,
-    input: call.prompt,
+    input: res.input,
     ranAt: new Date().toISOString(),
   };
   sentence.passes[passIndex] = record;
@@ -117,6 +128,29 @@ export async function runPass(doc, sentenceIndex, passIndex, format) {
   sentence.graph = graph;
   logInfo('chain', t('chain.ran', { pass: def.id, n: record.changes.length }));
   return record;
+}
+
+/**
+ * Run a pass whose step is code. The source is loaded through core/skills.js
+ * like any other skill file, so a hand-edited version is what runs — and it
+ * executes in the worker sandbox, not in the page.
+ */
+async function runCodePass(def, sentence, graph, language) {
+  const source = await loadEffectiveText(def.code);
+  if (!source.trim()) throw new Error(t('chain.noCode', { pass: def.id, file: def.code }));
+  const t0 = performance.now();
+  const out = await runUserCode(source, 'run', [graph, {
+    sentence: sentence.text, tokens: sentence.tokens || [], language,
+  }]);
+  logInfo('chain', t('chain.ranCode', { pass: def.id }));
+  return {
+    output: out,
+    rationale: out?.note || '',
+    source: 'code',
+    model: '',
+    latencyMs: performance.now() - t0,
+    input: t('chain.codeInput', { file: def.code }),
+  };
 }
 
 /** Index of the next pass that has not run, or -1 when the chain is finished. */

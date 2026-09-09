@@ -63,6 +63,14 @@ export function registerRuntimeFormat(format) {
  * `id` matches the Python module name; `file` points at the markdown spec so
  * the UI can show — and propose patches to — the actual instructions.
  */
-export function defineSkill({ id, label, file, describes, serial = false, llm = true }) {
-  return { id, label, file, describes, serial, llm };
+/**
+ * `file` is the instructions the model is given. `reference` is the
+ * implementation those instructions were derived from — read-only, and worth
+ * showing beside them, because "what is this skill supposed to do" is answered
+ * by the original code at least as well as by the prose. `code` is a step that
+ * actually runs: some work (structural validation, defaults) is a program, not
+ * a prompt, and pretending otherwise means paying a model to count parentheses.
+ */
+export function defineSkill({ id, label, file, describes, serial = false, llm = true, reference = '', code = '' }) {
+  return { id, label, file, describes, serial, llm, reference, code };
 }
