@@ -24,9 +24,10 @@ import { logInfo, logWarn } from '../core/log.js';
 import { download } from '../core/dom.js';
 import { stashWork } from '../core/work.js';
 import { importWith } from '../core/importers.js';
-import { toast } from '../ui/toast.js';
 import { t } from '../core/i18n.js';
 import { fetchAsset } from '../core/net.js';
+import { fingerprint } from '../domain/_value.js';
+import { markAnnotatorDocument, parseAnnotatorDocument } from './document-format.js';
 
 const DEMO_BASE = 'data/demo';
 
@@ -49,7 +50,6 @@ export function openLocalFile() {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json,.umr,.txt,.conllu,.conll,.tsv,.csv';
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return reject(new Error(t('sources.noFile')));
@@ -69,16 +69,15 @@ export function openLocalFile() {
  * reader should have to handle it.
  */
 export async function importDocument(text, filename = 'untitled') {
-  if (text.trim().startsWith('{')) return parseDocument(text, filename);
-  try {
-    const doc = await importWith(state.formatId, text, filename);
-    if (doc) { normalizeDoc(doc); return doc; }
-  } catch (err) {
-    // A broken custom reader must not make the file unopenable: say what went
-    // wrong and fall back, rather than leaving the annotator with nothing.
-    logWarn('sources', t('imp.failed', { err: err.message }));
-    toast(t('imp.failed', { err: err.message }), true);
-  }
+  const annotated = parseAnnotatorDocument(text);
+  if (annotated) { normalizeDoc(annotated); return annotated; }
+
+  // A configured reader owns this input. If it throws, propagate the typed
+  // error so the caller can show it and keep the existing document intact.
+  // Falling back here used to turn malformed imports into plausible-looking
+  // one-line-per-row documents, which is silent data corruption.
+  const doc = await importWith(state.formatId, text, filename);
+  if (doc) { normalizeDoc(doc); return doc; }
   return parseDocument(text, filename);
 }
 
@@ -91,13 +90,10 @@ export async function importDocument(text, filename = 'untitled') {
  * function once the bytes are fetched).
  */
 export function parseDocument(text, filename = 'untitled') {
+  const annotated = parseAnnotatorDocument(text);
+  if (annotated) { normalizeDoc(annotated); return annotated; }
+
   const trimmed = text.trim();
-  if (trimmed.startsWith('{')) {
-    const doc = JSON.parse(trimmed);
-    if (!doc.sentences) throw new Error(t('sources.noSentences'));
-    normalizeDoc(doc);
-    return doc;
-  }
   const lines = trimmed.split('\n').map((l) => l.trim()).filter(Boolean);
   const doc = {
     // No `format`. A raw file is text, and text is not a UMR document any more
@@ -132,7 +128,16 @@ function tokenize(line) {
 /* --------------------------------------------------------- normalization */
 
 function normalizeDoc(doc) {
-  for (const s of doc.sentences || []) {
+  const sentences = doc.sentences || [];
+  doc.sourceHash = doc.sourceHash || `source:${fingerprint(
+    sentences.map((sentence) => String(sentence?.text || '')).join('\n'),
+  )}`;
+  for (const [offset, s] of sentences.entries()) {
+    s.id = s.id || `sentence:${fingerprint({
+      sourceHash: doc.sourceHash,
+      index: s.index ?? offset + 1,
+      text: String(s.text || ''),
+    })}`;
     s.tree = s.tree || [];
     s.passes = s.passes || [];
   }
@@ -197,7 +202,12 @@ function buildTraceIndex(doc) {
   const walk = (nodes) => {
     for (const n of nodes || []) {
       if (!n.pending) {
-        idx.set(traceKey(n.skill, n.span), { output: n.output, rationale: n.rationale, rawText: n.rawText, model: n.model });
+        idx.set(traceKey(n.skill, n.span), {
+          output: n.output,
+          rationale: n.rationale,
+          rawText: n.rawText,
+          model: n.model,
+        });
         walk(n.children);
       }
     }
@@ -221,7 +231,7 @@ export function exportDocument() {
   // Park what is on screen first, or a document annotated two ways would ship
   // with the parked copy of the method you are looking at being one edit stale.
   stashWork(doc, state.formatId);
-  const out = structuredClone(stripTrace(doc));
+  const out = markAnnotatorDocument(structuredClone(stripTrace(doc)));
   out.format = state.formatId;
   out.exportedAt = new Date().toISOString();
   out.humanEdits = [...state.edits.entries()].map(([path, output]) => ({ path, output }));

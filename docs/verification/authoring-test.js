@@ -15,12 +15,11 @@
  *      counts brackets and checks that variables resolve — a model can get that
  *      wrong for no reason, and charges you for the privilege.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/authoring-test.js
+ * Run: npm run test:browser -- authoring-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 
 const CONLLU = `# sent_id = 1
@@ -43,7 +42,7 @@ const check = (label, ok, extra = '') => {
 };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1700, height: 1000 }, locale: 'zh-CN' });
   const errs = [];
   const prompts = [];
@@ -136,16 +135,21 @@ const check = (label, ok, extra = '') => {
   check('umr has one, sentiment does not', otherFormat.umr && !otherFormat.sentiment,
     JSON.stringify(otherFormat));
 
-  console.log('\n--- 5. a broken reader must not make the file unopenable ---');
-  const fallback = await page.evaluate(async (text) => {
+  console.log('\n--- 5. a broken reader must stop instead of corrupting the import ---');
+  const failure = await page.evaluate(async (text) => {
     const imp = await import('./js/core/importers.js');
     const src = await import('./js/io/sources.js');
     imp.setImporter('umr', 'function parse() { throw new Error("boom"); }');
-    const doc = await src.importDocument(text, 'ud.conllu');
+    let error = null;
+    try { await src.importDocument(text, 'ud.conllu'); }
+    catch (err) { error = { name: err.name, code: err.code, message: err.message }; }
     imp.clearImporter('umr');
-    return { n: doc.sentences.length };
+    return error;
   }, CONLLU);
-  check('the file still opened, through the built-in reader', fallback.n > 0, `${fallback.n} sentences`);
+  check('the import was rejected with a recoverable typed error',
+    failure?.name === 'ImporterExecutionError' && failure?.code === 'IMPORTER_EXECUTION_FAILED',
+    JSON.stringify(failure));
+  check('the original reader error was not hidden', failure?.message.includes('boom'), failure?.message);
 
   console.log('\n--- 6. a skill file is editable, and the edit is what gets sent ---');
   const cards = await page.$$('.skill-card');
