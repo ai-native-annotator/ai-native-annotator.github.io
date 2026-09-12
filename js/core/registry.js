@@ -14,6 +14,8 @@
  * which is what lets an AI-generated format be dropped in at runtime.
  */
 
+import { makeSkillId } from '../domain/feedback.js';
+
 const formats = new Map();
 const loaders = {
   umr: () => import('../formats/umr.js'),
@@ -52,6 +54,10 @@ export async function loadFormat(id) {
  * format studio). Also makes it loadable by id for the rest of the session.
  */
 export function registerRuntimeFormat(format) {
+  if (!format?.id) throw new Error('A runtime format needs an id');
+  if (Object.prototype.hasOwnProperty.call(loaders, format.id)) {
+    throw new Error(`Format id is already registered: ${format.id}`);
+  }
   loaders[format.id] = async () => ({ default: format });
   return registerFormat(format);
 }
@@ -60,10 +66,9 @@ export function registerRuntimeFormat(format) {
 
 /**
  * A skill is the unit that produces one label (or one group of labels).
- * `id` matches the Python module name; `file` points at the markdown spec so
- * the UI can show — and propose patches to — the actual instructions.
- */
-/**
+ * `id` remains the local display/execution name. `skillId` is the durable,
+ * globally unambiguous identity used by revisions, calls, and feedback.
+ *
  * `file` is the instructions the model is given. `reference` is the
  * implementation those instructions were derived from — read-only, and worth
  * showing beside them, because "what is this skill supposed to do" is answered
@@ -71,6 +76,34 @@ export function registerRuntimeFormat(format) {
  * actually runs: some work (structural validation, defaults) is a program, not
  * a prompt, and pretending otherwise means paying a model to count parentheses.
  */
-export function defineSkill({ id, label, file, describes, serial = false, llm = true, reference = '', code = '' }) {
-  return { id, label, file, describes, serial, llm, reference, code };
+export function defineSkill({
+  id,
+  namespace,
+  skillId,
+  label,
+  file,
+  describes,
+  serial = false,
+  llm = true,
+  reference = '',
+  code = '',
+  instructions = '',
+}) {
+  if (!id) throw new Error('A skill needs a local id');
+  const stableId = skillId || (namespace ? makeSkillId(namespace, id) : '');
+  if (!stableId) {
+    throw new Error(`Skill "${id}" needs a namespace or an explicit skillId`);
+  }
+  return {
+    id,
+    skillId: stableId,
+    label,
+    file,
+    describes,
+    serial,
+    llm,
+    reference,
+    code,
+    instructions,
+  };
 }

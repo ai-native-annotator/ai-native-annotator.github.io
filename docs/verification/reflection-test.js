@@ -13,19 +13,18 @@
  *   5. reflection reads the kept issues TOGETHER and drafts one amendment,
  *      and even that is not applied until a person presses apply
  *
- * Run: NODE_PATH=<playwright> node docs/verification/reflection-test.js
+ * Run: npm run test:browser -- reflection-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 const S1 = 'The museum opened a new exhibit last week.';
 let pass = 0, fail = 0;
 const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`); };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1700, height: 1000 }, locale: 'zh-CN' });
   const errs = [];
   const prompts = [];

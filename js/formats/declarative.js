@@ -30,7 +30,7 @@ export const specSchema = () => ({
     layout: "'badges' | 'spans' | 'table' | 'json'",
     fields: "[{key, label, type: 'text'|'badge'|'list'|'number'}]",
   },
-  skills: "[{id, label, describes, serial}]",
+  skills: "[{id, label, describes, instructions?, serial}]",
   legend: "[{label, color, note}]",
 });
 
@@ -43,8 +43,13 @@ export function buildFormat(spec) {
   }));
   const colorFor = Object.fromEntries(legend.map((l) => [l.label, l.color]));
   const skills = (spec.skills || []).map((s) => defineSkill({
-    id: s.id, label: s.label || s.id, file: s.file || `skills/${spec.id}/${s.id}.md`,
-    describes: s.describes || '', serial: Boolean(s.serial),
+    id: s.id,
+    namespace: `runtime/${spec.id}`,
+    label: s.label || s.id,
+    file: s.file || `skills/${spec.id}/${s.id}.md`,
+    describes: s.describes || '',
+    instructions: inlineSkillInstructions(spec, s),
+    serial: Boolean(s.serial),
   }));
   const skillColor = Object.fromEntries(
     skills.map((s, i) => [s.id, PALETTE[i % PALETTE.length]]));
@@ -107,6 +112,20 @@ export function buildFormat(spec) {
 
     legend: () => legend,
   };
+}
+
+function inlineSkillInstructions(spec, skill) {
+  if (String(skill.instructions || '').trim()) return String(skill.instructions).trim();
+  const fields = (spec.artifact?.fields || [])
+    .map((field) => `- ${field.key}: ${field.type || 'text'} (${field.label || field.key})`)
+    .join('\n');
+  return [
+    `# ${skill.label || skill.id}`,
+    String(skill.describes || `Annotate the ${skill.id} field.`).trim(),
+    '',
+    'Return one JSON object using only the relevant output fields:',
+    fields || `- ${skill.id}: text`,
+  ].join('\n');
 }
 
 function renderValue(v, field, colorFor) {

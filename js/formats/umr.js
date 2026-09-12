@@ -31,7 +31,7 @@ const REFERENCE = {
 
 // Built fresh on each read so labels follow the interface language.
 const skills = () => SKILL_IDS.map((id) => defineSkill({
-  id, label: t(`skill.${id}`), file: `skills/shared/${id}.md`, describes: t(`desc.${id}`),
+  id, namespace: 'umr', label: t(`skill.${id}`), file: `skills/shared/${id}.md`, describes: t(`desc.${id}`),
   serial: id === 'arguments' || id === 'np_phrase',
   reference: REFERENCE[id] || '',
 }));
@@ -149,4 +149,3 @@ export default {
     { color: SKILL_COLOR['(stop)'], label: '(stop)', note: t('legend.stop') },
   ],
 };
-

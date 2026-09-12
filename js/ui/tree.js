@@ -108,18 +108,31 @@ function nodeEl(node, path, format) {
  */
 function nodeActions(node, path, format) {
   if (node.skill === '(stop)') return null;      // decided in code, nothing to re-run
+  if (node.skill === 'predicate' || node.skill === 'stop_test') {
+    // These are evidence calls nested inside a resolved clause node. Replacing
+    // only the child through the generic clause rerun path would turn it into
+    // an arguments node and corrupt the tree shape. A future dedicated action
+    // can rerun the wrapper and its dependent parent as one transaction.
+    return null;
+  }
   const busy = state.running.size > 0;
+  const def = skillDef(node, format);
 
   const rerun = el('button', {
     class: 'node-act', title: t('tree.rerunTitle'), disabled: busy ? '' : undefined,
     onclick: async (e) => {
       e.stopPropagation();
+      const before = structuredClone(node.output);
+      const completed = await runNode(format, path, () => rerunAt(state.doc, state.selectedSentence, path));
+      if (!completed) return;
+      const result = getAt(currentSentence()?.tree || [], path);
       record({
-        skill: node.skill, file: skillFile(node, format), kind: 'rerun',
+        skill: result?.skill || node.skill, skillId: result?.skillId || def?.skillId || node.skillId,
+        file: def?.file || '', kind: 'rerun',
+        callId: result?.callId || result?.call?.id, revisionId: result?.revisionId || result?.call?.revisionId,
         sentenceIndex: state.selectedSentence, path, span: node.span,
-        before: node.output, after: null, detail: t('tree.rerunDetail'),
+        before, after: result?.output ?? null, detail: t('tree.rerunDetail'),
       });
-      await runNode(format, path, () => rerunAt(state.doc, state.selectedSentence, path));
     },
   }, '↻');
 
@@ -130,13 +143,21 @@ function nodeActions(node, path, format) {
       const asKind = e.target.value;
       e.stopPropagation();
       if (!asKind || asKind === kindOfNode(node)) return;
+      const fromKind = kindOfNode(node);
+      const completed = await runNode(format, path,
+        () => rerunAt(state.doc, state.selectedSentence, path, { asKind }));
+      if (!completed) return;
       record({
-        skill: node.skill, file: skillFile(node, format), kind: 'swap',
+        skill: node.skill, skillId: def?.skillId || node.skillId, file: def?.file || '', kind: 'swap',
+        // A routing correction is evidence about the call that made the old
+        // choice. Pairing that old skill identity with the replacement call's
+        // id/revision would create an impossible audit record.
+        callId: node.callId || node.call?.id,
+        revisionId: node.revisionId || node.call?.revisionId,
         sentenceIndex: state.selectedSentence, path, span: node.span,
-        before: kindOfNode(node), after: asKind,
-        detail: t('tree.swapDetail', { from: kindOfNode(node), to: asKind }),
+        before: fromKind, after: asKind,
+        detail: t('tree.swapDetail', { from: fromKind, to: asKind }),
       });
-      await runNode(format, path, () => rerunAt(state.doc, state.selectedSentence, path, { asKind }));
     },
   });
   const current = kindOfNode(node);
@@ -145,11 +166,13 @@ function nodeActions(node, path, format) {
     swap.append(el('option', { value: k, selected: k === current ? '' : undefined }, t(`kind.${k}`)));
   }
 
-  return el('span', { class: 'node-acts', onclick: (e) => e.stopPropagation() }, rerun, swap);
+  const canSwap = SWAPPABLE_KINDS.includes(current);
+  return el('span', { class: 'node-acts', onclick: (e) => e.stopPropagation() },
+    rerun, canSwap ? swap : null);
 }
 
-const skillFile = (node, format) =>
-  (format.skills || []).find((s) => s.id === node.skill)?.file || '';
+const skillDef = (node, format) =>
+  (format.skills || []).find((s) => s.id === node.skill) || null;
 
 /** Shared run wrapper: spinner, error surfacing, repaint. */
 async function runNode(format, path, fn) {
@@ -159,9 +182,11 @@ async function runNode(format, path, fn) {
   try {
     await fn();
     set({}, 'tree', 'artifact', 'selectedNode');
+    return true;
   } catch (err) {
     logError('ui', t('tree.runFailedLog', { kind: 'rerun', err: describeError(err) }), err);
     toast(t('tree.runFailed', { err: describeError(err) }), true);
+    return false;
   } finally {
     state.running.delete(runKey);
     set({}, 'tree');

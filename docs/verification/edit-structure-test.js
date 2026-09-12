@@ -18,12 +18,11 @@
  *      Only `<>` should need expanding; anything written out in full is
  *      annotated, and the editor threw the written concept away.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/edit-structure-test.js
+ * Run: npm run test:browser -- edit-structure-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 
 const SENT = '如果他们中午前到达，就能避开人群。';
@@ -37,7 +36,7 @@ const check = (label, ok, extra = '') => {
 };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' });
   const errs = [];
   page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });

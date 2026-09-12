@@ -13,15 +13,16 @@
  * amendment while looking at the instructions you are amending.
  */
 
-import { el, esc, mount } from '../core/dom.js';
+import { el, mount } from '../core/dom.js';
 import { state, set } from '../core/state.js';
 import { t } from '../core/i18n.js';
 import {
   loadBaseText, loadEffectiveText, getOverride, getOverrideInfo,
-  clearOverride, addAmendment, setFullText,
+  activateSkillCandidate, clearOverride, getActiveRevisionId, getRevisionHistory,
+  proposeSkillAmendment, rollbackSkillRevision, setFullText,
 } from '../core/skills.js';
 import {
-  issuesFor, openFor, keptFor, pendingCounts, keep, dismiss, markReflected,
+  issuesFor, openFor, keptFor, keptEvidenceFor, pendingCounts, keep, dismiss, markReflected,
   reflectionPrompt, localReflection, readyToReflect,
 } from '../core/reflection.js';
 import { callProvider, PROVIDERS } from '../core/providers.js';
@@ -38,8 +39,8 @@ export function renderSkillPanel(container, format) {
   container.append(el('div', { class: 'legend-title' }, t('skills.panelTitle')));
 
   for (const def of skills) {
-    const n = counts[def.id] || 0;
-    const amended = Boolean(getOverride(def.file));
+    const n = counts[def.skillId] || 0;
+    const amended = Boolean(getOverride(def.file, def.skillId));
     container.append(el('button', {
       class: `skill-card${state.openSkill === def.id ? ' on' : ''}`,
       title: def.describes || def.label,
@@ -90,9 +91,9 @@ export async function openSkillDetail(def, format, tab = 'about') {
 
 async function renderDetail(body, def, format, tab) {
   body.innerHTML = '';
-  const issues = issuesFor(def.id);
-  const open = openFor(def.id);
-  const kept = keptFor(def.id);
+  const issues = issuesFor(def.skillId);
+  const open = openFor(def.skillId);
+  const kept = keptFor(def.skillId);
 
   const tabs = el('div', { class: 'edit-tabs' });
   const mk = (id, label, badge) => el('button', {
@@ -110,20 +111,40 @@ async function renderDetail(body, def, format, tab) {
   body.append(tabs);
 
   if (tab === 'about') {
+    await loadEffectiveText(def.file, def.skillId);
+    const history = getRevisionHistory(def.skillId);
+    const activeRevisionId = getActiveRevisionId(def.skillId);
     mount(body,
       def.describes ? el('p', { class: 'skill-desc' }, def.describes) : null,
       el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('skills.fileLabel')),
         el('code', {}, def.file)),
+      el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('skills.identity')),
+        el('code', {}, def.skillId)),
+      el('div', { class: 'settings-row' }, el('label', { class: 'settings-label' }, t('skills.revision')),
+        el('code', {}, activeRevisionId || '—')),
       el('div', { class: 'hint' }, t('skills.aboutHint')),
     );
-    const amendment = getOverride(def.file);
+    const amendment = getOverride(def.file, def.skillId);
     if (amendment) {
       body.append(el('div', { class: 'amendment' },
         el('div', { class: 'amendment-head' },
           el('span', { class: 'amendment-badge' }, t('skills.liveBadge')),
           el('button', {
             class: 'btn sm ghost',
-            onclick: () => { clearOverride(def.file); renderDetail(body, def, format, tab); toast(t('skills.revertedToast')); },
+            disabled: history.length > 1 ? undefined : '',
+            onclick: async () => {
+              rollbackSkillRevision(def.skillId);
+              await renderDetail(body, def, format, tab);
+              toast(t('skills.rolledBack'));
+            },
+          }, t('skills.rollback')),
+          el('button', {
+            class: 'btn sm ghost',
+            onclick: async () => {
+              await clearOverride(def.file, def.skillId);
+              await renderDetail(body, def, format, tab);
+              toast(t('skills.revertedToast'));
+            },
           }, t('assist.revert'))),
         el('pre', { class: 'amendment-text' }, amendment)));
     } else {
@@ -194,7 +215,7 @@ async function renderDetail(body, def, format, tab) {
   const status = el('span', { class: 'edit-status' });
   const reflectBtn = el('button', {
     class: 'btn',
-    disabled: readyToReflect(def.id) ? undefined : '',
+    disabled: readyToReflect(def.skillId) ? undefined : '',
     onclick: () => runReflection(body, def, format, tab, status),
   }, t('reflect.reflectNow', { n: kept.length }));
   body.append(el('div', { class: 'modal-actions' }, reflectBtn, status));
@@ -217,23 +238,25 @@ const trunc = (s, n = 200) => (String(s ?? '').length > n ? String(s).slice(0, n
  * is on screen. Saving it back unchanged reverts instead of storing a copy.
  */
 async function fileEditor(body, def, format, tab, path, hint) {
+  const stableSkillId = path === def.code ? `${def.skillId}/code` : def.skillId;
+  const inlineBase = path === def.file ? String(def.instructions || '') : '';
   const status = el('span', { class: 'edit-status' });
   const ta = el('textarea', { class: 'edit-box code-box', spellcheck: 'false', rows: 20 });
   const head = el('div', { class: 'skill-file' }, `data/${path}`);
   body.append(el('div', { class: 'hint' }, hint), head, ta);
 
   ta.value = t('common.loading');
-  const effective = await loadEffectiveText(path);
-  const base = await loadBaseText(path);
+  const effective = await loadEffectiveText(path, stableSkillId, inlineBase || null);
+  const base = inlineBase || await loadBaseText(path);
   ta.value = effective || t('skills.fileMissing', { file: path });
-  const info = getOverrideInfo(path);
+  const info = getOverrideInfo(path, stableSkillId);
   if (info) head.textContent = `data/${path} · ${t(info.mode === 'replace' ? 'skills.editedBadge' : 'skills.liveBadge')}`;
 
   body.append(el('div', { class: 'modal-actions' },
     el('button', {
       class: 'btn sm',
       onclick: async () => {
-        const changed = await setFullText(path, ta.value);
+        const changed = await setFullText(path, ta.value, stableSkillId, inlineBase || null);
         toast(changed ? t('skills.savedToast', { file: path }) : t('skills.revertedToast'));
         await renderDetail(body, def, format, tab);
       },
@@ -241,7 +264,11 @@ async function fileEditor(body, def, format, tab, path, hint) {
     el('button', {
       class: 'btn sm ghost',
       disabled: info ? undefined : '',
-      onclick: async () => { clearOverride(path); toast(t('skills.revertedToast')); await renderDetail(body, def, format, tab); },
+      onclick: async () => {
+        await clearOverride(path, stableSkillId);
+        toast(t('skills.revertedToast'));
+        await renderDetail(body, def, format, tab);
+      },
     }, t('skills.restoreOriginal')),
     status));
   if (!base) body.append(el('div', { class: 'hint' }, t('skills.fileMissing', { file: path })));
@@ -253,22 +280,28 @@ async function fileEditor(body, def, format, tab, path, hint) {
  * apply. Reflection proposes; a person decides.
  */
 async function runReflection(body, def, format, tab, status) {
-  const kept = keptFor(def.id);
+  const kept = keptFor(def.skillId);
   if (!kept.length) return;
   status.textContent = t('reflect.thinking'); status.className = 'edit-status';
 
   const provider = state.provider;
   const key = (state.apiKeys[provider] || '').trim();
+  const currentInstructions = await loadEffectiveText(def.file, def.skillId);
   let text;
+  let createdBy = { type: 'local-template' };
   if (state.runMode === 'live' && key) {
     try {
-      const prompt = reflectionPrompt(def.id, kept, state.lang);
+      const prompt = reflectionPrompt(def.id, kept, state.lang, currentInstructions);
       logInfo('reflect', `live: reflecting over ${kept.length} issue(s) on ${def.id}`);
       text = await callProvider(provider, {
         apiKey: key,
         model: state.models[provider] || PROVIDERS[provider]?.defaultModel,
         prompt,
       });
+      createdBy = {
+        type: 'model',
+        model: state.models[provider] || PROVIDERS[provider]?.defaultModel || provider,
+      };
     } catch (err) {
       logError('reflect', t('reflect.liveFailed', { err: describeError(err) }), err);
       text = `${localReflection(def.id, kept, state.lang)}\n\n_${t('reflect.liveFailed', { err: describeError(err) })}_`;
@@ -277,21 +310,52 @@ async function runReflection(body, def, format, tab, status) {
     text = localReflection(def.id, kept, state.lang);
   }
 
+  const rule = extractRule(text) || text.trim();
+  let proposed;
+  try {
+    proposed = await proposeSkillAmendment({
+      skillId: def.skillId,
+      relPath: def.file,
+      text: rule,
+      feedbackEvents: keptEvidenceFor(def.skillId),
+      createdBy,
+    });
+  } catch (err) {
+    status.textContent = describeError(err); status.className = 'edit-status err';
+    return;
+  }
+
+  const passed = proposed.evaluation.decision === 'pass';
   status.textContent = '';
   const box = el('div', { class: 'amendment' },
     el('div', { class: 'amendment-head' },
       el('span', { class: 'amendment-badge' }, t('reflect.proposed', { n: kept.length }))),
     el('pre', { class: 'amendment-text' }, text),
+    el('div', { class: `edit-status ${passed ? 'ok' : 'err'}` },
+      t(passed ? 'reflect.evalPassed' : 'reflect.evalFailed', {
+        targeted: proposed.evaluation.metrics.targetedCount,
+        holdout: proposed.evaluation.metrics.holdoutCount,
+      })),
+    el('div', { class: 'hint' }, t('reflect.evalStructural')),
     el('div', { class: 'hint' }, t('reflect.applyHint')),
     el('div', { class: 'modal-actions' },
       el('button', {
         class: 'btn sm',
-        onclick: () => {
-          const rule = extractRule(text) || text.trim();
-          addAmendment(def.file, rule);
-          markReflected(def.id, rule);
+        disabled: passed ? undefined : '',
+        onclick: async () => {
+          activateSkillCandidate({
+            skillId: def.skillId,
+            candidateId: proposed.candidate.id,
+            evaluationId: proposed.evaluation.id,
+          });
+          markReflected(
+            def.skillId,
+            rule,
+            proposed.candidate.id,
+            proposed.candidate.feedbackIds,
+          );
           toast(t('reflect.applied', { skill: def.id }));
-          renderDetail(body, def, format, 'about');
+          await renderDetail(body, def, format, 'about');
         },
       }, t('reflect.applyToSkill')),
       el('button', { class: 'btn sm ghost', onclick: () => box.remove() }, t('common.cancel'))));
@@ -305,5 +369,3 @@ function extractRule(text) {
   if (quoted.length) return quoted.map((l) => l.replace(/^\s*>\s?/, '- ')).join('\n');
   return '';
 }
-
-void esc;

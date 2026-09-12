@@ -23,9 +23,11 @@ import { state, traceKey } from '../core/state.js';
 import { logInfo, logWarn } from '../core/log.js';
 import { download } from '../core/dom.js';
 import { stashWork } from '../core/work.js';
-import { importWith } from '../core/importers.js';
+import { exportImporterArtifacts, importWith } from '../core/importers.js';
 import { t } from '../core/i18n.js';
 import { fetchAsset } from '../core/net.js';
+import { exportReflectionJournal } from '../core/reflection.js';
+import { exportSkillArtifacts } from '../core/skills.js';
 import { fingerprint } from '../domain/_value.js';
 import { markAnnotatorDocument, parseAnnotatorDocument } from './document-format.js';
 
@@ -145,10 +147,11 @@ function normalizeDoc(doc) {
   // this file, so only that is repaired here. Seeding the first pending row is
   // a different job and belongs to whichever format is about to be applied —
   // see core/work.js, which calls the format's own seedSentence().
-  if (doc.format !== 'umr') return;
-  for (const s of doc.sentences || []) {
-    const gaps = fillMissingPending(s.tree);
-    if (gaps) logWarn('sources', t('sources.repaired', { n: s.index, gaps }));
+  if (doc.format === 'umr') {
+    for (const s of doc.sentences || []) {
+      const gaps = fillMissingPending(s.tree);
+      if (gaps) logWarn('sources', t('sources.repaired', { n: s.index, gaps }));
+    }
   }
   doc._trace = buildTraceIndex(doc);
 }
@@ -196,23 +199,46 @@ function leavesOf(node) {
   return out;
 }
 
-/** Flat (skill, span) -> recorded call index, used by runner.js in replay mode. */
+/** Sentence-scoped stable Skill -> recorded call index used by replay mode. */
 function buildTraceIndex(doc) {
   const idx = new Map();
-  const walk = (nodes) => {
+  const add = (localSkillId, stableSkillId, span, sentenceIndex, record) => {
+    idx.set(traceKey(stableSkillId || localSkillId, span, sentenceIndex), record);
+  };
+  const walk = (nodes, sentenceIndex) => {
     for (const n of nodes || []) {
       if (!n.pending) {
-        idx.set(traceKey(n.skill, n.span), {
+        add(n.skill, n.call?.skillId || n.skillId, n.span, sentenceIndex, {
           output: n.output,
           rationale: n.rationale,
           rawText: n.rawText,
           model: n.model,
+          call: n.call || null,
         });
-        walk(n.children);
+        walk(n.children, sentenceIndex);
       }
     }
   };
-  for (const s of doc.sentences || []) walk(s.tree);
+  const addPasses = (passes, sentence, sentenceIndex) => {
+    for (const pass of passes || []) {
+      if (!pass) continue;
+      add(pass.pass, pass.call?.skillId || pass.skillId, sentence.text, sentenceIndex, {
+        output: { graph: pass.graph, changes: pass.changes || [], note: pass.note || '' },
+        rationale: pass.note || '',
+        rawText: pass.rawText || '',
+        model: pass.model || '',
+        call: pass.call || null,
+      });
+    }
+  };
+  for (const [sentenceIndex, sentence] of (doc.sentences || []).entries()) {
+    walk(sentence.tree, sentenceIndex);
+    addPasses(sentence.passes, sentence, sentenceIndex);
+    for (const work of Object.values(sentence._work || {})) {
+      walk(work?.tree, sentenceIndex);
+      addPasses(work?.passes, sentence, sentenceIndex);
+    }
+  }
   return idx;
 }
 
@@ -243,6 +269,25 @@ export function exportDocument() {
     delete s._work[out.format];
     if (!Object.keys(s._work).length) delete s._work;
   }
+  const feedbackEvents = exportReflectionJournal({
+    documentId: out.id,
+    sourceHash: out.sourceHash,
+  });
+  const skillIds = referencedSkillIds(out, feedbackEvents);
+  const formatIds = new Set([out.format]);
+  for (const sentence of out.sentences || []) {
+    for (const formatId of Object.keys(sentence._work || {})) formatIds.add(formatId);
+  }
+  // This is an auditable, document-scoped snapshot. Opening the file never
+  // executes embedded reader source or overwrites the user's local workspace;
+  // a future explicit merge UI can adopt selected artifacts safely.
+  out.workspaceSnapshot = {
+    schemaVersion: 1,
+    activation: 'manual-merge-required',
+    feedbackEvents,
+    skillWorkspace: exportSkillArtifacts([...skillIds]),
+    importers: exportImporterArtifacts([...formatIds]),
+  };
   return out;
 }
 
@@ -257,4 +302,30 @@ export function exportDocumentFile() {
 function stripTrace(doc) {
   const { _trace, ...rest } = doc;
   return rest;
+}
+
+function referencedSkillIds(doc, feedbackEvents) {
+  const ids = new Set(feedbackEvents.map((event) => event.skillId));
+  const walk = (nodes) => {
+    for (const node of nodes || []) {
+      const skillId = node.call?.skillId || node.skillId;
+      if (skillId) ids.add(skillId);
+      walk(node.children);
+    }
+  };
+  for (const sentence of doc.sentences || []) {
+    walk(sentence.tree);
+    for (const pass of sentence.passes || []) {
+      const skillId = pass?.call?.skillId || pass?.skillId;
+      if (skillId) ids.add(skillId);
+    }
+    for (const work of Object.values(sentence._work || {})) {
+      walk(work?.tree);
+      for (const pass of work?.passes || []) {
+        const skillId = pass?.call?.skillId || pass?.skillId;
+        if (skillId) ids.add(skillId);
+      }
+    }
+  }
+  return ids;
 }

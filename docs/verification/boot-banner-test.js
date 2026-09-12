@@ -7,10 +7,10 @@
  * checks that the boot banner catches that case and says why, and that a
  * properly-served page removes the banner and actually works.
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const BASE = process.env.BASE || 'http://localhost:8899';
 (async () => {
-  const b = await chromium.launch({ executablePath: process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const b = await launchBrowser();
 
   console.log('=========== A. file:// (the broken way) ===========');
   const p1 = await b.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });

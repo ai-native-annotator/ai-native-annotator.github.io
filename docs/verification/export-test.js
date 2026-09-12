@@ -14,15 +14,14 @@
  *
  * It also writes the file to /tmp so a person can look at it.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/export-test.js
+ * Run: npm run test:browser -- export-test.js
  */
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const OUT = process.env.OUT_DIR || os.tmpdir();
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 const S1 = 'The museum opened a new exhibit last week.';
@@ -34,7 +33,7 @@ const check = (label, ok, extra = '') => {
 };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' });
   const errs = [];
   page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
@@ -124,6 +123,12 @@ const check = (label, ok, extra = '') => {
   check('the skill calls are in it', calls >= 4, `${calls} calls on sentence 1`);
   check('each call kept what it was asked and what it answered',
     Boolean(s0.tree[0]?.input && s0.tree[0]?.output), Object.keys(s0.tree[0] || {}).join(','));
+  const recordedRuns = collectNodes(s0.tree).filter((node) => node.source === 'live');
+  check('live calls carry immutable audit identities and prompt fingerprints',
+    recordedRuns.length > 0 && recordedRuns.every((node) =>
+      node.call?.id && node.call?.skillId && node.call?.revisionId
+        && node.call?.request?.effectivePromptHash),
+    `${recordedRuns.filter((node) => node.call?.id).length}/${recordedRuns.length} complete records`);
   check('the hand correction is the value in the file, not a footnote',
     JSON.stringify(s0.tree).includes('inaugurate-01'));
   check('and it is also listed as a human edit', (doc.humanEdits || []).length === 1,
@@ -141,28 +146,62 @@ const check = (label, ok, extra = '') => {
   check('the replay index is not in the file', !('_trace' in doc));
   check('no Map or Set survived serialisation as "{}"',
     !/"edits":\{\}|"running":\{\}/.test(exported));
+  check('document-scoped feedback and Skill revisions ride with the export',
+    doc.workspaceSnapshot?.activation === 'manual-merge-required'
+      && doc.workspaceSnapshot.feedbackEvents?.length >= 1
+      && Object.keys(doc.workspaceSnapshot.skillWorkspace?.skills || {}).length >= 1,
+    JSON.stringify({
+      feedback: doc.workspaceSnapshot?.feedbackEvents?.length,
+      skills: Object.keys(doc.workspaceSnapshot?.skillWorkspace?.skills || {}).length,
+    }));
 
   console.log('\n--- 5. re-open it: the annotation comes back whole ---');
   const reopened = await page.evaluate(async (text) => {
     const src = await import('./js/io/sources.js');
     const st = await import('./js/core/state.js');
     const wk = await import('./js/core/work.js');
+    const runner = await import('./js/core/runner.js');
     const doc = src.parseDocument(text, 'annotated-export.json');
     wk.initWork(doc);
     const s = doc.sentences[0];
     const count = (nodes) => (nodes || []).reduce((n, x) => n + (x.pending ? 0 : 1 + count(x.children)), 0);
+    const withCall = collect(nodesOf(s)).find((node) => node.call?.id);
+    st.state.doc = doc;
+    st.state.selectedSentence = 0;
+    st.state.runMode = 'replay';
+    const replayed = await runner.runSkillCall({
+      skillId: withCall.skill,
+      stableSkillId: withCall.call.skillId,
+      revisionId: 'rev:deliberately-current',
+      span: withCall.span,
+      system: 'different current system',
+      prompt: 'different current task',
+      language: doc.language,
+    });
     return {
       id: doc.id, format: doc.format, sentences: doc.sentences.length,
       calls: count(s.tree), concepts: JSON.stringify(s.tree).includes('inaugurate-01'),
       refineParked: (s._work?.refine?.passes || []).filter(Boolean).length,
       text: s.text, before: st.state.doc.sentences[0].text,
+      originalCallId: withCall.call.id,
+      replayedCallId: replayed.call.id,
+      replayedRevisionId: replayed.call.revisionId,
     };
+
+    function nodesOf(sentence) { return sentence.tree || []; }
+    function collect(nodes) {
+      return (nodes || []).flatMap((node) => [node, ...collect(node.children)]);
+    }
   }, exported);
   check('same document', reopened.text === reopened.before, reopened.text);
   check('same number of sentences', reopened.sentences === 4, `${reopened.sentences}`);
   check('same number of skill calls', reopened.calls === calls, `${reopened.calls} vs ${calls}`);
   check('the correction survived the round trip', reopened.concepts);
   check('and so did the other method', reopened.refineParked === 1, `${reopened.refineParked} pass(es)`);
+  check('replay preserves the original RunRecord instead of fabricating a current one',
+    reopened.replayedCallId === reopened.originalCallId
+      && reopened.replayedRevisionId !== 'rev:deliberately-current',
+    `${reopened.originalCallId} -> ${reopened.replayedCallId}`);
 
   console.log(`\n=== ${pass} passed, ${fail} failed`);
   console.log('=== CONSOLE ERRORS:', errs.length);
@@ -173,4 +212,8 @@ const check = (label, ok, extra = '') => {
 
 function countCalls(nodes = []) {
   return nodes.reduce((n, x) => n + (x.pending ? 0 : 1 + countCalls(x.children)), 0);
+}
+
+function collectNodes(nodes = []) {
+  return nodes.flatMap((node) => [node, ...collectNodes(node.children)]);
 }

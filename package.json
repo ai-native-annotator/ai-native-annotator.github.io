@@ -10,8 +10,8 @@
     "test:browser:smoke": "node scripts/run-verification.mjs boot-banner-test.js provider-test.js pipeline-test.js",
     "lint": "eslint js docs/verification scripts test",
     "typecheck": "tsc --project jsconfig.json",
-    "format": "prettier --write package.json jsconfig.json eslint.config.mjs scripts test/prompt-helper.test.mjs .github js/io/document-format.js js/core/importers.js js/ui/importer-panel.js",
-    "format:check": "prettier --check package.json jsconfig.json eslint.config.mjs scripts test/prompt-helper.test.mjs .github js/io/document-format.js js/core/importers.js js/ui/importer-panel.js",
+    "format": "prettier --write package.json jsconfig.json eslint.config.mjs scripts test .github README.md docs/ARCHITECTURE.md docs/verification/README.md js/domain js/application js/adapters js/io/document-format.js js/core/importers.js js/ui/importer-panel.js",
+    "format:check": "prettier --check package.json jsconfig.json eslint.config.mjs scripts test .github README.md docs/ARCHITECTURE.md docs/verification/README.md js/domain js/application js/adapters js/io/document-format.js js/core/importers.js js/ui/importer-panel.js",
     "check": "npm run test && npm run lint && npm run typecheck && npm run format:check"
   },
   "engines": {

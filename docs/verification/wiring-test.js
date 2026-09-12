@@ -10,16 +10,15 @@
  * Simulated the way it actually happens in the wild: a browser holding a
  * cached index.html that predates a button the current js/app.js expects.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/wiring-test.js
+ * Run: npm run test:browser -- wiring-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 let pass = 0, fail = 0;
 const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '  ' + extra : ''}`); };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
 
   for (const missing of ['btn-drive-demo-wiki', 'btn-export', 'format-select']) {
     console.log(`\n--- index.html missing #${missing} (stale-cache simulation) ---`);

@@ -89,9 +89,11 @@ async function runOne(format, i) {
   try {
     await runPass(state.doc, state.selectedSentence, i, format);
     set({ selectedPass: i }, 'tree', 'artifact', 'selectedNode');
+    return true;
   } catch (err) {
     logError('chain', t('chain.failed', { pass: format.skills[i]?.id, err: describeError(err) }), err);
     toast(t('chain.failed', { pass: format.skills[i]?.id, err: describeError(err) }), true);
+    return false;
   } finally {
     state.running.delete(key);
     set({}, 'tree');
@@ -132,16 +134,24 @@ export async function runRemainingPasses(format) {
 async function rerunFrom(format, i) {
   const sentence = state.doc.sentences[state.selectedSentence];
   const def = format.skills[i];
-  record({
-    skill: def.id, file: def.file, kind: 'rerun',
-    sentenceIndex: state.selectedSentence, path: null, span: sentence.text,
-    before: sentence.passes?.[i]?.graph ?? null, after: null,
-    detail: t('chain.rerunDetail', { pass: def.id }),
-  });
+  const previous = sentence.passes?.[i];
   sentence.passes = (sentence.passes || []).slice(0, i);
   sentence.graph = i === 0 ? '' : (sentence.passes[i - 1]?.graph || '');
   set({ selectedPass: null }, 'tree', 'artifact');
-  await runOne(format, i);
+  const completed = await runOne(format, i);
+  if (!completed) return;
+  const result = sentence.passes?.[i];
+  record({
+    skill: def.id,
+    skillId: result?.skillId || (def.code ? `${def.skillId}/code` : def.skillId),
+    file: def.code || def.file,
+    kind: 'rerun',
+    callId: result?.callId || result?.call?.id,
+    revisionId: result?.revisionId || result?.call?.revisionId,
+    sentenceIndex: state.selectedSentence, path: null, span: sentence.text,
+    before: previous?.graph ?? null, after: result?.graph ?? null,
+    detail: t('chain.rerunDetail', { pass: def.id }),
+  });
 }
 
 /* ------------------------------------------------------- the pass detail */

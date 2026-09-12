@@ -6,7 +6,8 @@
  * drifted — one joined with a space, the other with a stray control byte — so
  * *every* replay lookup missed, and the miss was reported as "this document is
  * newly imported / unannotated", which pointed the blame at the data. Both
- * sides now call state.js `traceKey()`.
+ * sides now call state.js `traceKey()`, which scopes the lookup by sentence as
+ * well as Skill and span.
  *
  * Two things are checked here:
  *   1. A key that exists in the index actually resolves through the real
@@ -15,15 +16,14 @@
  *      gap that fillMissingPending() surfaces — reports *that*, and does not
  *      claim the document is unannotated.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/replay-test.js
+ * Run: npm run test:browser -- replay-test.js
  * with the site served at http://localhost:8899.
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1500, height: 950 }, locale: 'zh-CN' });
   const errs = [];
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
@@ -41,12 +41,14 @@ const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linu
     const idx = st.state.doc._trace;
     const results = [];
     for (const key of [...idx.keys()].slice(0, 5)) {
-      const sep = key.indexOf(String.fromCharCode(31));
-      const skillId = key.slice(0, sep);
-      const span = key.slice(sep + 1);
+      const separator = String.fromCharCode(31);
+      const [sentencePart, skillId, ...spanParts] = key.split(separator);
+      const sentenceIndex = Number(sentencePart);
+      const span = spanParts.join(separator);
+      st.state.selectedSentence = sentenceIndex;
       try {
         const r = await runner.runSkillCall({ skillId, span, prompt: '', language: 'en' });
-        results.push({ skillId, source: r.source, ok: Boolean(r.output) });
+        results.push({ sentenceIndex, skillId, source: r.source, ok: Boolean(r.output) });
       } catch (e) { results.push({ skillId, error: e.message.slice(0, 60) }); }
     }
     return { size: idx.size, results };

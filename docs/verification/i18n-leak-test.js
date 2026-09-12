@@ -10,13 +10,12 @@
  * A single CJK character is enough to fail: there is nothing legitimately
  * Chinese in an English session over an English document.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/i18n-leak-test.js
+ * Run: npm run test:browser -- i18n-leak-test.js
  * with the site served at http://localhost:8899.
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const CJK = /[一-鿿　-〿＀-￯]/;
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 const S1 = 'The museum opened a new exhibit last week.';
@@ -30,7 +29,7 @@ function scan(where, text) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'en-US' });
   const errs = [];
   page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
