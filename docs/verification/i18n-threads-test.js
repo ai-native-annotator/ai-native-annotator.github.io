@@ -2,7 +2,7 @@
  * 1. Interface language switch (中 / EN)
  * 2. Per-node chat threads: each node keeps its own conversation
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
 const SHOT = (n) => `${process.env.SHOT_DIR || '/tmp'}/${n}.png`;
@@ -10,7 +10,7 @@ const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o ==
 const S1 = 'The museum opened a new exhibit last week.';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   // Deliberately NO locale override: part 1 asserts the first visit follows the
   // browser's own language, so pinning one here would test nothing.
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });

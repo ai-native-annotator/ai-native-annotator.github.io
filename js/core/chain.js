@@ -20,9 +20,9 @@
  * before and after, and the UI shows a diff rather than a subtree.
  */
 
-import { runSkillCall } from './runner.js';
+import { createExecutionRecord, runSkillCall } from './runner.js';
 import { runUserCode } from './sandbox.js';
-import { loadEffectiveText } from './skills.js';
+import { getActiveRevisionId, loadEffectiveText } from './skills.js';
 import { extractJson } from './runner.js';
 import { logInfo, logWarn } from './log.js';
 import { parsePenman, toPenman } from './penman.js';
@@ -34,7 +34,7 @@ import { t } from './i18n.js';
  * task in `prompt`, where they belong — they change every call.
  */
 async function buildPassPrompt(def, sentence, graph, language) {
-  const parts = [await loadEffectiveText(def.file)];
+  const parts = [await loadEffectiveText(def.file, def.skillId)];
   const overlay = await loadEffectiveText(`skills/${language}/overlay.md`);
   if (overlay) parts.push(overlay);
   const task = [
@@ -51,7 +51,12 @@ async function buildPassPrompt(def, sentence, graph, language) {
     ' "note": "one sentence on why"}',
     'If nothing needs changing, return the graph unchanged and an empty changes list.',
   ].filter(Boolean).join('\n');
-  return { system: parts.filter(Boolean).join('\n\n---\n\n'), prompt: task };
+  return {
+    system: parts.filter(Boolean).join('\n\n---\n\n'),
+    prompt: task,
+    stableSkillId: def.skillId,
+    revisionId: getActiveRevisionId(def.skillId),
+  };
 }
 
 /**
@@ -121,6 +126,11 @@ export async function runPass(doc, sentenceIndex, passIndex, format) {
     model: res.model || '',
     latencyMs: res.latencyMs || 0,
     input: res.input,
+    rawText: res.rawText || '',
+    callId: res.call?.id || '',
+    skillId: res.call?.skillId || res.stableSkillId || def.skillId,
+    revisionId: res.call?.revisionId || res.revisionId || getActiveRevisionId(def.skillId),
+    call: res.call || null,
     ranAt: new Date().toISOString(),
   };
   sentence.passes[passIndex] = record;
@@ -136,21 +146,43 @@ export async function runPass(doc, sentenceIndex, passIndex, format) {
  * executes in the worker sandbox, not in the page.
  */
 async function runCodePass(def, sentence, graph, language) {
-  const source = await loadEffectiveText(def.code);
+  const stableSkillId = `${def.skillId}/code`;
+  const source = await loadEffectiveText(def.code, stableSkillId);
   if (!source.trim()) throw new Error(t('chain.noCode', { pass: def.id, file: def.code }));
-  const t0 = performance.now();
-  const out = await runUserCode(source, 'run', [graph, {
+  const revisionId = getActiveRevisionId(stableSkillId);
+  const startedAt = new Date().toISOString();
+  const context = {
     sentence: sentence.text, tokens: sentence.tokens || [], language,
-  }]);
+  };
+  const t0 = performance.now();
+  const out = await runUserCode(source, 'run', [graph, context]);
+  const latencyMs = performance.now() - t0;
   logInfo('chain', t('chain.ranCode', { pass: def.id }));
-  return {
+  const result = {
     output: out,
     rationale: out?.note || '',
     source: 'code',
     model: '',
-    latencyMs: performance.now() - t0,
+    latencyMs,
+    rawText: JSON.stringify(out),
     input: t('chain.codeInput', { file: def.code }),
+    stableSkillId,
+    revisionId,
   };
+  result.call = createExecutionRecord({
+    localSkillId: def.id,
+    stableSkillId,
+    revisionId,
+    source: 'code',
+    system: source,
+    prompt: JSON.stringify({ graph, context }),
+    language,
+    provider: 'local-sandbox',
+    model: 'javascript',
+    result,
+    startedAt,
+  });
+  return result;
 }
 
 /** Index of the next pass that has not run, or -1 when the chain is finished. */

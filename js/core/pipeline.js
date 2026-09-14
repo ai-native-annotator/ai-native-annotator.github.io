@@ -18,9 +18,10 @@
 
 import { runSkillCall } from './runner.js';
 import { logInfo, logWarn } from './log.js';
-import { loadEffectiveText } from './skills.js';
+import { getActiveRevisionId, loadEffectiveText } from './skills.js';
 import { t } from './i18n.js';
 import { fetchAsset } from './net.js';
+import { makeSkillId } from '../domain/feedback.js';
 
 // Depth at which clause recursion stops and phrases are forced atomic/np —
 // mirrors umr_parser/pipeline.py's MAX_DEPTH / FORCE_ATOMIC_DEPTH exactly.
@@ -71,12 +72,15 @@ async function loadAbstractRolesets() {
  */
 async function buildPrompt(skillId, language, taskInput) {
   const meta = SKILL_META[skillId];
-  const parts = [await fetchText(`skills/${meta.file}`)];
+  const stableSkillId = makeSkillId('umr', skillId);
+  const parts = [await fetchText(`skills/${meta.file}`, stableSkillId)];
   parts.push(await fetchText(`skills/${language}/overlay.md`));
   if (meta.schema) parts.push(await fetchText('skills/shared/_node_schema.md'));
   return {
     system: parts.filter((p) => p && p.trim()).join('\n\n---\n\n'),
     prompt: taskInput,
+    stableSkillId,
+    revisionId: getActiveRevisionId(stableSkillId),
   };
 }
 
@@ -233,7 +237,9 @@ function resultNode(skillId, span, taskInputText, res, children = []) {
   return {
     skill: skillId, span, input: taskInputText, output: res.output,
     rationale: res.rationale, source: res.source, model: res.model || '',
-    latencyMs: res.latencyMs || 0, children,
+    latencyMs: res.latencyMs || 0, rawText: res.rawText || '',
+    callId: res.call?.id || '', skillId: res.call?.skillId || '',
+    revisionId: res.call?.revisionId || '', call: res.call || null, children,
   };
 }
 

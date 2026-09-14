@@ -72,7 +72,8 @@ export const pathKey = (path) => path.join('.');
  * drifted apart (one used a space, the other a stray NUL) and *every* replay
  * lookup missed — with a message blaming the document for having no recording.
  */
-export const traceKey = (skill, span) => skill + SEP + span;
+export const traceKey = (skill, span, sentenceIndex = 0) =>
+  `${sentenceIndex}${SEP}${skill}${SEP}${span}`;
 
 /**
  * Key for a human edit. Scoped by sentence for the same reason threadKey is:

@@ -12,19 +12,18 @@
  *      that skill, and the pane says so on the spot rather than asking the
  *      annotator to take it on trust.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/live-effect-test.js
+ * Run: npm run test:browser -- live-effect-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 const S1 = 'The museum opened a new exhibit last week.';
 let pass = 0, fail = 0;
 const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`); };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' });
   const errs = [];
   const prompts = [];                       // every prompt the pipeline sent, in order
@@ -144,7 +143,7 @@ const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`
   console.log('\n--- 2b. once an amendment IS in force it reaches the very next prompt ---');
   const rule = await page.evaluate(async () => {
     const sk = await import('./js/core/skills.js');
-    sk.addAmendment('skills/shared/np_phrase.md', '- Always keep the full noun phrase.');
+    await sk.addAmendment('skills/shared/np_phrase.md', '- Always keep the full noun phrase.');
     return sk.getOverride('skills/shared/np_phrase.md');
   });
   check('stored against the key the pipeline fetches', Boolean(rule), rule ? rule.slice(0, 60) : '(nothing)');

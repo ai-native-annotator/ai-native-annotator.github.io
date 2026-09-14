@@ -187,8 +187,11 @@ function recordProposal(msg, status) {
   if (!c.file) { status.textContent = t('chat.applyNoFile'); status.className = 'edit-status err'; return; }
   record({
     skill: msg.skill || c.skill,
+    skillId: c.skillId,
     file: c.file,
     kind: 'objection',
+    callId: c.callId,
+    revisionId: c.revisionId,
     sentenceIndex: state.selectedSentence,
     path: c.path || null,
     span: c.span || '',
@@ -235,10 +238,13 @@ async function respond(text, sel, format) {
 
   const clash = {
     skill: node.skill,
+    skillId: def?.skillId || node.skillId,
     file: def?.file || `skills/${node.skill}.md`,
+    callId: node.callId || node.call?.id || '',
+    revisionId: node.revisionId || node.call?.revisionId || '',
     path,
     span: node.span,
-    modelOutput: node.output,
+    modelOutput: node.originalOutput ?? node.call?.response?.parsedOutput ?? node.output,
     modelRationale: node.rationale || '(no rationale given)',
     humanOutput: humanEdit ?? null,
     humanRationale: text,

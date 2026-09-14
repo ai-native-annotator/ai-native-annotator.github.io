@@ -50,6 +50,7 @@ const CODE = { validate: 'reference/refine/validate.js' };
 
 const skills = () => PASSES.map((id) => defineSkill({
   id,
+  namespace: 'refine',
   label: t(`refine.skill.${id}`),
   file: `skills/refine/${id}.md`,
   describes: t(`refine.desc.${id}`),

@@ -16,11 +16,10 @@
  * commonest thing a strict policy withholds, and a diagnostic that is itself
  * blocked reports nothing exactly when it is needed.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/csp-test.js
+ * Run: npm run test:browser -- csp-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 let pass = 0, fail = 0;
 const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`); };
 
@@ -31,7 +30,7 @@ const POLICIES = [
 ];
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
 
   for (const pol of POLICIES) {
     console.log(`\n--- ${pol.name} ---`);

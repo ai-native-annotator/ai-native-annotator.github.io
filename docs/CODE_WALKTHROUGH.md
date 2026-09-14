@@ -2,7 +2,7 @@
 
 这份文档面向"我要能改这个项目"的读者。读完你应该能回答三个问题：**数据长什么样**、**点一下按钮之后发生了什么**、**我想改 X 该动哪个文件**。
 
-建议顺序：先读第 0～3 章（约 15 分钟，是理解一切的钥匙），再把第 4 章当字典查。
+先读 [`ARCHITECTURE.md`](ARCHITECTURE.md) 掌握现在的依赖边界和 Skill 版本不变量，再读第 0～3 章，最后把第 4 章当字典查。本文件会继续解释遗留运行时；如果两份文档冲突，以架构文档和测试为准。
 
 ---
 
@@ -46,13 +46,17 @@ const saved = JSON.parse(localStorage.getItem('annotator_secrets') || '{}');    
 localStorage.removeItem('annotator_secrets');                                   // 删
 ```
 
-### 本项目一共用了三个键
+### 本项目的持久化键
 
 | 键名 | 内容 | 写在哪个文件 |
 |---|---|---|
 | `annotator` | UI 偏好：运行模式、主题、当前格式、默认厂商、模型名 | `core/state.js` |
 | `annotator_secrets` | 所有凭据：各厂商 API Key、模型、Drive Client ID、GitHub Token | `core/settings.js` |
 | `gdrive_client_id` | Google OAuth Client ID（和上面那个键里的重复存了一份，因为 `io/drive.js` 会直接读它，不想为了拿一个 id 去依赖 settings 模块） | `core/settings.js` + `io/drive.js` |
+| `annotator_importers` | 每种格式当前采用的自定义文件 reader 源码 | `core/importers.js` |
+| `annotator_reflection_journal` | 与精确 Skill 修订、调用和文档位置绑定的反馈事件 | `core/reflection.js` |
+| `annotator_skill_workspace_v1` | Skill 修订、候选、评估和发布/回滚审计历史 | `application/skill-revisions.js` |
+| `annotator_skill_overrides` | 只用于一次性迁移旧版本数据；迁移后会删除或忽略 | `core/skills.js` |
 
 ### 安全上该知道的实话
 
@@ -70,24 +74,34 @@ localStorage.removeItem('annotator_secrets');                                   
 
 ### 分层与依赖方向
 
-依赖**只能从上往下**（上层可以 import 下层，下层绝不 import 上层）。这条规则是整个代码库能保持清爽的唯一纪律。
+新架构把可以独立验证的 Skill 规则放在最内层，浏览器机制留在外层：
 
 ```
-                    app.js  ← 启动、接线、订阅
-                       │
-        ┌──────────────┼───────────────┐
-        ▼              ▼               ▼
-      ui/*          formats/*         io/*        ← 会说话的三层
-   （画界面）      （某种标注怎么显示）  （文档从哪来）
-        │              │               │
-        └──────────────┼───────────────┘
-                       ▼
-                    core/*                        ← 不知道界面存在的引擎
-        state  registry  pipeline  flat  runner
-        providers  settings  penman  log  dom
+app / ui / formats / io / core compatibility
+                    │
+                    ▼
+            application use cases ───► adapters
+                    │
+                    ▼
+              domain rules
 ```
 
-### 31 个文件一句话速览
+`domain` 不碰 DOM、存储、网络、时钟或厂商；`application` 编排候选、评估、发布和回滚；`adapters`
+隔离外部持久化。`core` 现在既有通用运行引擎，也有旧 UI 调用面的兼容门面和 UMR 专用流程，不能再把它
+整体看成纯领域层。完整边界和当前遗留耦合见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
+
+### 目录与关键文件速览
+
+**`domain/`、`application/`、`adapters/` —— 可测试的 Skill 演化内核**
+
+| 文件 | 一句话 |
+|---|---|
+| `domain/feedback.js` | 稳定 Skill 身份和不可变反馈事件 |
+| `domain/skills.js` | 不可变修订、候选、发布与只移动指针的回滚规则 |
+| `domain/evaluation.js` | targeted / holdout / schema 评估报告和发布门槛 |
+| `domain/runs.js` | 绑定确切 Skill 修订和 prompt 指纹的一次运行记录 |
+| `application/skill-revisions.js` | 生成候选、保存评估、人工发布、回滚、迁移和仓库版本 rebase |
+| `adapters/storage/local-json-store.js` | 可替换的 JSON 存储适配器；目前实现是 localStorage |
 
 **`core/` —— 引擎，不碰 DOM 样式，不知道有哪些面板**
 
@@ -99,11 +113,11 @@ localStorage.removeItem('annotator_secrets');                                   
 | `i18n.js` | 界面语言（中/英）：一张字典 + `t()`，切换即时生效并持久化 |
 | `settings.js` | 凭据的本地读写、导出/导入 |
 | `providers.js` | Anthropic / OpenAI 的请求格式适配 |
-| `runner.js` | 一次 skill 调用：replay 查录制 / live 发请求 + 抽 JSON |
+| `runner.js` | 一次 Skill 调用：replay 查录制 / live 发请求 + 抽 JSON，并产生 `RunRecord` |
 | `registry.js` | 格式注册表（懒加载）+ skill 定义构造器 |
 | **`pipeline.js`** | **UMR 递归标注流程（全项目最重要的文件）** |
 | `flat.js` | 并行格式（非递归）的单步执行 |
-| `skills.js` | skill 文本的加载与**本地修订**：对话里接受的条款会进下一次 prompt |
+| `skills.js` | Skill 文本兼容门面：把旧的文件路径 API 翻译给版本化应用层 |
 | `coverage.js` | 覆盖率回查：分解到底有没有覆盖原文（严格口径 + 后端宽松口径） |
 | `penman.js` | Penman ⇄ JSON 双向转换 |
 
@@ -120,6 +134,7 @@ localStorage.removeItem('annotator_secrets');                                   
 | 文件 | 一句话 |
 |---|---|
 | `sources.js` | 内置语料、本地文件、文档规范化（**历史数据修复在这里**）、导出 |
+| `document-format.js` | 本工具导出格式的显式类型/版本识别与旧版本兼容边界 |
 | `drive.js` | Google Drive OAuth + 文件选择器 |
 | `github.js` | GitHub REST API 封装（读写文件、分支、合并、PR） |
 
@@ -435,7 +450,7 @@ logEvent(level, source, message, detail)
 
 三级都失败 → **抛错**，错误信息里带响应前 300 字。注意这里不返回 `{_raw: …}` 兜底，因为静默返回一个假对象正是那种"看起来成功了其实什么也没做"的坑。
 
-**`runSkillCall({skillId, span, prompt, language})`**
+**`runSkillCall({skillId, stableSkillId, revisionId, span, prompt, language})`**
 
 - **replay 分支**：拿 `traceKey(skillId, span)`（定义在 `state.js`）去 `doc._trace` 里查。查不到时**分两种情况说话**，因为它们是两回事：
   - `_trace` 是空的 → 这份文档本来就没有可回放的历史，提示"新导入/未标注，请切换到 live 模式"；
@@ -444,7 +459,9 @@ logEvent(level, source, message, detail)
   以前两种情况共用第一句话，于是一份录制完整的文档也会被说成"未标注"。
 - **live 分支**：从 state 取厂商/key/模型 → `performance.now()` 掐表 → `callProvider` → `extractJson`。两处失败都是**先 `logError` 再原样 `throw`**（记录 ≠ 吞掉）。
 
-统一返回：`{output, rationale, rawText, latencyMs, source, model}`。
+统一返回：`{output, rationale, rawText, latencyMs, source, model, call}`。其中 `call` 是不可变的
+`RunRecord`：记录稳定 `skillId`、实际 `revisionId`、prompt 及组件指纹、provider/model、响应和耗时。
+节点和 chain pass 会原样保存它，导出再打开后仍能追溯“一次结果究竟由哪版 Skill 产生”。
 
 ---
 
@@ -458,7 +475,10 @@ const loaders = { umr: () => import('../formats/umr.js'), sentiment: … };
 
 > ⚠️ **一个必须记住的坑**：`loadFormat` 注册的是 `mod.default`。所以格式模块的**具名导出对 UI 完全不可见**。今天就是因为 `sentiment.js` 把 `pendingSlots` / `runSkill` 写成了具名导出，导致并行格式的待运行行一个都不显示（内置演示数据三个 skill 都已完成，所以表面看不出来，但任何新文档都没法标注）。修复方式是把它们移到 default 对象上，两个格式文件里都加了注释警示。
 
-`defineSkill({id, label, file, describes, serial, llm})` 只是给 skill 定义对象一个统一形状，`id` 与后端 Python 模块名一一对应。
+`defineSkill({id, namespace, skillId, label, file, describes, serial, llm})` 给 Skill 定义统一形状。
+`id` 仍是格式内部的显示/执行短名；反馈、修订和运行记录只用全局稳定的
+`skill://<namespace>/<id>`。因此 `namespace` 和显式 `skillId` 至少要给一个，同名的
+`sentiment/aspect` 与 `refine/aspect` 不会再串线。
 
 ---
 
@@ -600,20 +620,26 @@ const D = {
 
 ---
 
-#### `core/skills.js` — 技能文本的加载与**本地修订**
+#### `core/skills.js` — Skill 文本的兼容门面
 
-在这个文件出现之前，"对话里达成的共识"是一个**意见箱**：生成一条提案，导出成 markdown，然后请你自己去改文件——下一次调用完全不受影响。
+这个文件保留 UI 和 runner 熟悉的“路径 + 文本”API，但已经不再自己实现版本规则。它加载仓库原文，
+把路径映射为稳定 `skillId`，再把用例交给 `application/skill-revisions.js`；旧的
+`annotator_skill_overrides` 会迁成一个正式修订，之后不再作为事实来源。
 
 | 导出 | 作用 |
 |---|---|
 | `loadBaseText(relPath)` | `data/` 下原始文件，带缓存 |
-| **`loadEffectiveText(relPath)`** | **原文 + 已接受的修订**，`core/pipeline.js` 拼提示词时用的就是它 |
-| `addAmendment(relPath, text)` | 接受一条修订：追加（不是覆盖）、写 localStorage、记日志 |
-| `getOverride` / `listOverrides` / `hasOverride` | 查询 |
-| `clearOverride` / `clearAllOverrides` | 撤销 |
-| `mergedFileText(relPath)` | 合并后的完整文件，用于提交回仓库 |
+| **`loadEffectiveText(relPath, skillId)`** | 当前 active revision 的内容；runner 拼 prompt 时读它 |
+| `proposeSkillAmendment(...)` | 用审核过的 `FeedbackEvent[]` 创建并持久化候选 + 结构评估；不激活 |
+| `activateSkillCandidate(...)` | 人工发布已通过评估且基线仍是当前版本的候选 |
+| `rollbackSkillRevision(skillId)` | active 指针退到祖先修订；不删除历史 |
+| `setFullText(...)` | Skill 编辑器里的明确人工改写，记录成一个新修订并立即激活 |
+| `getRevisionHistory` / `getActiveRevisionId` | 查询版本和当前指针 |
+| `exportSkillArtifacts(skillIds)` | 导出经过筛选的工作区快照 |
 
-修订以 `## 人工修订（本地生效，尚未合入仓库）` 为标题追加在原文之后。判断这个回路是否真的闭合，标准只有一条：**下一次该 skill 的 prompt 里是否字面包含这条新规则**（`docs/verification/skill-update-test.js` 就是照这个标准写的）。
+领域不变量在 `domain/skills.js`：修订不可变；自动生成的候选必须绑定保留过、属于当前修订的反馈；
+targeted、holdout 和 schema 门都通过后仍需人工发布；过期候选不能覆盖新版；回滚只走祖先链。
+当前 UI 的自动评估是结构门，不声称证明语义提升，任务级 evaluator 是保留好的扩展点。
 
 ---
 
@@ -679,20 +705,26 @@ const D = {
 
 ---
 
-#### `io/sources.js` — 文档进出 + **历史数据修复**（约 210 行）
+#### `io/sources.js` + `io/document-format.js` — 文档边界、进出与历史数据修复
 
 | 导出 | 作用 |
 |---|---|
 | `listDemos()` / `loadDemo(id)` | 读 `data/demo/` 下的内置语料 |
-| `openLocalFile()` | 弹出文件选择器 → 读文本 → `parseDocument` |
-| `parseDocument(text, filename)` | **归一化入口**：以 `{` 开头当作本工具的 JSON 格式；否则当纯文本，每个非空行一句，自动分词（有空格按空格切，中文按字切），`tree: []` 表示未标注 |
-| `exportDocument()` / `exportDocumentFile()` | 导出：剥掉 `_trace`，加上导出时间、人工修改清单、skill 提案清单 |
+| `openLocalFile()` | 不限制扩展名地选择文件 → 读原始文本 → `importDocument` |
+| `importDocument(text, filename)` | 先识别本工具导出；其余字节（包括 JSON/JSONL）交给当前格式 reader；没有自定义 reader 才退到纯文本 |
+| `parseDocument(text, filename)` | 识别本工具文档或使用纯文本 reader；每个非空行一句，`tree: []` 表示未标注 |
+| `parseAnnotatorDocument(text)` | 只接受显式 `documentType`/`schemaVersion` 或严格匹配的旧导出；已标记但损坏的文件明确报错 |
+| `exportDocument()` / `exportDocumentFile()` | 剥掉 `_trace`，写显式格式标记，并带上调用、反馈、Skill 修订和 reader 的文档作用域快照 |
+
+自定义 reader 失败会抛出 `ImporterExecutionError` 并保留屏幕上的旧文档，不能静默降级成一份貌似
+成功的单行文本。reader 编辑器也只有在“当前源码 + 当前样例”成功 dry-run 后才允许保存。导出中的
+reader 源码只用于审计，重新打开文件不会自动执行或安装它。
 
 **`normalizeDoc(doc)` —— 每份文档载入后必经的一步**，做三件事：
 
-1. `fillMissingPending(tree)` — **旧数据修复**：遍历每个已解析节点，把它 `output` 里那些"模型说了要展开、但树上没有对应子节点"的位置（按 phrase 精确匹配判断是否已存在）补成待运行标记，并记一条 warn 说明补了几处。**这就是旧原型里那些"消失的 skill 调用"重新出现的地方。**
-2. `advanceSentence(s)` — 给每句排好下一个待办（空文档就是排上第一个 discourse）。
-3. `buildTraceIndex(doc)` — 建 `${skill} ${span} → 录制结果` 的 Map，挂到 `doc._trace` 上，供 replay 模式查询。导出时会被 `stripTrace` 剥掉。
+1. 按内容生成稳定的 `sourceHash` 和句子 id，供反馈与运行记录跨导出关联。
+2. `fillMissingPending(tree)` — **旧数据修复**：遍历每个已解析节点，把它 `output` 里那些“模型说了要展开、但树上没有对应子节点”的位置补成待运行标记。空文档的第一个待办由当前格式自己的 `seedSentence()` 负责。
+3. `buildTraceIndex(doc)` — 以“句子 + 稳定 Skill + span”为键索引 tree 与 chain pass 的录制结果，挂到 `doc._trace` 供 replay 查询；导出时剥掉这份派生索引，但保留原始 `RunRecord`。
 
 ---
 
@@ -700,9 +732,10 @@ const D = {
 
 - `loadScript(src)` — 按需插 `<script>`（Google 的两个 SDK 在真正用到 Drive 之前不加载，所以离线也能正常用工具的其他部分）。
 - `driveClientId()` / `setDriveClientId(id)` — 读写那个单独的 localStorage 键。
-- `importFromDrive()` — 完整流程：检查有没有填 Client ID（没有就抛一句解释清楚的错）→ 加载 GIS + GAPI → `initTokenClient` 弹授权 → `PickerBuilder` 弹文件选择器 → `GET /drive/v3/files/{id}?alt=media` 取原文 → **交给 `parseDocument`**。
+- `importFromDrive()` — 完整流程：检查有没有填 Client ID（没有就抛一句解释清楚的错）→ 加载 GIS + GAPI → `initTokenClient` 弹授权 → `PickerBuilder` 弹文件选择器 → `GET /drive/v3/files/{id}?alt=media` 取原文 → **交给 `importDocument`**。
 
-最后一步是重点：Drive 来的文件和本地文件、GitHub 文件走的是**同一个解析函数**，所以一份未标注的 UMR 文件不管从哪来，结果都是"左栏有原文、标注树为空、等你点第一个 discourse"。
+最后一步是重点：Drive 来的文件和本地文件、GitHub 文件走的是**同一个导入路由**，所以显式文档识别、
+自定义 reader、错误处理和纯文本兜底不会因来源不同而分叉。
 
 ---
 
@@ -753,7 +786,7 @@ const D = {
 **`runPending()` 的结构**：
 
 ```js
-if (state.running.size) return;       // 同一时刻只允许一个调用
+if (state.running.has(runKey)) return; // 同一个位置防重复提交
 state.running.add(runKey); set({}, 'tree');   // 立刻反映到界面
 try {
   并行格式 → format.runSkill(...) → push 进 tree
@@ -765,6 +798,10 @@ try {
   state.running.delete(runKey); set({}, 'tree');  // 无论成败都恢复可点
 }
 ```
+
+「跑完本句」走 `runAllPending()`：每轮找出当前可见的待办，用 `Promise.allSettled` 最多并发 4 个，
+等这一轮结束后再寻找它们新产生的下一层。兄弟节点能并发，有依赖的父子节点自然落在不同轮；一轮没有
+产生任何新结果就停止，避免对同一个失败请求无限重试。
 
 ---
 
@@ -796,7 +833,9 @@ try {
 
 - `renderChat` — 作用域提示（当前针对哪个节点）+ **本节点**的消息流 + 输入框 + 麦克风 + 朗读开关 + 发送按钮。
 - `otherThreadsBar(activeKey, format)` — 当前节点还没聊过、但别处有对话时，顶部出现一排"其他节点的对话"小标签；点一下就跳到那个句子 + 那个节点。分线不等于把东西藏起来。
-- `applyProposal(msg, status)` — 「应用到技能文件」：从提案里抽出 `>` 引用块那条规则，交给 `core/skills.js` 的 `addAmendment()`。**这一步才让闭环闭上**——下一次同一个 skill 的 prompt 里就会带上它。
+- `recordProposal(msg, status)` — 把对话提案连同原输出、人工输出、理由、`callId` 和 `revisionId`
+  记为 `FeedbackEvent`，**到此不修改 Skill**。之后要在 Skill 面板审核保留，由反思生成候选、结构评估，
+  最后人工发布；下一次调用才会读取新修订。
 - `respond(text, sel, format)` — 分三种情况：
   - **没选节点 + live 模式有 key** → 当普通提问直接问模型；
   - **没选节点 + 没 key** → 提示先选节点或配置 key；
@@ -909,9 +948,10 @@ try {
 1. **没有搬运 PropBank / NER 词典**。原仓库的义项表来自 `.xlsx` 和 `.xml` 资源，体积大且需要解析器。现在的做法是在提示词里明确告诉模型"本地没有词典，请用你知道的标准义项编号"。抽象概念表（`abstract_rolesets.json`）是搬了的。
 2. **一致性对齐是简化版**。按 `skill::span` 精确匹配，不是完整的 smatch / AnCast++ 图匹配。同一个跨度被两人切成不同粒度时会被判成"结构性分歧"而不是部分匹配。
 3. **`doc_level` 的节点深度信息不精确**。Python 版按图中嵌套深度筛选"主事件"，浏览器版的调用树没有逐节点保留那个深度，目前统一按 depth=1 处理，可能多算入个别嵌套事件。
-4. **同一时刻只允许一个 skill 调用**。刻意的：并发跑多个调用会让树的写入产生竞态，而这个工具的核心诉求是"一步步看清楚"，不是吞吐量。
+4. **批量运行最多并发 4 个当前独立的待办**。依赖步骤按 wave 串开；同一位置用 `runKey` 防重。这个上限是为了避免 provider 的突发限流，不是语义规则。
 5. **replay 模式对新文档必然失败**，这是**设计**而非缺陷——它会抛出一句明确的话告诉你该切到 live 模式。
 6. **GitHub 用 PAT 而非 OAuth**，原因见 `io/github.js` 文件头注释（纯静态站点无法完成 token 换取）。
+7. **当前 Skill 候选的自动评估是结构门，不是语义 benchmark**：它验证证据绑定、非空、旧指令保留以及 targeted/holdout 分离。真正的任务级对照执行仍是下一阶段 evaluator；在此之前，发布始终需要人工确认。
 
 ---
 

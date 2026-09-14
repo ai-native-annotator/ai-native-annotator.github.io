@@ -14,12 +14,11 @@
  *     a graph that no longer exists
  *   - a pass returning something unparseable must not destroy the good graph
  *
- * Run: NODE_PATH=<playwright> node docs/verification/refine-chain-test.js
+ * Run: npm run test:browser -- refine-chain-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 let pass = 0, fail = 0;
 const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`); };
@@ -29,7 +28,7 @@ const G2 = '(s1t / taste-01\n    :ARG0 (s1p / person)\n    :ARG1 (s1f / freedom)
 const G3 = '(s1t / taste-01\n    :ARG0 (s1p / person)\n    :ARG1 (s1f / freedom)\n    :aspect state)';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1700, height: 1000 }, locale: 'zh-CN' });
   const errs = [];
   const sent = [];                       // every prompt, so we can prove what each pass was fed

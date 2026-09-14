@@ -13,11 +13,10 @@
  *   3. a data file 404s
  *   4. a data file hangs (the case with no error to catch)
  *
- * Run: NODE_PATH=<playwright> node docs/verification/boot-diagnosis-test.js
+ * Run: npm run test:browser -- boot-diagnosis-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 let pass = 0, fail = 0;
 const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`); };
 const banner = async (page) => {
@@ -30,7 +29,7 @@ const banner = async (page) => {
 };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
 
   console.log('\n--- 1. healthy boot: no banner, nothing to report ---');
   {

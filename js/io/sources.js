@@ -23,10 +23,13 @@ import { state, traceKey } from '../core/state.js';
 import { logInfo, logWarn } from '../core/log.js';
 import { download } from '../core/dom.js';
 import { stashWork } from '../core/work.js';
-import { importWith } from '../core/importers.js';
-import { toast } from '../ui/toast.js';
+import { exportImporterArtifacts, importWith } from '../core/importers.js';
 import { t } from '../core/i18n.js';
 import { fetchAsset } from '../core/net.js';
+import { exportReflectionJournal } from '../core/reflection.js';
+import { exportSkillArtifacts } from '../core/skills.js';
+import { fingerprint } from '../domain/_value.js';
+import { markAnnotatorDocument, parseAnnotatorDocument } from './document-format.js';
 
 const DEMO_BASE = 'data/demo';
 
@@ -49,7 +52,6 @@ export function openLocalFile() {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json,.umr,.txt,.conllu,.conll,.tsv,.csv';
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return reject(new Error(t('sources.noFile')));
@@ -69,16 +71,15 @@ export function openLocalFile() {
  * reader should have to handle it.
  */
 export async function importDocument(text, filename = 'untitled') {
-  if (text.trim().startsWith('{')) return parseDocument(text, filename);
-  try {
-    const doc = await importWith(state.formatId, text, filename);
-    if (doc) { normalizeDoc(doc); return doc; }
-  } catch (err) {
-    // A broken custom reader must not make the file unopenable: say what went
-    // wrong and fall back, rather than leaving the annotator with nothing.
-    logWarn('sources', t('imp.failed', { err: err.message }));
-    toast(t('imp.failed', { err: err.message }), true);
-  }
+  const annotated = parseAnnotatorDocument(text);
+  if (annotated) { normalizeDoc(annotated); return annotated; }
+
+  // A configured reader owns this input. If it throws, propagate the typed
+  // error so the caller can show it and keep the existing document intact.
+  // Falling back here used to turn malformed imports into plausible-looking
+  // one-line-per-row documents, which is silent data corruption.
+  const doc = await importWith(state.formatId, text, filename);
+  if (doc) { normalizeDoc(doc); return doc; }
   return parseDocument(text, filename);
 }
 
@@ -91,13 +92,10 @@ export async function importDocument(text, filename = 'untitled') {
  * function once the bytes are fetched).
  */
 export function parseDocument(text, filename = 'untitled') {
+  const annotated = parseAnnotatorDocument(text);
+  if (annotated) { normalizeDoc(annotated); return annotated; }
+
   const trimmed = text.trim();
-  if (trimmed.startsWith('{')) {
-    const doc = JSON.parse(trimmed);
-    if (!doc.sentences) throw new Error(t('sources.noSentences'));
-    normalizeDoc(doc);
-    return doc;
-  }
   const lines = trimmed.split('\n').map((l) => l.trim()).filter(Boolean);
   const doc = {
     // No `format`. A raw file is text, and text is not a UMR document any more
@@ -132,7 +130,16 @@ function tokenize(line) {
 /* --------------------------------------------------------- normalization */
 
 function normalizeDoc(doc) {
-  for (const s of doc.sentences || []) {
+  const sentences = doc.sentences || [];
+  doc.sourceHash = doc.sourceHash || `source:${fingerprint(
+    sentences.map((sentence) => String(sentence?.text || '')).join('\n'),
+  )}`;
+  for (const [offset, s] of sentences.entries()) {
+    s.id = s.id || `sentence:${fingerprint({
+      sourceHash: doc.sourceHash,
+      index: s.index ?? offset + 1,
+      text: String(s.text || ''),
+    })}`;
     s.tree = s.tree || [];
     s.passes = s.passes || [];
   }
@@ -140,10 +147,11 @@ function normalizeDoc(doc) {
   // this file, so only that is repaired here. Seeding the first pending row is
   // a different job and belongs to whichever format is about to be applied —
   // see core/work.js, which calls the format's own seedSentence().
-  if (doc.format !== 'umr') return;
-  for (const s of doc.sentences || []) {
-    const gaps = fillMissingPending(s.tree);
-    if (gaps) logWarn('sources', t('sources.repaired', { n: s.index, gaps }));
+  if (doc.format === 'umr') {
+    for (const s of doc.sentences || []) {
+      const gaps = fillMissingPending(s.tree);
+      if (gaps) logWarn('sources', t('sources.repaired', { n: s.index, gaps }));
+    }
   }
   doc._trace = buildTraceIndex(doc);
 }
@@ -191,18 +199,46 @@ function leavesOf(node) {
   return out;
 }
 
-/** Flat (skill, span) -> recorded call index, used by runner.js in replay mode. */
+/** Sentence-scoped stable Skill -> recorded call index used by replay mode. */
 function buildTraceIndex(doc) {
   const idx = new Map();
-  const walk = (nodes) => {
+  const add = (localSkillId, stableSkillId, span, sentenceIndex, record) => {
+    idx.set(traceKey(stableSkillId || localSkillId, span, sentenceIndex), record);
+  };
+  const walk = (nodes, sentenceIndex) => {
     for (const n of nodes || []) {
       if (!n.pending) {
-        idx.set(traceKey(n.skill, n.span), { output: n.output, rationale: n.rationale, rawText: n.rawText, model: n.model });
-        walk(n.children);
+        add(n.skill, n.call?.skillId || n.skillId, n.span, sentenceIndex, {
+          output: n.output,
+          rationale: n.rationale,
+          rawText: n.rawText,
+          model: n.model,
+          call: n.call || null,
+        });
+        walk(n.children, sentenceIndex);
       }
     }
   };
-  for (const s of doc.sentences || []) walk(s.tree);
+  const addPasses = (passes, sentence, sentenceIndex) => {
+    for (const pass of passes || []) {
+      if (!pass) continue;
+      add(pass.pass, pass.call?.skillId || pass.skillId, sentence.text, sentenceIndex, {
+        output: { graph: pass.graph, changes: pass.changes || [], note: pass.note || '' },
+        rationale: pass.note || '',
+        rawText: pass.rawText || '',
+        model: pass.model || '',
+        call: pass.call || null,
+      });
+    }
+  };
+  for (const [sentenceIndex, sentence] of (doc.sentences || []).entries()) {
+    walk(sentence.tree, sentenceIndex);
+    addPasses(sentence.passes, sentence, sentenceIndex);
+    for (const work of Object.values(sentence._work || {})) {
+      walk(work?.tree, sentenceIndex);
+      addPasses(work?.passes, sentence, sentenceIndex);
+    }
+  }
   return idx;
 }
 
@@ -221,7 +257,7 @@ export function exportDocument() {
   // Park what is on screen first, or a document annotated two ways would ship
   // with the parked copy of the method you are looking at being one edit stale.
   stashWork(doc, state.formatId);
-  const out = structuredClone(stripTrace(doc));
+  const out = markAnnotatorDocument(structuredClone(stripTrace(doc)));
   out.format = state.formatId;
   out.exportedAt = new Date().toISOString();
   out.humanEdits = [...state.edits.entries()].map(([path, output]) => ({ path, output }));
@@ -233,6 +269,25 @@ export function exportDocument() {
     delete s._work[out.format];
     if (!Object.keys(s._work).length) delete s._work;
   }
+  const feedbackEvents = exportReflectionJournal({
+    documentId: out.id,
+    sourceHash: out.sourceHash,
+  });
+  const skillIds = referencedSkillIds(out, feedbackEvents);
+  const formatIds = new Set([out.format]);
+  for (const sentence of out.sentences || []) {
+    for (const formatId of Object.keys(sentence._work || {})) formatIds.add(formatId);
+  }
+  // This is an auditable, document-scoped snapshot. Opening the file never
+  // executes embedded reader source or overwrites the user's local workspace;
+  // a future explicit merge UI can adopt selected artifacts safely.
+  out.workspaceSnapshot = {
+    schemaVersion: 1,
+    activation: 'manual-merge-required',
+    feedbackEvents,
+    skillWorkspace: exportSkillArtifacts([...skillIds]),
+    importers: exportImporterArtifacts([...formatIds]),
+  };
   return out;
 }
 
@@ -247,4 +302,30 @@ export function exportDocumentFile() {
 function stripTrace(doc) {
   const { _trace, ...rest } = doc;
   return rest;
+}
+
+function referencedSkillIds(doc, feedbackEvents) {
+  const ids = new Set(feedbackEvents.map((event) => event.skillId));
+  const walk = (nodes) => {
+    for (const node of nodes || []) {
+      const skillId = node.call?.skillId || node.skillId;
+      if (skillId) ids.add(skillId);
+      walk(node.children);
+    }
+  };
+  for (const sentence of doc.sentences || []) {
+    walk(sentence.tree);
+    for (const pass of sentence.passes || []) {
+      const skillId = pass?.call?.skillId || pass?.skillId;
+      if (skillId) ids.add(skillId);
+    }
+    for (const work of Object.values(sentence._work || {})) {
+      walk(work?.tree);
+      for (const pass of work?.passes || []) {
+        const skillId = pass?.call?.skillId || pass?.skillId;
+        if (skillId) ids.add(skillId);
+      }
+    }
+  }
+  return ids;
 }

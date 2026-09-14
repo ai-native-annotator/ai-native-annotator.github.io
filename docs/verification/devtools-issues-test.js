@@ -20,14 +20,13 @@
  * the page in the Issues panel even though the page never made them. A clean
  * profile (as here, and as an incognito window) is how you tell them apart.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/devtools-issues-test.js
+ * Run: npm run test:browser -- devtools-issues-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' });
   const issues = [];
   const errs = [];

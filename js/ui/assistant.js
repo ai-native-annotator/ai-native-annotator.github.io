@@ -87,14 +87,17 @@ function amendmentBox(def) {
   // is the exact string chat.js hands addAmendment and pipeline.js fetches, so
   // this must use it verbatim — prefixing again would look right and match
   // nothing, which is how the replay index broke.
-  const text = def?.file ? getOverride(def.file) : '';
+  const text = def?.file ? getOverride(def.file, def.skillId) : '';
   if (!text) return null;
   return el('div', { class: 'amendment' },
     el('div', { class: 'amendment-head' },
       el('span', { class: 'amendment-badge' }, t('skills.liveBadge')),
       el('button', {
         class: 'btn sm ghost',
-        onclick: () => { clearOverride(def.file); toast(t('skills.revertedToast')); },
+        onclick: async () => {
+          await clearOverride(def.file, def.skillId);
+          toast(t('skills.revertedToast'));
+        },
       }, t('assist.revert'))),
     el('pre', { class: 'amendment-text' }, text),
     el('div', { class: 'hint' }, t('skills.liveHint')));
@@ -173,7 +176,8 @@ function editor(path, node, def) {
     // The correction itself is evidence about the skill that produced it. It
     // is filed, not applied — see core/reflection.js.
     record({
-      skill: node.skill, file: def?.file, kind: 'edit',
+      skill: node.skill, skillId: def?.skillId || node.skillId, file: def?.file, kind: 'edit',
+      callId: node.callId || node.call?.id, revisionId: node.revisionId || node.call?.revisionId,
       sentenceIndex: state.selectedSentence, path, span: node.span,
       before: previous, after: output,
       reason: '', detail: t('reflect.fromEditor'),

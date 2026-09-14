@@ -17,12 +17,11 @@
  *   5. a document that ships with a recorded annotation still opens in the
  *      method that produced it.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/format-switch-test.js
+ * Run: npm run test:browser -- format-switch-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 
 const S1 = 'The museum opened a new exhibit last week.';
@@ -35,7 +34,7 @@ const check = (label, ok, extra = '') => {
 };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1700, height: 1000 }, locale: 'zh-CN' });
   const errs = [];
   page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });

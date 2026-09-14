@@ -28,17 +28,43 @@ import { runUserCode, sandboxAvailable } from './sandbox.js';
 const STORE_KEY = 'annotator_importers';
 const ENTRY = 'parse';
 
+/** A configured reader failed; callers must surface this instead of falling back. */
+export class ImporterExecutionError extends Error {
+  constructor(formatId, cause) {
+    super(t('imp.failed', { err: cause?.message || String(cause) }), { cause });
+    this.name = 'ImporterExecutionError';
+    this.code = 'IMPORTER_EXECUTION_FAILED';
+    this.formatId = formatId;
+  }
+}
+
 /** Readers that ship with the app. `file` is fetched, shown, and run as-is. */
 export const BUILTIN = [
-  { id: 'plain-text', file: 'importers/plain-text.js', get label() { return t('imp.plainText'); } },
-  { id: 'conllu', file: 'importers/conllu.js', get label() { return t('imp.conllu'); } },
+  {
+    id: 'plain-text',
+    file: 'importers/plain-text.js',
+    get label() {
+      return t('imp.plainText');
+    },
+  },
+  {
+    id: 'conllu',
+    file: 'importers/conllu.js',
+    get label() {
+      return t('imp.conllu');
+    },
+  },
 ];
 
-const sourceCache = new Map();          // file -> text
-let custom = load();                    // formatId -> {name, source, updatedAt}
+const sourceCache = new Map(); // file -> text
+let custom = load(); // formatId -> {name, source, updatedAt}
 
 function load() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; }
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+  } catch {
+    return {};
+  }
 }
 function persist() {
   localStorage.setItem(STORE_KEY, JSON.stringify(custom));
@@ -55,10 +81,16 @@ export async function builtinSource(file) {
 
 /* ------------------------------------------------------------ per format */
 
-export function getImporter(formatId) { return custom[formatId] || null; }
+export function getImporter(formatId) {
+  return custom[formatId] || null;
+}
 
 export function setImporter(formatId, source, name = '') {
-  custom[formatId] = { name: name || t('imp.customName'), source, updatedAt: new Date().toISOString() };
+  custom[formatId] = {
+    name: name || t('imp.customName'),
+    source,
+    updatedAt: new Date().toISOString(),
+  };
   persist();
   logInfo('importers', t('imp.saved', { format: formatId }));
   set({}, 'importers');
@@ -69,6 +101,15 @@ export function clearImporter(formatId) {
   persist();
   logInfo('importers', t('imp.cleared', { format: formatId }));
   set({}, 'importers');
+}
+
+/** Serializable reader sources for a document snapshot; never auto-executed. */
+export function exportImporterArtifacts(formatIds = null) {
+  if (formatIds === null) return structuredClone(custom);
+  const selected = new Set(formatIds);
+  return structuredClone(
+    Object.fromEntries(Object.entries(custom).filter(([formatId]) => selected.has(formatId))),
+  );
 }
 
 /* --------------------------------------------------------------- running */
@@ -83,11 +124,18 @@ export function clearImporter(formatId) {
 export async function importWith(formatId, text, filename) {
   const importer = custom[formatId];
   if (!importer?.source) return null;
-  if (!sandboxAvailable()) throw new Error(t('sandbox.unavailable', { err: 'Worker' }));
-  const raw = await runUserCode(importer.source, ENTRY, [text, filename]);
-  const doc = normalizeImported(raw, filename, text);
-  logInfo('importers', t('imp.used', { format: formatId, n: doc.sentences.length }));
-  return doc;
+  try {
+    if (!sandboxAvailable()) throw new Error(t('sandbox.unavailable', { err: 'Worker' }));
+    const raw = await runUserCode(importer.source, ENTRY, [text, filename]);
+    const doc = normalizeImported(raw, filename, text);
+    logInfo('importers', t('imp.used', { format: formatId, n: doc.sentences.length }));
+    return doc;
+  } catch (cause) {
+    const error =
+      cause instanceof ImporterExecutionError ? cause : new ImporterExecutionError(formatId, cause);
+    logWarn('importers', error.message);
+    throw error;
+  }
 }
 
 /** Run a reader without adopting it, so the editor can show what it would do. */
@@ -109,16 +157,19 @@ export function normalizeImported(raw, filename, sourceText = '') {
   const list = Array.isArray(raw) ? raw : raw.sentences;
   if (!Array.isArray(list)) throw new Error(t('imp.noSentences'));
 
-  const sentences = list.map((s, i) => {
-    const item = typeof s === 'string' ? { text: s } : (s || {});
-    const text = String(item.text ?? '').trim();
-    return {
-      ...item,
-      index: Number.isFinite(item.index) ? item.index : i + 1,
-      text,
-      tokens: Array.isArray(item.tokens) && item.tokens.length ? item.tokens : defaultTokens(text),
-    };
-  }).filter((s) => s.text);
+  const sentences = list
+    .map((s, i) => {
+      const item = typeof s === 'string' ? { text: s } : s || {};
+      const text = String(item.text ?? '').trim();
+      return {
+        ...item,
+        index: Number.isFinite(item.index) ? item.index : i + 1,
+        text,
+        tokens:
+          Array.isArray(item.tokens) && item.tokens.length ? item.tokens : defaultTokens(text),
+      };
+    })
+    .filter((s) => s.text);
 
   if (!sentences.length) throw new Error(t('imp.empty'));
   const base = Array.isArray(raw) ? {} : raw;

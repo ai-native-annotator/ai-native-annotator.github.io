@@ -7,7 +7,7 @@
  * real skill files — not tuned to make coverage look good. Whatever the
  * back-check finds, it finds.
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const fs = require('fs');
 const BASE = 'http://localhost:8899';
@@ -144,7 +144,7 @@ function reentrancyAnswer(prompt) {
 }
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 }, locale: 'zh-CN' })   // selects on Chinese UI text;
   const consoleErrors = [];
   page.on('console', (m) => { if (m.type() === 'error') consoleErrors.push(m.text()); });

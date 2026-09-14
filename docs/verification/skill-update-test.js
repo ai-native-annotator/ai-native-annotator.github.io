@@ -10,12 +10,11 @@
  * amendment, and a human applies it (see reflection-test.js for why). So this
  * walks that whole road and then asks the same question at the end of it.
  *
- * Run: NODE_PATH=<playwright> node docs/verification/skill-update-test.js
+ * Run: npm run test:browser -- skill-update-test.js
  */
-const { chromium } = require('playwright');
+const { launchBrowser } = require('./_browser');
 const { promptOf } = require('./_prompt.js');
 const BASE = process.env.BASE || 'http://localhost:8899';
-const CHROME = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const body = (o) => JSON.stringify({ content: [{ type: 'text', text: typeof o === 'string' ? o : JSON.stringify(o) }] });
 
 const S1 = 'The telescope was launched as planned on 30 August 2026 at 11:26 UTC.';
@@ -25,7 +24,7 @@ let pass = 0, fail = 0;
 const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`); };
 
 (async () => {
-  const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+  const browser = await launchBrowser();
   const page = await browser.newPage({ viewport: { width: 1700, height: 1000 }, locale: 'zh-CN' });
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

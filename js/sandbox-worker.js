@@ -27,7 +27,6 @@ for (const name of ['fetch', 'XMLHttpRequest', 'WebSocket', 'importScripts', 'in
 self.onmessage = (e) => {
   const { source, entry, args } = e.data || {};
   try {
-    // eslint-disable-next-line no-new-func
     const module = new Function(`"use strict";\n${source}\nreturn typeof ${entry} === 'function' ? ${entry} : undefined;`)();
     if (typeof module !== 'function') {
       throw new Error(`the code does not define a function called ${entry}()`);

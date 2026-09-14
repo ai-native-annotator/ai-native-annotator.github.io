@@ -15,7 +15,7 @@ import { t } from '../core/i18n.js';
 
 const SKILL_IDS = ['polarity', 'aspect', 'intensity'];
 const SKILLS = () => SKILL_IDS.map((id) => defineSkill({
-  id, label: t(`skill.${id}`), file: `skills/sentiment/${id}.md`,
+  id, namespace: 'sentiment', label: t(`skill.${id}`), file: `skills/sentiment/${id}.md`,
   describes: t(`desc.${id}`), serial: id === 'aspect',
 }));
 
