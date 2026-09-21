@@ -79,6 +79,32 @@ test('index.html has unique ids and valid local scripts and stylesheets', async 
   assert.deepEqual(missing, []);
 });
 
+test('the host is told not to run Jekyll over the site', async () => {
+  // GitHub Pages runs Jekyll unless a `.nojekyll` file says otherwise, and
+  // Jekyll drops every path whose name starts with "_". Two of ours do:
+  // js/domain/_value.js, which eight modules import, and
+  // data/skills/shared/_node_schema.md, which four prompts include. A 404
+  // anywhere in an ES module graph fails the whole graph, so the deployed site
+  // served its static layout and ran no JavaScript at all — while every local
+  // check passed, because serve.py hands over the underscore files happily.
+  assert.ok(
+    await isFile(join(root, '.nojekyll')),
+    '.nojekyll is missing: the deployed site will 404 every "_"-prefixed path',
+  );
+
+  // If that file is ever lost, these are the paths that take the site down
+  // with it. Listing them keeps the cost of removing it visible.
+  const atRisk = (await walk(join(root, 'js')))
+    .concat(await walk(join(root, 'data')))
+    .map((file) => file.slice(root.length + 1))
+    .filter((path) => path.split('/').some((segment) => segment.startsWith('_')));
+  assert.deepEqual(
+    atRisk.sort(),
+    ['data/skills/shared/_node_schema.md', 'js/domain/_value.js'],
+    'a new "_"-prefixed runtime path appeared; keep .nojekyll and update this list',
+  );
+});
+
 test('browser verification does not depend on a machine-specific module path', async () => {
   const readme = await readFile(join(root, 'docs', 'verification', 'README.md'), 'utf8');
   assert.doesNotMatch(readme, /NODE_PATH\s*=|npm root -g/);

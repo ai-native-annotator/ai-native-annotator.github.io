@@ -137,9 +137,26 @@ and look at _Source location_; check `chrome://policy` for an enterprise policy.
 
 ## Deploying
 
-**Settings → Pages → Source = "GitHub Actions"** has to be done once by someone with admin rights;
-until then the URL 404s no matter how many times you push. After that, pushing to the default branch
-triggers `.github/workflows/pages.yml`.
+Pushing to the default branch deploys. Two things about GitHub Pages have already bitten this
+project, so they are worth stating:
+
+- **`.nojekyll` is load-bearing.** While Pages is set to deploy _from a branch_, GitHub runs its own
+  Jekyll build over the repository, and Jekyll silently drops every path whose name starts with `_`.
+  Two of ours do — `js/domain/_value.js`, which eight modules import, and
+  `data/skills/shared/_node_schema.md`, which four prompts include. A 404 anywhere in an ES module
+  graph fails the **whole** graph, so the site served its static layout and ran no JavaScript at all
+  while every local check passed. `.nojekyll` turns that build off.
+- **Check the deploy, not just the checkout.** Everything else here runs against `serve.py`, which
+  serves the working tree exactly as it is; a host does not have to.
+
+```bash
+npm run check:deploy      # walks the live module graph and reports anything the host won't serve
+```
+
+Setting **Settings → Pages → Source = "GitHub Actions"** makes `.github/workflows/pages.yml` the
+only publisher and removes the Jekyll build from the picture entirely. Until someone with admin
+rights does that, GitHub's automatic `pages build and deployment` also runs on every push and
+whichever finishes last wins.
 
 ---
 

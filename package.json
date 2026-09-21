@@ -8,6 +8,7 @@
     "test": "node scripts/run-node-tests.mjs",
     "test:browser": "node scripts/run-verification.mjs",
     "test:browser:smoke": "node scripts/run-verification.mjs boot-banner-test.js provider-test.js pipeline-test.js",
+    "check:deploy": "node scripts/check-deploy.mjs",
     "lint": "eslint js docs/verification scripts test",
     "typecheck": "tsc --project jsconfig.json",
     "format": "prettier --write package.json jsconfig.json eslint.config.mjs scripts test .github README.md docs/ARCHITECTURE.md docs/verification/README.md js/domain js/application js/adapters js/io/document-format.js js/core/importers.js js/ui/importer-panel.js",
