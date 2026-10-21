@@ -1,6 +1,6 @@
 /* global importScripts, loadPyodide */
 /**
- * The Python side of skillparse.html, in a Web Worker.
+ * The Python side of index.html, in a Web Worker.
  *
  * Loads Pyodide, writes SkillParseUMR's files (data/skillparse/MANIFEST.json) into its
  * file system under /sp, unpacks the vendored jieba and penman, and answers

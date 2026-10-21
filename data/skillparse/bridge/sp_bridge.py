@@ -1,4 +1,4 @@
-"""The Python half of skillparse.html: SkillParseUMR's skills, run one node at a time.
+"""The Python half of index.html: SkillParseUMR's skills, run one node at a time.
 
 Everything under /sp/skillparseumr and /sp/modular-parsing is the SkillParseUMR (and
 modular-parsing) source as it is on disk, copied by scripts/sync_skillparse.py and not

@@ -3,86 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
 <title>SkillParse Workbench</title>
-<meta name="description" content="Run SkillParseUMR's Jev and Haiku UMR skills step by step in the browser, correct any step, and have the skills fixed from your corrections.">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>◧</text></svg>">
-<link rel="stylesheet" href="css/skillparse.css">
+<meta http-equiv="refresh" content="0; url=index.html">
+<link rel="canonical" href="index.html">
 </head>
 <body>
-
-<div id="boot-error" class="boot-error" role="alert">
-  <strong>The page did not start · 页面没有启动</strong>
-  <span>Open it through a web server (<code>npm run serve</code>), not as a file. · 请通过本地服务器打开（<code>npm run serve</code>），不要双击文件。</span>
-</div>
-
-<header class="toolbar">
-  <a class="brand" href="index.html" data-i18n-title="back"><span class="logo">◧</span><span data-i18n="title">SkillParse</span></a>
-
-  <label class="ctl"><span data-i18n="skillset">Skills</span>
-    <select id="skillset"></select>
-  </label>
-  <label class="ctl"><span data-i18n="document">Document</span>
-    <select id="doc"></select>
-  </label>
-  <button id="btn-import" class="btn ghost sm" data-i18n="import">Import…</button>
-
-  <div class="spacer"></div>
-  <span id="status" class="status" aria-live="polite"></span>
-  <button id="btn-stop" class="btn danger sm" hidden data-i18n="stop">Stop</button>
-
-  <div class="menu-wrap">
-    <button id="btn-export" class="btn ghost sm" data-i18n="export">Export ▾</button>
-    <div id="menu-export" class="menu" hidden>
-      <button data-export="umr" data-i18n="exportUmr">.umr file (alignment filled in)</button>
-      <button data-export="umr-raw" data-i18n="exportUmrRaw">.umr file (alignment as produced)</button>
-      <button data-export="json" data-i18n="exportJson">Work record (JSON)</button>
-      <button data-export="skills" data-i18n="exportSkills">Edited skill files (JSON)</button>
-    </div>
-  </div>
-  <button id="btn-lang" class="btn ghost sm">EN</button>
-  <button id="btn-settings" class="btn ghost sm icon" data-i18n-title="settings" title="Settings">⚙</button>
-</header>
-
-<main class="workspace">
-  <section class="pane" id="pane-context" aria-labelledby="h-context">
-    <h2 id="h-context" class="pane-head"><span data-i18n="context">Context</span><small data-i18n="contextGloss">waves · for_each · windows</small></h2>
-    <div class="pane-body" id="context"></div>
-  </section>
-
-  <section class="pane" id="pane-skills" aria-labelledby="h-skills">
-    <h2 id="h-skills" class="pane-head"><span data-i18n="skills">Skills</span><small data-i18n="skillsGloss">registry</small></h2>
-    <div class="pane-body" id="skills"></div>
-  </section>
-
-  <section class="pane pane-work" aria-labelledby="h-output">
-    <div class="work-top">
-      <h2 id="h-output" class="pane-head"><span data-i18n="generated">Generated</span><small id="node-title"></small></h2>
-      <div class="tabs" id="out-tabs" role="tablist"></div>
-      <div class="pane-body" id="output"></div>
-    </div>
-    <div class="work-bottom">
-      <h2 class="pane-head"><span data-i18n="steps">Steps</span><small data-i18n="stepsGloss">click a step to run or inspect it</small></h2>
-      <div class="run-bar" id="run-bar"></div>
-      <div class="pane-body" id="tree"></div>
-    </div>
-  </section>
-
-  <section class="pane" id="pane-ai" aria-labelledby="h-ai">
-    <h2 id="h-ai" class="pane-head"><span data-i18n="ai">AI</span><small data-i18n="aiGloss">reflect on this step</small></h2>
-    <div class="pane-body" id="ai"></div>
-  </section>
-</main>
-
-<div id="modal" class="modal" hidden>
-  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
-    <div class="modal-head"><h3 id="modal-title"></h3><button id="modal-close" class="btn ghost sm" data-i18n="close">Close</button></div>
-    <div class="modal-body" id="modal-body"></div>
-  </div>
-</div>
-<div id="toast" class="toast" role="status"></div>
-<input id="file-input" type="file" accept=".txt,.umr,text/plain" hidden>
-
-<script type="module" src="js/skillparse/app.js"></script>
+<p>SkillParse 工作台已经搬到首页 · The SkillParse workbench is now the front page: <a href="index.html">index.html</a></p>
 </body>
 </html>

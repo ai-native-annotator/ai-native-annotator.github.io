@@ -1,5 +1,5 @@
 /**
- * Model calls for skillparse.html: the LLM steps (Haiku harness, agent skills, reflection),
+ * Model calls for index.html: the LLM steps (Haiku harness, agent skills, reflection),
  * and the three ways a Jev question gets answered.
  *
  * Keys are read from the same localStorage entry as the main workbench

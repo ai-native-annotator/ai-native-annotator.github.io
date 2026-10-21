@@ -13,7 +13,7 @@
  * there.
  *
  * So this check asks the only question that matters after a deploy: walk the
- * module graph from index.html, fetch every module and every data file the
+ * module graph from index.html and classic.html, fetch every module and every data file the
  * code names, and report anything the host will not hand over.
  *
  *   node scripts/check-deploy.mjs                       # the public site
@@ -63,8 +63,8 @@ function enqueue(path) {
 async function main() {
   console.log(`checking ${BASE}`);
   enqueue('index.html');
-  enqueue('skillparse.html');
-  // skillparse.html's worker fetches the Python sources listed in this manifest
+  enqueue('classic.html');
+  // index.html's worker fetches the Python sources listed in this manifest
   enqueue('js/skillparse/py-worker.js');
   enqueue('data/skillparse/MANIFEST.json');
 

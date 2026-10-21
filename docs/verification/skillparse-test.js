@@ -1,5 +1,5 @@
 /**
- * skillparse.html: SkillParseUMR's skills run in the browser, step by step.
+ * index.html (SkillParse): SkillParseUMR's skills run in the browser, step by step.
  *
  * The page boots Pyodide from the CDN, so this test needs the network for that
  * (not for any model: Anthropic is answered by a stand-in below). It walks the
@@ -81,7 +81,7 @@ const statusIs = (page, re, timeout = 120000) =>
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
 
-  await page.goto(`${BASE}/skillparse.html`);
+  await page.goto(`${BASE}/index.html`);
   await statusIs(page, /就绪/);
   check('Python boots and the Jev skills open', (await page.$$('.skill')).length >= 9);
   check('the registry\'s three waves are shown', (await page.$$('.wave-tab')).length === 3);

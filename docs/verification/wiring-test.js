@@ -8,7 +8,7 @@
  * looked fine and the console was empty. That is the bug this pins.
  *
  * Simulated the way it actually happens in the wild: a browser holding a
- * cached index.html that predates a button the current js/app.js expects.
+ * cached classic.html that predates a button the current js/app.js expects.
  *
  * Run: npm run test:browser -- wiring-test.js
  */
@@ -21,19 +21,19 @@ const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`
   const browser = await launchBrowser();
 
   for (const missing of ['btn-drive-demo-wiki', 'btn-export', 'format-select']) {
-    console.log(`\n--- index.html missing #${missing} (stale-cache simulation) ---`);
+    console.log(`\n--- classic.html missing #${missing} (stale-cache simulation) ---`);
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
     const errs = [];
     page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
 
-    await page.route(BASE + '/index.html', async (route) => {
+    await page.route(BASE + '/classic.html', async (route) => {
       const res = await route.fetch();
       let html = await res.text();
       html = html.replace(new RegExp(`<(button|select)[^>]*id="${missing}"[\\s\\S]*?</\\1>`), '');
       await route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html });
     });
 
-    await page.goto(BASE + '/index.html', { waitUntil: 'networkidle' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'networkidle' });
     await page.waitForTimeout(1000);
 
     check('the element really is gone', !(await page.$(`#${missing}`)));
@@ -56,7 +56,7 @@ const check = (label, ok, extra = '') => { (ok ? pass++ : fail++); console.log(`
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
   const errs = [];
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
-  await page.goto(BASE + '/index.html', { waitUntil: 'networkidle' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'networkidle' });
   await page.waitForTimeout(900);
   await page.click('#btn-log'); await page.waitForTimeout(300);
   const log = await page.textContent('#log-panel-body');

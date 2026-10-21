@@ -60,7 +60,7 @@ const check = (label, ok, extra = '') => {
     return reply({ concept: 'thing', relations: [] });
   });
 
-  await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
   await page.waitForTimeout(900);
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'load' });

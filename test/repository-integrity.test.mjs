@@ -63,21 +63,23 @@ test('demo manifest entries point to matching, well-sized documents', async () =
   }
 });
 
-test('index.html has unique ids and valid local scripts and stylesheets', async () => {
-  const html = await readFile(join(root, 'index.html'), 'utf8');
-  const ids = [...html.matchAll(/\sid=['"]([^'"]+)['"]/g)].map((match) => match[1]);
-  const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-  assert.deepEqual([...new Set(duplicates)], []);
+for (const page of ['index.html', 'classic.html']) {
+  test(`${page} has unique ids and valid local scripts and stylesheets`, async () => {
+    const html = await readFile(join(root, page), 'utf8');
+    const ids = [...html.matchAll(/\sid=['"]([^'"]+)['"]/g)].map((match) => match[1]);
+    const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+    assert.deepEqual([...new Set(duplicates)], []);
 
-  const resources = [...html.matchAll(/<(?:script|link)\b[^>]+(?:src|href)=['"]([^'"]+)['"]/g)]
-    .map((match) => match[1])
-    .filter((path) => !/^(?:data:|https?:|\/\/|#)/.test(path));
-  const missing = [];
-  for (const resource of resources) {
-    if (!(await isFile(join(root, resource)))) missing.push(resource);
-  }
-  assert.deepEqual(missing, []);
-});
+    const resources = [...html.matchAll(/<(?:script|link)\b[^>]+(?:src|href)=['"]([^'"]+)['"]/g)]
+      .map((match) => match[1])
+      .filter((path) => !/^(?:data:|https?:|\/\/|#)/.test(path));
+    const missing = [];
+    for (const resource of resources) {
+      if (!(await isFile(join(root, resource)))) missing.push(resource);
+    }
+    assert.deepEqual(missing, []);
+  });
+}
 
 test('the host is told not to run Jekyll over the site', async () => {
   // GitHub Pages runs Jekyll unless a `.nojekyll` file says otherwise, and
@@ -95,7 +97,7 @@ test('the host is told not to run Jekyll over the site', async () => {
   // If that file is ever lost, these are the paths that take the site down
   // with it. Listing them keeps the cost of removing it visible. The two
   // __init__.py files are SkillParseUMR's Python packages, which the
-  // skillparse.html worker fetches; a 404 there stops Python from booting.
+  // index.html worker fetches; a 404 there stops Python from booting.
   const atRisk = (await walk(join(root, 'js')))
     .concat(await walk(join(root, 'data')))
     .map((file) => file.slice(root.length + 1))

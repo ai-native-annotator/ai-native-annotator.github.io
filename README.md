@@ -4,15 +4,17 @@ A workbench for structured annotation — UMR, dependency-style graphs, sentimen
 define — where **the method is a set of skills you can read, edit, and argue with.** Static site:
 no backend, no build step, no account. Your model key stays in your browser.
 
-→ **[ai-native-annotator.github.io](https://ai-native-annotator.github.io/)**
+→ **[ai-native-annotator.github.io](https://ai-native-annotator.github.io/)** — the front page is the
+**SkillParse workbench** (below); the earlier workbench described in the rest of this file is at
+[`classic.html`](https://ai-native-annotator.github.io/classic.html).
 
 ## Run it locally
 
 ```bash
-npm run serve     # then open http://localhost:8899/
+npm run serve     # then open http://localhost:8899/ (SkillParse) or /classic.html
 ```
 
-**Do not double-click `index.html`.** The code is ES modules, and over `file://` the browser
+**Do not double-click the HTML files.** The code is ES modules, and over `file://` the browser
 refuses to load anything under `js/` on CORS grounds. The page still draws, so it looks like it
 works — but not one line of JavaScript has run, and every button is dead. A red banner at the top
 says so when that happens.
@@ -80,9 +82,9 @@ every version remains auditable and reversible.
 Authored code runs in a Web Worker with no DOM, no storage, no network and a deadline. The page
 itself never evaluates a string.
 
-## SkillParse steps (`skillparse.html`)
+## SkillParse steps (`index.html`, the front page)
 
-A second page runs **SkillParseUMR's own skills** — the Jev skills (`rsi-jev2` K4) and the Haiku
+The front page runs **SkillParseUMR's own skills** — the Jev skills (`rsi-jev2` K4) and the Haiku
 harness (AnnoForge H10, Chinese and English) — in the browser, unchanged: the Python files run in
 Pyodide in a Web Worker (`data/skillparse/`, `js/skillparse/`). The layout follows the registry:
 
@@ -114,7 +116,8 @@ There is no server in this project. In live mode your browser calls Anthropic or
 ## Layout
 
 ```
-index.html  css/app.css  serve.py
+index.html  (SkillParse) css/skillparse.css  js/skillparse/  data/skillparse/
+classic.html  css/app.css  serve.py
 js/
   domain/   immutable feedback, Skill revisions, candidates, evaluations, run records
   application/  Skill evolution use cases: propose, evaluate, publish, roll back
@@ -189,7 +192,7 @@ whichever finishes last wins.
 模型 key 只存在你自己的浏览器里。
 
 **本地运行**：`python3 serve.py`，然后打开 `http://localhost:8899/`。
-**不要双击 `index.html`** —— ES module 在 `file://` 下会被浏览器以 CORS 为由全部拒绝加载，页面照样
+**不要双击 HTML 文件** —— ES module 在 `file://` 下会被浏览器以 CORS 为由全部拒绝加载，页面照样
 画得出来，但一行 JS 都没跑，所有按钮都是死的（页面顶部有红色横幅专门说明这件事）。请用仓库自带的
 `serve.py` 而不是 `python3 -m http.server`：区别只有「禁用缓存」一条，但 `git pull` 之后新旧模块
 混用会让整张模块图链接失败，而页面看起来完全正常。
@@ -212,7 +215,7 @@ Skill 修订与调用；审核保留后，AI 自动生成带版本的候选并�
 一步 `validate` 是真的在跑的 JavaScript）。人写的代码在 Web Worker 沙箱里执行 —— 无 DOM、无存储、
 无网络、有超时；页面本身永远不求值字符串。
 
-**SkillParse 逐步标注（`skillparse.html`）**：把 SkillParseUMR 里用 Jev 的 skill（rsi-jev2 K4）和用
+**SkillParse 逐步标注（首页 `index.html`；原来的工作台在 `classic.html`）**：把 SkillParseUMR 里用 Jev 的 skill（rsi-jev2 K4）和用
 Haiku 的 skill（AnnoForge H10，中英文）原样搬到浏览器里跑（Pyodide，Python 文件不改）。界面按 registry
 排：左边是上下文（选 wave 1/2/3、选每个 wave 的 for_each 项、调上下文窗口：一句话还是前五句），然后是
 skill 栏，中间上面是生成内容、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；

@@ -28,7 +28,7 @@ const check = (label, ok, extra = '') => {
     }),
   );
 
-  await page.goto(`${BASE}/index.html`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE}/classic.html`, { waitUntil: 'networkidle' });
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle' });
 

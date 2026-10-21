@@ -1,5 +1,5 @@
 /**
- * skillparse.html: SkillParseUMR's Jev and Haiku skills, run one step at a time in the browser.
+ * index.html: SkillParseUMR's Jev and Haiku skills, run one step at a time in the browser.
  *
  *   py-worker.js  Pyodide with the SkillParseUMR sources (data/skillparse/) and bridge/sp_bridge.py
  *   core.js       state, running steps (Jev rounds, LLM calls with tools), corrections

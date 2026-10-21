@@ -2,7 +2,7 @@
 
     python3 scripts/sync_skillparse.py ../skillparseumr ../modular-parsing [jieba-0.42.1 dir] [penman wheel]
 
-The page (skillparse.html) runs these Python files unchanged in the browser (Pyodide). What is copied:
+The page (index.html) runs these Python files unchanged in the browser (Pyodide). What is copied:
 
   skillparseumr/src/                 registry.py, the UMR input and output handlers, gold.py, timeml.py
   skillparseumr/skillsets/tools/     propbank.py (the shared PropBank lookup)

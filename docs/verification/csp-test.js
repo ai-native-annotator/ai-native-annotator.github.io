@@ -53,7 +53,7 @@ const POLICIES = [
       await route.fulfill({ response: res, headers: { ...res.headers(), 'content-security-policy': pol.csp } });
     });
 
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(4000);
 
     check('boot ran to completion', (await page.evaluate(() => window.__bootStep)) === 'done');
@@ -77,7 +77,7 @@ const POLICIES = [
       const res = await route.fetch();
       await route.fulfill({ response: res, headers: { ...res.headers(), 'content-security-policy': "img-src 'none'" } });
     });
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(1500);
     // Trigger it AFTER load: a violation fired while the document head is
     // still parsing happens before any listener exists, so the earlier

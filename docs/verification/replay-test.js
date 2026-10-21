@@ -30,7 +30,7 @@ const BASE = process.env.BASE || 'http://localhost:8899';
   // replay mode must never touch the network
   await page.route('https://api.anthropic.com/**', (r) => { errs.push('LIVE CALL IN REPLAY MODE'); r.abort(); });
 
-  await page.goto(BASE + '/index.html', { waitUntil: 'networkidle' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'networkidle' });
   await page.waitForTimeout(600);
   console.log('run mode:', await page.inputValue('#mode-select'));
 

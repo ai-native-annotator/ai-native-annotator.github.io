@@ -56,7 +56,7 @@ const G3 = '(s1t / taste-01\n    :ARG0 (s1p / person)\n    :ARG1 (s1f / freedom)
     return reply({ graph: G3, changes: [], note: 'nothing to change' });
   });
 
-  await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
   await page.waitForTimeout(900);
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'load' });
@@ -137,7 +137,7 @@ const G3 = '(s1t / taste-01\n    :ARG0 (s1p / person)\n    :ARG1 (s1f / freedom)
       status: 200, contentType: 'application/json',
       body: body(broken ? { graph: '(((not penman at all', changes: [], note: 'oops' } : { graph: G2, changes: ['drafted'], note: 'draft' }),
     }));
-    await p2.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await p2.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await p2.waitForTimeout(900);
     await p2.click('#btn-settings'); await p2.waitForTimeout(250);
     await (await p2.$$('.provider-row .settings-input[type=password]'))[0].fill('sk-ant-demo');

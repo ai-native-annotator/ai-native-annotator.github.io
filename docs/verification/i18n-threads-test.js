@@ -37,7 +37,7 @@ const S1 = 'The museum opened a new exhibit last week.';
     return route.fulfill({ status: 200, contentType: 'application/json', body: body({ concept: 'thing', relations: [] }) });
   });
 
-  await page.goto(BASE + '/index.html', { waitUntil: 'networkidle' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'networkidle' });
   await page.evaluate(() => { localStorage.clear(); });
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(500);

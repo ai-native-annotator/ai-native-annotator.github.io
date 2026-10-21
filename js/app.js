@@ -33,7 +33,7 @@ const panes = {};
 
 /**
  * Name the step we are about to attempt, on `window` so the plain inline script
- * in index.html can read it without importing anything.
+ * in classic.html can read it without importing anything.
  *
  * "js/app.js did not finish boot()" is barely more useful than silence: it says
  * something broke but not what, and boot can stop for reasons that never reach
@@ -103,7 +103,7 @@ async function boot() {
   if (first) await openDoc(first.id);
   else renderAll();
   // Reaching here is the only proof the app is actually wired up; until now the
-  // page has been showing the boot-failure banner from index.html.
+  // page has been showing the boot-failure banner from classic.html.
   step('done');
   document.getElementById('boot-error')?.remove();
   logInfo('app', t('app.ready'));
@@ -374,7 +374,7 @@ async function importSample(lang) {
  * Attach one handler, and never let a missing element take down the rest.
  *
  * These used to be bare `$('#id').onclick = …` in a row. A single element that
- * was not in the DOM — a stale cached index.html, a hand-edit, a typo — threw
+ * was not in the DOM — a stale cached classic.html, a hand-edit, a typo — threw
  * on that line and every wiring *after* it silently never happened. The
  * language button sits near the end of the list, so the symptom was "the
  * English button does nothing" while the rest of the toolbar looked fine, with

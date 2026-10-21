@@ -167,7 +167,7 @@ function reentrancyAnswer(prompt) {
     await route.fulfill({ status: 200, contentType: 'application/json', body: body(answer) });
   });
 
-  await page.goto(BASE + '/index.html', { waitUntil: 'networkidle' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
 
   // live mode + key

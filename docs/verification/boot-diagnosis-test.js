@@ -34,7 +34,7 @@ const banner = async (page) => {
   console.log('\n--- 1. healthy boot: no banner, nothing to report ---');
   {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
-    await page.goto(BASE + '/index.html', { waitUntil: 'networkidle' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'networkidle' });
     await page.waitForTimeout(5000);          // past the 4s fallback
     check('banner removed', !(await banner(page)));
     check('step reached "done"', (await page.evaluate(() => window.__bootStep)) === 'done');
@@ -45,7 +45,7 @@ const banner = async (page) => {
   {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
     await page.route(BASE + '/js/app.js', (r) => r.abort());
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(5000);
     const b = await banner(page);
     check('banner shown', Boolean(b));
@@ -70,7 +70,7 @@ const banner = async (page) => {
       await r.fulfill({ status: 200, contentType: 'text/javascript',
         body: (await res.text()) + '\nthrow new Error("deliberate module failure");\n' });
     });
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(5500);
     const b = await banner(page);
     check('banner shown', Boolean(b));
@@ -83,7 +83,7 @@ const banner = async (page) => {
   {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
     await page.route(BASE + '/js/core/edits.js', (r) => r.fulfill({ status: 404, body: 'nope' }));
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(5500);
     const b = await banner(page);
     check('banner shown', Boolean(b));
@@ -97,7 +97,7 @@ const banner = async (page) => {
   {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
     await page.route(BASE + '/js/app.js', (r) => r.fulfill({ status: 404, body: 'not found' }));
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(5500);
     const b = await banner(page);
     check('banner shown', Boolean(b));
@@ -116,7 +116,7 @@ const banner = async (page) => {
       const src = (await res.text()).replace(/export const editKey =/, 'const editKey =');
       await r.fulfill({ status: 200, contentType: 'text/javascript', body: src });
     });
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(5500);
     const b = await banner(page);
     check('banner shown', Boolean(b));
@@ -129,7 +129,7 @@ const banner = async (page) => {
   {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
     await page.route('**/data/demo/*.json', (r) => r.fulfill({ status: 404, body: 'nope' }));
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(5500);
     const b = await banner(page);
     // boot survives a missing corpus (it is caught), so the banner should be gone
@@ -145,7 +145,7 @@ const banner = async (page) => {
   {
     const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, locale: 'zh-CN' });
     await page.route('**/data/demo/index.json', () => { /* never fulfilled */ });
-    await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+    await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
     await page.waitForTimeout(6000);
     const b = await banner(page);
     check('banner shown while it hangs', Boolean(b));

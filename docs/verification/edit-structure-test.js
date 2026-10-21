@@ -70,7 +70,7 @@ const check = (label, ok, extra = '') => {
     return reply({ concept: 'thing', relations: [] });
   });
 
-  await page.goto(BASE + '/index.html', { waitUntil: 'networkidle' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'networkidle' });
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'networkidle' });
   await page.waitForTimeout(500);

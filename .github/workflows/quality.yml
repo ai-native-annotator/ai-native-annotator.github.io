@@ -3,7 +3,7 @@ name: Quality
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, claude/ai-annotator-web-full-uzmpyp]
   workflow_dispatch:
 
 permissions:

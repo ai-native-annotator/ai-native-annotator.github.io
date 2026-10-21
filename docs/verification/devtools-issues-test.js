@@ -36,7 +36,7 @@ const BASE = process.env.BASE || 'http://localhost:8899';
   page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
   page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
 
-  await page.goto(BASE + '/index.html', { waitUntil: 'networkidle' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'networkidle' });
   await page.waitForTimeout(1200);
 
   const visit = async (label, fn) => {

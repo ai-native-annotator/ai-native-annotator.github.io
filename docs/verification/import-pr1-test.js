@@ -28,7 +28,7 @@ const check = (label, ok, extra = '') => {
     if (message.type() === 'error') errors.push(message.text());
   });
 
-  await page.goto(BASE + '/index.html', { waitUntil: 'load' });
+  await page.goto(BASE + '/classic.html', { waitUntil: 'load' });
   await page.waitForTimeout(700);
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'load' });

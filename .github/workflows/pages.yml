@@ -4,8 +4,9 @@
 #   Settings -> Pages -> Source = "GitHub Actions"
 # Until that is done this workflow can run but the site stays 404.
 #
-# `main` is the published branch. The earlier default branch,
-# `claude/ai-annotator-web-full-uzmpyp`, is kept as `obsolete`.
+# The site is published from the repository's default branch,
+# `claude/ai-annotator-web-full-uzmpyp`, and `main` carries the same history.
+# The site as it was before the SkillParse front page is kept as `obsolete`.
 #
 # The site is static (no build step) — this just uploads the repo root.
 
@@ -13,7 +14,7 @@ name: Deploy to Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/ai-annotator-web-full-uzmpyp]
   workflow_dispatch:
 
 permissions:

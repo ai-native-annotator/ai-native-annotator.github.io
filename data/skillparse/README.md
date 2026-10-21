@@ -1,4 +1,4 @@
-# data/skillparse — what skillparse.html runs
+# data/skillparse — what index.html runs
 
 Everything under `fs/` is copied, unchanged, by `scripts/sync_skillparse.py` from two private
 repositories, and is written into the browser's Python (Pyodide) file system under `/sp/`:
