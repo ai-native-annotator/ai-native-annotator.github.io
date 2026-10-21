@@ -159,7 +159,7 @@ and look at _Source location_; check `chrome://policy` for an enterprise policy.
 
 ## Deploying
 
-Pushing to the default branch deploys. Two things about GitHub Pages have already bitten this
+Pushing to `main` deploys (the earlier default branch is kept as `obsolete`). Two things about GitHub Pages have already bitten this
 project, so they are worth stating:
 
 - **`.nojekyll` is load-bearing.** While Pages is set to deploy _from a branch_, GitHub runs its own

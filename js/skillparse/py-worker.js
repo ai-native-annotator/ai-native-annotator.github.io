@@ -47,7 +47,7 @@ async function boot(base) {
     py.unpackArchive(buf, 'zip', { extractDir: '/sp/vendor' });
   }
 
-  progress('writing PropBank frame files …');
+  progress('starting the skills …');
   py.runPython('import sys; sys.path.insert(0, "/sp/bridge")');
   const mod = py.pyimport('sp_bridge');
   call = (method, args) => JSON.parse(mod.call(method, JSON.stringify(args || {})));

@@ -11,8 +11,9 @@ The page (skillparse.html) runs these Python files unchanged in the browser (Pyo
   skillparseumr/experiment/annoforge/af/   umr.py bench.py tml.py resources.py (what a harness step sees)
 
 The RSI code itself is not copied. PropBank (modular-parsing/resources) is 24,521 + 5,618 XML files;
-they become two JSON files that the page writes back out as small XML files in the browser, so
-propbank.py and the harness tools read them exactly as on disk. jieba is trimmed to what the Jev
+each folder becomes one merged JSON file, and the two modules that read those folders
+(skillsets/tools/propbank.py, af/resources.py) are replaced by the versions in
+data/skillparse/overrides/, which read the merged files and return the same answers. jieba is trimmed to what the Jev
 skills import (the dictionary, finalseg, posseg) and zipped.
 """
 import json
@@ -47,10 +48,14 @@ MP_FILES = [
     "resources/Attribute_Values.csv", "resources/SP_and_Discourse.csv",
     "resources/english-propbank/propbank-amr-frame-arg-descr.txt",
 ]
+# a folder of one XML file per lemma -> one merged JSON file next to it
 PROPBANK = {
-    "resources/propbank-zh.json": "resources/chinese-propbank",
-    "resources/propbank-en.json": "resources/english-propbank/propbank-amr-frames-xml-2018-01-25",
+    "resources/chinese-propbank.json": "resources/chinese-propbank",
+    "resources/english-propbank/propbank-amr-frames-xml-2018-01-25.json":
+        "resources/english-propbank/propbank-amr-frames-xml-2018-01-25",
 }
+# files changed here to read the merged PropBank files (copied over the originals)
+OVERRIDES = os.path.join(OUT, "overrides")
 # sample documents: the sentences only (header-only .umr: snt, Index, Words), no gold
 DOCS = {"chinese_umr-0021": "newdata/chinese_umr-0021.umr", "english_umr-0003": "olddata/gold/en/english_umr-0003.umr"}
 RULE = "#" * 80
@@ -107,6 +112,12 @@ def main(sp, mp, jieba_dir=None, penman_whl=None):
                     copy(sp, os.path.relpath(os.path.join(base, f), sp), os.path.join(FS, "skillparseumr"))
     for rel in MP_FILES:
         copy(mp, rel, os.path.join(FS, "modular-parsing"))
+    for base, _, names in os.walk(OVERRIDES):
+        for n in names:
+            src = os.path.join(base, n)
+            dst = os.path.join(FS, os.path.relpath(src, OVERRIDES))
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copyfile(src, dst)
     for rel, folder in PROPBANK.items():
         path = os.path.join(FS, "modular-parsing", rel)
         with open(path, "w", encoding="utf-8") as f:

@@ -10,7 +10,14 @@ repositories, and is written into the browser's Python (Pyodide) file system und
 | `fs/skillparseumr/experiment/annoforge/harness/umr-{zh,en}/HH/H10/` | 〃 | **the Haiku harness** after 10 RSI rounds: `generate` / `critique` / `finalize` skills, rule steps, lookup tools |
 | `fs/skillparseumr/experiment/annoforge/af/` | 〃 | `umr.py`, `bench.py` (+ `tml.py`, `resources.py`): what a harness step sees and how its answer is read |
 | `fs/skillparseumr/skillsets/tools/propbank.py` | 〃 | the shared PropBank lookup |
-| `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV), English PropBank arg descriptions, and PropBank frames as two JSON files (`propbank-zh.json`, `propbank-en.json`) that `bridge/sp_bridge.py` writes back out as one XML file per lemma, so the tools read them as on disk |
+| `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV), English PropBank arg descriptions, and the PropBank frames: each folder of one XML file per lemma (24,521 Chinese, 5,618 English) merged into one JSON file, `chinese-propbank.json` and `english-propbank/propbank-amr-frames-xml-2018-01-25.json` |
+
+Two copied files are changed, and only to read the merged PropBank files (`overrides/`, copied over
+the originals by the sync script): `skillsets/tools/propbank.py` (`propbank_lookup`) and
+`experiment/annoforge/af/resources.py` (what the harness tools `lookup_frame` / `roleset_lookup` read;
+a `propbank-zh/<lemma>.xml` path is served out of the merged file as the same XML text, so the
+tools themselves are unchanged). Their answers are identical to the originals for every Chinese
+lemma and for samples of 3,000 / 1,500 lemmas through the two harness tools.
 
 The RSI code (reflection rounds, judges, scoring) is not copied: the page's own reflection is
 per step and human-driven (see `js/skillparse/reflect.js`).

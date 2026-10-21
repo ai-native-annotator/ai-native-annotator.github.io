@@ -10,11 +10,16 @@ skillset keeps it in its own tools/).
 The PropBank files are not in this repository. They are found under
 $PROPBANK_DIR, else in resources/ or modular-parsing/resources/ in or next to
 any directory above this file (the repository, or a copied skillset in it).
+
+ai-native-annotator.github.io: chinese-propbank/ (24,521 XML files) is one merged
+file, chinese-propbank.json ({lemma: [[roleset id, name, [[n, descr], ...]], ...]},
+made by scripts/sync_skillparse.py); the lookup reads it instead of a file per lemma
+and returns the same rolesets.
 """
 import functools
+import json
 import os
 import re
-import xml.etree.ElementTree as ET
 
 _CANDIDATES = [os.environ.get("PROPBANK_DIR", "")]
 _d = os.path.dirname(os.path.abspath(__file__))
@@ -98,20 +103,18 @@ def _english():
     return index
 
 
-def _lookup_zh(lemma):
-    # the lemma comes from the model and becomes part of a file path
-    if "/" in lemma or "\\" in lemma or ".." in lemma or lemma.startswith("."):
-        return []
-    path = os.path.join(_resources(), "chinese-propbank", lemma + ".xml")
+@functools.lru_cache(maxsize=1)
+def _chinese():
+    path = os.path.join(_resources(), "chinese-propbank.json")
     if not os.path.exists(path):
-        return []
-    try:
-        root = ET.parse(path).getroot()
-    except ET.ParseError:
-        return []
+        return {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _lookup_zh(lemma):
     out = []
-    for roleset in root.iter("roleset"):
-        roles = {"ARG" + r.get("n"): r.get("descr", "") for r in roleset.iter("role") if r.get("n")}
-        out.append({"roleset": roleset.get("id", "").replace(".", "-"), "name": roleset.get("name", ""),
-                    "roles": roles})
+    for rid, name, roles in _chinese().get(lemma, []):
+        out.append({"roleset": rid.replace(".", "-"), "name": name,
+                    "roles": {"ARG" + n: d for n, d in roles if n}})
     return out

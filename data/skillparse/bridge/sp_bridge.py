@@ -23,7 +23,6 @@ Two engines, one shape (waves -> for_each items = episodes -> nodes):
 The page calls `call(method, json_args)` and gets JSON back; see `Session` for the methods.
 """
 import dataclasses
-import html
 import importlib.util
 import inspect
 import json
@@ -55,32 +54,6 @@ RULE80 = "#" * 80
 
 
 # ------------------------------------------------------------------ setup
-
-def materialize_propbank():
-    """Write the PropBank JSON back out as one small XML file per lemma, where
-    propbank.py and the harness tools look for them (they read files, not JSON)."""
-    done = []
-    for name, folder in (("propbank-zh.json", "chinese-propbank"),
-                         ("propbank-en.json", "english-propbank/propbank-amr-frames-xml-2018-01-25")):
-        src = os.path.join(MP, "resources", name)
-        dst = os.path.join(MP, "resources", folder)
-        if os.path.isdir(dst) or not os.path.exists(src):
-            continue
-        os.makedirs(dst)
-        with open(src, encoding="utf-8") as f:
-            data = json.load(f)
-        for lemma, rolesets in data.items():
-            parts = ['<frameset>']
-            for rid, rname, roles in rolesets:
-                parts.append('<roleset id="%s" name="%s">' % (html.escape(rid), html.escape(rname)))
-                parts += ['<role n="%s" descr="%s"/>' % (html.escape(n), html.escape(d)) for n, d in roles]
-                parts.append('</roleset>')
-            parts.append('</frameset>')
-            with open(os.path.join(dst, lemma + ".xml"), "w", encoding="utf-8") as f:
-                f.write("".join(parts))
-        done.append((folder, len(data)))
-    return done
-
 
 def jsonable(x):
     """Annotations, sentences, tuples, sets -> plain JSON values."""
@@ -1077,6 +1050,8 @@ class HarnessEngine:
             if f is not None:
                 preds[self._index(i)] = f["after_parsed"]
         text = umr.render_pred(self.doc, None, preds)
+        if self.doc["lang"] == "zh":
+            text = char_alignment(text)
         added = []
         if auto_align:
             text, added = auto_align_umr(text, self.doc["lang"])
@@ -1150,6 +1125,40 @@ def auto_align_umr(text, lang):
     return RULE80.join(out), added
 
 
+def char_alignment(text):
+    """A Chinese .umr whose Words: are jieba (or gold) words, renumbered one token per character,
+    as the input handler tokenises (a run of Latin letters or digits stays one token): the
+    Index / Words lines become characters and every alignment `start-end` in words becomes the
+    span of those words' characters. 0-0 stays 0-0."""
+    from input_handler.umrinputhandler import tokenize
+    from output_handler.umroutputhandler import _index_words
+    out = []
+    for block in text.split(RULE80):
+        m = re.search(r"^Words:\s*(.*)$", block, re.M)
+        if not m or "# alignment:" not in block:
+            out.append(block)
+            continue
+        tokens, span = [], {}
+        for k, w in enumerate(m.group(1).split(), 1):
+            pieces = tokenize(w, "zh") or [w]
+            span[k] = (len(tokens) + 1, len(tokens) + len(pieces))
+            tokens += pieces
+        index_line, words_line = _index_words(tokens)
+        block = re.sub(r"^Index:.*$", lambda _: index_line, block, count=1, flags=re.M)
+        block = re.sub(r"^Words:.*$", lambda _: words_line, block, count=1, flags=re.M)
+        head, rest = block.split("# alignment:", 1)
+        align, sep, tail = rest.partition("# document level annotation:")
+
+        def renumber(mm):
+            a, b = int(mm.group(2)), int(mm.group(3))
+            if a <= 0 or a not in span or b not in span:
+                return mm.group(0)
+            return "%s%d-%d" % (mm.group(1), span[a][0], span[b][1])
+        align = re.sub(r"^([ \t]*\S+:[ \t]*)(\d+)-(\d+)[ \t]*$", renumber, align, flags=re.M)
+        out.append(head + "# alignment:" + align + sep + tail)
+    return RULE80.join(out)
+
+
 def _find(words, lemma, used, lang):
     """1-based (first, last) of the words that spell lemma (one word, or several run together in
     Chinese), preferring a place nobody has."""
@@ -1158,7 +1167,7 @@ def _find(words, lemma, used, lang):
     hits = []
     for a in range(len(words)):
         s = ""
-        for b in range(a, min(len(words), a + 8)):
+        for b in range(a, min(len(words), a + 16)):
             s = s + low[b] if lang == "zh" else (s + " " + low[b]).strip()
             if s == target or (lang != "zh" and b == a and (_stem(low[a]) == _stem(target) or
                                                              (len(target) >= 4 and low[a].startswith(target)))):
@@ -1195,8 +1204,7 @@ class Session:
         self.engine = None
 
     def boot(self):
-        made = materialize_propbank()
-        return {"propbank": made, "python": sys.version.split()[0]}
+        return {"python": sys.version.split()[0]}
 
     def warm(self):
         """Load jieba's dictionary and tagger (the Jev skills and Chinese import need them)."""
