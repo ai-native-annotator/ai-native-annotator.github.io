@@ -1,0 +1,4 @@
+assert '痛苦-01' in lookup_frame('痛苦')
+assert 'NO FRAME' in lookup_frame('重考')
+assert 'NO FRAME' in lookup_frame('不存在的词语xyz')
+assert 'NO FRAME' in lookup_frame('../x')

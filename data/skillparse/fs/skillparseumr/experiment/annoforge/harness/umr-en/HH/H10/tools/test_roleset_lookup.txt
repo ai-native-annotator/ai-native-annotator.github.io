@@ -1,0 +1,4 @@
+assert 'eat-01' in roleset_lookup('eat')
+assert roleset_lookup('qqqzzz').startswith('no roleset')
+assert isinstance(roleset_lookup('pick up'), str) and 'pick' in roleset_lookup('pick up')
+assert isinstance(roleset_lookup('get'), str)

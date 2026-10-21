@@ -33,6 +33,8 @@ const D = {
   'toolbar.import': ['导入 ▾', 'Import ▾'],
   'toolbar.export': ['导出 ▾', 'Export ▾'],
   'toolbar.studio': ['格式生成器', 'Format studio'],
+  'toolbar.skillparse': ['SkillParse 逐步标注', 'SkillParse steps'],
+  'toolbar.skillparseTitle': ['SkillParseUMR 的 Jev / Haiku skill：逐步运行、修改、反思', "SkillParseUMR's Jev / Haiku skills: run step by step, correct, reflect"],
   'toolbar.mode': ['模式', 'Mode'],
   'toolbar.log': ['日志', 'Log'],
   'toolbar.settings': ['设置', 'Settings'],

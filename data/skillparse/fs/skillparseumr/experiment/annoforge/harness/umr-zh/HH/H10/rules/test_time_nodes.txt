@@ -1,0 +1,7 @@
+a = '# sentence level graph:\n(s1d / date-entity\n    :time 5h30m)\n\n# alignment:\ns1d: 0-0\n\n# document level annotation:\n(s1s0 / sentence)\n'
+r = run(a, {'index': 1, 'text': ''})
+assert ':time (s1h1 / 05h30m)' in r
+b = '# sentence level graph:\n(s1d / date-entity\n    :time (s1t / 0h15m))\n\n# alignment:\ns1d: 0-0\ns1t: 0-0\n\n# document level annotation:\n(s1s0 / sentence)\n'
+assert '/ 00h15m' in run(b, {'index': 1, 'text': ''})
+c = '# sentence level graph:\n(s1x / 去-01)\n\n# alignment:\ns1x: 1-1\n\n# document level annotation:\n(s1s0 / sentence)\n'
+assert run(c, {'index': 1, 'text': ''}) == c

@@ -1,0 +1,16 @@
+a = '# sentence level graph:\n(s1s / say-01\n    :ARG0 (s1p / person\n        :ARG0-of (s1r / research-01))\n    :ARG1 (s1d / die-01\n        :ARG1 (s1m / man)\n        :quote s1s\n        :aspect performance)\n    :aspect performance)\n\n# alignment:\ns1s: 1-1\n\n# document level annotation:\n(s1s0 / sentence\n    :modal ((root :modal author)\n            (author :full-affirmative s1s)))'
+out = run(a, {'index': 1, 'text': ''})
+assert '(s1p :full-affirmative s1d)' in out
+assert '(author :full-affirmative s1p)' in out
+assert 'full-affirmative s1r' not in out
+assert out.count('(root :modal author)') == 1
+b = '# sentence level graph:\n(s2d / die-01\n    :ARG1 (s2m / man)\n    :aspect performance)\n\n# alignment:\ns2d: 1-1\n\n# document level annotation:\n(s2s0 / sentence\n    :temporal ((document-creation-time :before s2d)))'
+out = run(b, {'index': 2, 'text': ''})
+assert ':modal ((root :modal author)' in out
+assert '(author :full-affirmative s2d)' in out
+assert out.rstrip().endswith(')')
+c = '# sentence level graph:\n(s3w / want-01\n    :ARG1 (s3g / go-02\n        :modal-predicate s3w)\n    :aspect state)\n\n# alignment:\ns3w: 1-1\n\n# document level annotation:\n(s3s0 / sentence\n    :modal ((root :modal author)\n            (author :neutral-affirmative s3g)))'
+out = run(c, {'index': 3, 'text': ''})
+assert out == c
+d = '# sentence level graph:\n(s4n / not-01\n    :polarity -)\n\n# alignment:\ns4n: 1-1\n\n# document level annotation:\n(s4s0 / sentence\n    :modal ((root :modal author)))'
+assert run(d, {'index': 4, 'text': ''}) == d

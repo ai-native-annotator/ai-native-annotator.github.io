@@ -1,0 +1,6 @@
+a = '# sentence level graph:\n(s1a / go-02\n    :direction (s1b / up-03)\n    :aspect performance)\n\n# alignment:\ns1a: 1-1\ns1b: 2-2\n\n# document level annotation:\n(s1s0 / sentence\n    :modal ((root :modal author)\n            (author :full-affirmative s1a)\n            (author :full-affirmative s1b)))'
+o = run(a, {})
+assert 'full-affirmative s1b' not in o and 'full-affirmative s1a' in o and o.count('(') == o.count(')')
+b = '# sentence level graph:\n(s1a / go-02\n    :aspect performance)\n\n# alignment:\ns1a: 1-1\n\n# document level annotation:\n(s1s0 / sentence\n    :modal ((root :modal author)\n            (author :full-affirmative s1a)))'
+assert run(b, {}) == b
+assert run('no sections', {}) == 'no sections'

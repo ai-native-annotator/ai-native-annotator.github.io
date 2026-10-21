@@ -1,0 +1,107 @@
+################################################################################
+# :: snt1
+Index: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+Words: Edmund Pope tasted freedom today for the first time in more than eight months .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt2
+Index: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23
+Words: Pope is the American businessman who was convicted last week on spying charges and sentenced to 20 years in a Russian prison .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt3
+Index: 1 2 3 4 5
+Words: He denied any wrongdoing .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt4
+Index: 1 2 3 4 5 6 7 8 9 10
+Words: Russian President Vladimir Putin pardoned him for health reasons .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt5
+Index: 1 2 3 4 5 6 7 8 9 10 11 12 13
+Words: Pope was flown to the U.S. military base at Ramstein , Germany .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt6
+Index: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21
+Words: He will spend the next several days at the medical center there before he returns home with his wife Sherry .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt7
+Index: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17
+Words: Pope was in remission from a rare form of bone cancer when he was arrested in Russia.
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt8
+Index: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22
+Words: Doctors will examine him for signs that the cancer may have come back while he [was] awaiting trial in a Russian jail.
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt9
+Index: 1 2 3 4 5 6 7 8 9 10 11 12 13 14
+Words: A spokeswoman said that Pope was suffering from malnutrition and high blood pressure .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+

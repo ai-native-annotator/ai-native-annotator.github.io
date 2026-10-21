@@ -1,0 +1,15 @@
+ann = '# sentence level graph:\n(s1x / x-01\n    :temporal (s1d / date-entity\n        :year 2011)\n    :aspect performance)\n\n# alignment:\ns1x: 7-7\ns1d: 0-0\n\n# document level annotation:\n(s1s0 / sentence\n    :temporal ((document-creation-time :before s1x)\n               (s1x :depends-on s1d))\n    :modal ((author :full-affirmative s1x)))\n'
+out = run(ann, {})
+assert '(s1d :overlap s1x)' in out
+assert 'document-creation-time :before' not in out
+assert ':depends-on' not in out
+ann = '# sentence level graph:\n(s39x / x-01\n    :ARG2 s38i\n    :aspect performance)\n\n# alignment:\ns39x: 7-7\n\n# document level annotation:\n(s39s0 / sentence\n    :modal ((author :full-affirmative s39x)))\n'
+out = run(ann, {})
+assert ':ARG2 (s39z1 / implicit-argument)' in out
+assert '(s38i :same-entity s39z1)' in out
+assert ':coref' in out
+ann = '# sentence level graph:\n(s2x / x-01\n    :ARG0 (s2p / person)\n    :ARG1 s2p\n    :aspect performance)\n\n# alignment:\ns2x: 1-1\ns2p: 0-0\n\n# document level annotation:\n(s2s0 / sentence\n    :temporal ((document-creation-time :before s2x))\n    :modal ((author :full-affirmative s2x)))\n'
+out = run(ann, {})
+assert 'implicit-argument' not in out
+assert '(document-creation-time :before s2x)' in out
+assert run.__doc__

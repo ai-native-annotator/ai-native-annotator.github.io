@@ -1,0 +1,11 @@
+ann = '# sentence level graph:\n(s1a / and\n    :op1 (s1x / jb))\n\n# alignment:\ns1a: 0-0\ns1x: 3-3,13-13\n\n# document level annotation:\n(s1s0 / sentence)'
+out = run(ann, {'index': 1, 'text': ''})
+assert 's1x: 3-3' in out and ',' not in out.split('# alignment:')[1].split('# document')[0]
+ann = '# sentence level graph:\n(s1a / and\n    :op1 (s1x / jb))\n\n# alignment:\ns1a: 0-0\n\n# document level annotation:\n(s1s0 / sentence)'
+out = run(ann, {'index': 1, 'text': ''})
+assert 's1x: 0-0' in out
+ann = '# sentence level graph:\n(s1a / and)\n\n# alignment:\ns1a: 0-0\ns1zz: 4-4\n\n# document level annotation:\n(s1s0 / sentence)'
+out = run(ann, {'index': 1, 'text': ''})
+assert 's1zz' not in out and 's1a: 0-0' in out
+assert run('no sections', {'index': 1, 'text': ''}) == 'no sections'
+assert run.__doc__

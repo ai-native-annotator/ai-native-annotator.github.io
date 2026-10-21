@@ -93,14 +93,21 @@ test('the host is told not to run Jekyll over the site', async () => {
   );
 
   // If that file is ever lost, these are the paths that take the site down
-  // with it. Listing them keeps the cost of removing it visible.
+  // with it. Listing them keeps the cost of removing it visible. The two
+  // __init__.py files are SkillParseUMR's Python packages, which the
+  // skillparse.html worker fetches; a 404 there stops Python from booting.
   const atRisk = (await walk(join(root, 'js')))
     .concat(await walk(join(root, 'data')))
     .map((file) => file.slice(root.length + 1))
     .filter((path) => path.split('/').some((segment) => segment.startsWith('_')));
   assert.deepEqual(
     atRisk.sort(),
-    ['data/skills/shared/_node_schema.md', 'js/domain/_value.js'],
+    [
+      'data/skillparse/fs/skillparseumr/src/input_handler/__init__.py',
+      'data/skillparse/fs/skillparseumr/src/output_handler/__init__.py',
+      'data/skills/shared/_node_schema.md',
+      'js/domain/_value.js',
+    ],
     'a new "_"-prefixed runtime path appeared; keep .nojekyll and update this list',
   );
 });

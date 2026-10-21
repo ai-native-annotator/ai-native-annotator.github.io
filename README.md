@@ -80,6 +80,28 @@ every version remains auditable and reversible.
 Authored code runs in a Web Worker with no DOM, no storage, no network and a deadline. The page
 itself never evaluates a string.
 
+## SkillParse steps (`skillparse.html`)
+
+A second page runs **SkillParseUMR's own skills** — the Jev skills (`rsi-jev2` K4) and the Haiku
+harness (AnnoForge H10, Chinese and English) — in the browser, unchanged: the Python files run in
+Pyodide in a Web Worker (`data/skillparse/`, `js/skillparse/`). The layout follows the registry:
+
+| Pane          | What it holds                                                                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Context**   | the waves (wave 1, 2, 3 …), each wave's `for_each` items to pick from, and its context windows: one sentence, the five before it, or any `range` |
+| **Skills**    | every skill, its kind (jev / rule / agent; rewrite / check / rule for the harness), what the dispatcher starts after it, and its files to edit   |
+| **Generated** | top: the selected step's output, input, Jev questions and answers, prompt, and the whole sentence's graph; bottom: the steps, click to run       |
+| **AI**        | reflection on the selected step                                                                                                                  |
+
+Every step can be corrected, and a correction is a skill change in one of three ways: **(1)** edit
+the skill file yourself; **(2)** correct the step's output — the AI compares it with the machine's
+and proposes the skill edit that would have produced it; **(3)** say what is wrong and let the AI
+edit the skill. Edits are versioned in the browser and the step can be re-run to check them.
+Export writes the `.umr` file, with alignments left at `0-0` filled in from the words.
+
+Jev questions are answered by an LLM by default (as `JEV_BACKEND=claude` does upstream), by the
+TypeSafe Jev API with your key, or by you.
+
 ## Keys and privacy
 
 There is no server in this project. In live mode your browser calls Anthropic or OpenAI directly.
@@ -189,6 +211,12 @@ Skill 修订与调用；审核保留后，AI 自动生成带版本的候选并�
 保存前先试跑）、技能说明（技能面板里直接编辑，保存后下一次调用即生效）、技能的代码（精修链最后
 一步 `validate` 是真的在跑的 JavaScript）。人写的代码在 Web Worker 沙箱里执行 —— 无 DOM、无存储、
 无网络、有超时；页面本身永远不求值字符串。
+
+**SkillParse 逐步标注（`skillparse.html`）**：把 SkillParseUMR 里用 Jev 的 skill（rsi-jev2 K4）和用
+Haiku 的 skill（AnnoForge H10，中英文）原样搬到浏览器里跑（Pyodide，Python 文件不改）。界面按 registry
+排：左边是上下文（选 wave 1/2/3、选每个 wave 的 for_each 项、调上下文窗口：一句话还是前五句），然后是
+skill 栏，中间上面是生成内容、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；
+(2) 改生成内容，AI 自动找 skill 的问题；(3) 告诉 AI 哪里错了，由机器改。导出 `.umr` 时自动补齐 alignment。
 
 **Key 存在哪**：只存本机 `localStorage`，live 模式下浏览器直连厂商 API，不经过本项目的任何服务器
 （本项目也没有服务器）。Google Drive 需要你自己的 OAuth Client ID，GitHub 需要你自己的 PAT。

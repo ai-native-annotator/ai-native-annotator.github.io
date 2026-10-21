@@ -63,6 +63,10 @@ function enqueue(path) {
 async function main() {
   console.log(`checking ${BASE}`);
   enqueue('index.html');
+  enqueue('skillparse.html');
+  // skillparse.html's worker fetches the Python sources listed in this manifest
+  enqueue('js/skillparse/py-worker.js');
+  enqueue('data/skillparse/MANIFEST.json');
 
   while (queue.length) {
     const path = queue.shift();
@@ -86,6 +90,11 @@ async function main() {
       continue;
     }
 
+    if (path === 'data/skillparse/MANIFEST.json') {
+      const manifest = JSON.parse(body);
+      for (const file of [...manifest.files, ...manifest.vendor])
+        enqueue(`data/skillparse/${file}`);
+    }
     if (path.endsWith('.html')) {
       for (const [, src] of body.matchAll(SCRIPT_SRC)) enqueue(resolvePath(path, src));
     }

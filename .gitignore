@@ -3,3 +3,4 @@ playwright-report/
 test-results/
 *.log
 .DS_Store
+__pycache__/

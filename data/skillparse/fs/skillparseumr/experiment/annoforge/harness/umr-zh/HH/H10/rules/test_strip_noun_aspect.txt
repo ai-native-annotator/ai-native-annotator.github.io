@@ -1,0 +1,7 @@
+ann = '# sentence level graph:\n(s1x / 删除-01\n    :ARG1 (s1y / 笼子\n        :aspect state)\n    :aspect performance)\n\n# alignment:\ns1x: 1-1\n\n# document level annotation:\n(s1s0 / sentence)\n'
+out = run(ann, {'index': 1, 'text': ''})
+assert ':aspect state' not in out and ':aspect performance' in out and out.count('(') == out.count(')')
+ann2 = '# sentence level graph:\n(s1x / 好-01\n    :ARG0 (s1y / 人)\n    :aspect state)\n\n# alignment:\ns1x: 1-1\n'
+assert run(ann2, {'index': 1, 'text': ''}) == ann2
+ann3 = '# sentence level graph:\n(s1x / 实验\n    :ARG0 (s1y / 人)\n    :aspect state)\n\n# alignment:\ns1x: 1-1\n'
+assert ':aspect state' in run(ann3, {'index': 1, 'text': ''})

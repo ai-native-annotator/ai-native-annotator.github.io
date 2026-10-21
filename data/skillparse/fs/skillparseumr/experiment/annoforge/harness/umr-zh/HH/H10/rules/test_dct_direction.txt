@@ -1,0 +1,3 @@
+assert '(document-creation-time :depends-on s5x)' in run('# sentence level graph:\n(a / b)\n# document level annotation:\n(s5s0 / sentence :temporal ((s5x :depends-on document-creation-time)))', {'index':5,'text':''})
+assert '(document-creation-time :after s1x)' in run('# document level annotation:\n(s1s0 / sentence :temporal ((s1x :before document-creation-time)))', {'index':1,'text':''})
+assert run('no sections', {'index':1,'text':''}) == 'no sections'
