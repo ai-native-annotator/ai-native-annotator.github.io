@@ -92,6 +92,9 @@ const statusIs = (page, re, timeout = 120000) =>
   check('running sentence 1 makes a tree of steps', steps.length >= 5, `${steps.length} steps`);
   check('every step finished', steps.every((s) => s === '✓'), steps.join(''));
   check('Jev rounds were answered', calls.judge > 0, `${calls.judge} calls`);
+  // after a run the first step is selected, so the output and the AI pane are not empty
+  await page.waitForFunction(() => document.querySelector('.tree li[aria-selected="true"]'), null, { timeout: 5000 }).catch(() => {});
+  check('a finished run leaves a step selected', !(await page.textContent('#ai')).includes('先在下面选一步'));
 
   await page.click('.tree li:has(.sk:text-is("predicate"))');
   await page.click('button:text-is("修改输出")');

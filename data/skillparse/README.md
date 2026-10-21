@@ -33,3 +33,17 @@ To refresh after the skills change upstream:
 ```bash
 python3 scripts/sync_skillparse.py ../skillparseumr ../modular-parsing <jieba-0.42.1 dir> <penman wheel>
 ```
+
+## A real run (2026-10-21)
+
+`chinese_umr-0022` (11 sentences; not a training document of either skill set), imported through
+the page and run wave by wave in the browser, scored with SkillParseUMR's
+`scripts/compare_ancast.py` (AnCast++, cleaned gold):
+
+| skills | models | steps | Sentence F | Comprehensive | upstream on this document |
+|---|---|---|---|---|---|
+| Jev K4 | Jev questions answered by Sonnet 5.5 (665 calls) | 638, no errors | 39.8 | 39.7 | 34.6 / 36.6 with the Jev model itself |
+| Haiku H10 zh | Haiku 5.5 (87 calls, with lookup_frame) | 143, no errors | 42.4 | 39.8 | not scored upstream |
+
+The Haiku export is in single-character numbering; the same annotation in word numbering scores
+the same. Coref is low (1.7) because the model wrote 16 coreference links where the gold has 2.

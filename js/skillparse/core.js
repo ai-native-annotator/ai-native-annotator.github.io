@@ -215,7 +215,11 @@ async function guarded(fn) {
     if (!S.running) {
       document.getElementById('btn-stop').hidden = true;
       controller = null;
-      render();         // buttons disabled while running come back
+      // buttons disabled while running come back; a run that ended with nothing selected
+      // selects the item's first step, so the output and AI panes have something to show
+      const first = S.episode?.nodes?.[0]?.id;
+      if (!S.node && first) selectNode(first).catch(() => render());
+      else render();
     }
   }
 }
