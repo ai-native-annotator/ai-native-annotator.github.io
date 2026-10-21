@@ -1,34 +1,41 @@
 /**
- * Model calls for index.html: the LLM steps (Haiku harness, agent skills, reflection),
- * and the three ways a Jev question gets answered.
+ * Model calls for index.html, as the decision-orchestration experiment makes them.
  *
- * Keys are read from the same localStorage entry as the main workbench
- * (`annotator_secrets`), so a key saved there works here and the other way round.
+ * A kind: jev skill asks closed questions. By default (backend "cascade", as
+ * rsi-batch/run_tests.sh evaluates V12 at tau = 0.7) Jev answers all of them, and every question
+ * Jev is less sure of than the threshold (top choice probability, or max(p, 1 - p) for yes/no)
+ * is asked again of Haiku, whose answer wins when it is one of the options (src/jev.py,
+ * _ask_openrouter). Both go through OpenRouter by default, so one OpenRouter key runs it all.
+ * Other backends: Jev alone, an LLM alone, or the person.
+ *
+ *   jev(state, questions, {onManual}) -> answers in Jev's shape
+ *   llm({role, instructions, input, schema}) -> the object the model returned through the
+ *       `final_result` tool (the reflection in the AI pane, and the LLM answering questions)
+ *
+ * Keys are read from the same localStorage entry as the classic workbench (`annotator_secrets`).
  * Calls go from the browser straight to the provider; there is no server.
- *
- *   llm({role, system, instructions, input, tools, callTool, schema}) -> the object the
- *       model returned through the `final_result` tool (a tool loop: lookup tools first)
- *   jev(state, questions, {onManual}) -> answers in Jev's shape (see src/jev.py)
  */
 
 const SECRETS = 'annotator_secrets';
-const SETTINGS = 'skillparse_settings';
+const SETTINGS = 'skillparse_settings_v2';
 
 export const ROLES = {
-  G: 'Generator (generate / finalize)',
-  C: 'Critic (critique)',
+  escalate: 'Haiku: the questions Jev is unsure of (cascade)',
+  judge: 'LLM answering every question (backend "LLM")',
   reflect: 'Reflection (finds skill problems, proposes edits)',
-  judge: 'Jev questions answered by an LLM',
 };
+
+export const PROVIDERS = ['openrouter', 'anthropic', 'openai'];
 
 const DEFAULTS = {
   roles: {
-    G: { provider: 'anthropic', model: 'claude-haiku-5-5' },
-    C: { provider: 'anthropic', model: 'claude-haiku-5-5' },
-    reflect: { provider: 'anthropic', model: 'claude-opus-5-5' },
-    judge: { provider: 'anthropic', model: 'claude-sonnet-5-5' },
+    escalate: { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' },
+    judge: { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' },
+    reflect: { provider: 'openrouter', model: 'anthropic/claude-sonnet-5.5' },
   },
-  jev: { backend: 'llm', url: 'https://api.typesafe.ai/v1/systemone', model: 'jev-latest', key: '', batch: 40 },
+  // rsi-batch/run_tests.sh: JEV_URL=https://openrouter.ai/api/v1/systemone JEV_MODEL=typesafe/jev-1.13
+  jev: { backend: 'cascade', url: 'https://openrouter.ai/api/v1/systemone', model: 'typesafe/jev-1.13',
+    key: '', threshold: 0.7, batch: 40 },
   concurrency: 6,
 };
 
@@ -103,15 +110,19 @@ async function withRetry(fn, tries = 4) {
  * answer comes back through a `final_result` tool whose input is `schema`, so it is
  * always an object, never prose to dig JSON out of.
  */
-export async function llm({ role = 'G', system = '', instructions, input = '', tools = [], callTool,
+export async function llm({ role = 'reflect', system = '', instructions, input = '', tools = [], callTool,
   schema, maxTurns = 10, signal, onEvent }) {
-  const cfg = settings().roles[role] || DEFAULTS.roles.G;
+  const cfg = settings().roles[role] || DEFAULTS.roles[role];
   const key = keys()[cfg.provider];
   if (!key) throw new Error(`No ${cfg.provider} key: add one in Settings (⚙).`);
   const final = { name: 'final_result', description: 'Return the final answer. Call this exactly once, at the end.',
     parameters: schema };
   const all = [...tools, final];
-  if (cfg.provider === 'openai') return openaiLoop({ cfg, key, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
+  if (cfg.provider === 'openai' || cfg.provider === 'openrouter') {
+    const url = cfg.provider === 'openai' ? 'https://api.openai.com/v1/chat/completions'
+      : 'https://openrouter.ai/api/v1/chat/completions';
+    return openaiLoop({ cfg, key, url, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
+  }
   return anthropicLoop({ cfg, key, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
 }
 
@@ -150,7 +161,7 @@ async function anthropicLoop({ cfg, key, system, instructions, input, all, callT
   throw new Error('No final answer after the tool turns.');
 }
 
-async function openaiLoop({ cfg, key, system, instructions, input, all, callTool, maxTurns, signal, onEvent }) {
+async function openaiLoop({ cfg, key, url, system, instructions, input, all, callTool, maxTurns, signal, onEvent }) {
   const messages = [];
   if (system) messages.push({ role: 'system', content: system });
   messages.push({ role: 'user', content: input ? `${instructions}\n\n${input}` : instructions });
@@ -162,7 +173,7 @@ async function openaiLoop({ cfg, key, system, instructions, input, all, callTool
       tools: all.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } })),
       tool_choice: last ? { type: 'function', function: { name: 'final_result' } } : 'required',
     };
-    const data = await withRetry(() => post('https://api.openai.com/v1/chat/completions', headers, body, signal, 'OpenAI'));
+    const data = await withRetry(() => post(url, headers, body, signal, cfg.provider === 'openai' ? 'OpenAI' : 'OpenRouter'));
     const msg = data.choices?.[0]?.message;
     if (!msg) throw new Error('OpenAI returned no message.');
     messages.push(msg);
@@ -185,12 +196,21 @@ async function openaiLoop({ cfg, key, system, instructions, input, all, callTool
 
 const jevCache = new Map();
 
+/** How sure an answer is: the top choice's probability, or max(p, 1 - p) for yes/no (src/jev.py _sure). */
+export function sureness(answer) {
+  if (!answer) return 0;
+  if ('noul' in answer) return Math.max(answer.noul, 1 - answer.noul);
+  if (answer.probabilities) return Math.max(0, ...Object.values(answer.probabilities));
+  return 1;
+}
+
 /** Answers keyed like `questions`, in Jev's shape, from the backend chosen in Settings. */
 export async function jev(state, questions, { onManual, signal } = {}) {
   const ids = Object.keys(questions || {});
   if (!ids.length) return {};
-  const cfg = settings().jev;
-  const cacheKey = JSON.stringify([cfg.backend, cfg.backend === 'llm' ? settings().roles.judge : cfg.model, state, questions]);
+  const all = settings();
+  const cfg = all.jev;
+  const cacheKey = JSON.stringify([cfg.backend, cfg.model, cfg.threshold, all.roles.escalate, all.roles.judge, state, questions]);
   if (jevCache.has(cacheKey)) return jevCache.get(cacheKey);
   let answers;
   if (cfg.backend === 'manual') {
@@ -200,22 +220,29 @@ export async function jev(state, questions, { onManual, signal } = {}) {
     for (let k = 0; k < ids.length; k += cfg.batch) {
       pieces.push(Object.fromEntries(ids.slice(k, k + cfg.batch).map((id) => [id, questions[id]])));
     }
-    const ask = cfg.backend === 'jev' ? askJev : askLLM;
-    const parts = await Promise.all(pieces.map((p) => ask(state, p, cfg, signal)));
-    answers = Object.assign({}, ...parts);
+    const ask = cfg.backend === 'llm' ? (st, q) => askLLM(st, q, 'judge', signal, false) : (st, q) => askJev(st, q, cfg, signal);
+    answers = Object.assign({}, ...(await Promise.all(pieces.map((p) => ask(state, p)))));
+    if (cfg.backend === 'cascade') {
+      const unsure = Object.fromEntries(ids.filter((id) => sureness(answers[id]) < cfg.threshold).map((id) => [id, questions[id]]));
+      if (Object.keys(unsure).length) {
+        const better = await askLLM(state, unsure, 'escalate', signal, true);
+        for (const [id, a] of Object.entries(better)) answers[id] = { ...a, escalated: true, jev: answers[id] };
+      }
+    }
   }
   jevCache.set(cacheKey, answers);
   return answers;
 }
 
 async function askJev(state, questions, cfg, signal) {
-  if (!cfg.key) throw new Error('No Jev (TypeSafe) key: add one in Settings (⚙), or answer Jev questions with an LLM.');
+  const key = cfg.key || (cfg.url.includes('openrouter.ai') ? keys().openrouter : '');
+  if (!key) throw new Error('No Jev key: add an OpenRouter key (or a Jev key) in Settings (⚙).');
   // src/jev.py: servers other than TypeSafe refuse an empty option description
   const qs = cfg.url.includes('typesafe') ? questions : Object.fromEntries(Object.entries(questions).map(([k, q]) => [k,
     q.type === 'choice' && q.criteria && typeof q.criteria === 'object'
       ? { ...q, criteria: Object.fromEntries(Object.entries(q.criteria).map(([o, d]) => [o, d || o])) } : q]));
   const data = await withRetry(() => post(cfg.url, {
-    'content-type': 'application/json', authorization: `Bearer ${cfg.key}`,
+    'content-type': 'application/json', authorization: `Bearer ${key}`,
   }, { model: cfg.model, state, questions: qs }, signal, 'Jev'));
   const missing = Object.keys(questions).filter((k) => !(k in (data.answers || {})));
   if (missing.length) throw new Error(`Jev left out ${missing.join(', ')}`);
@@ -245,21 +272,34 @@ export function judgePrompt(state, questions) {
   return lines.join('\n');
 }
 
-const JUDGE_SYSTEM = 'You are a careful judge of Chinese and English text for Uniform Meaning Representation '
-  + '(UMR) annotation. You answer closed questions exactly as asked.';
+// src/jev.py OPENROUTER_SYSTEM (the cascade) and CLAUDE_SYSTEM
+const SYSTEMS = {
+  escalate: 'You are a careful linguistic annotator. You answer closed questions about a text '
+    + 'exactly as asked, following the instructions and option descriptions.',
+  judge: 'You are a careful judge of Chinese and English text for Uniform Meaning Representation '
+    + '(UMR) annotation. You answer closed questions exactly as asked.',
+};
 
-/** The answers as Jev would give them: the chosen option with probability 1 (src/jev.py _ask_claude). */
-export function shapeAnswers(questions, got) {
+/**
+ * Model answers in Jev's shape: the chosen option with probability 1. strict (the cascade):
+ * an answer that is not an option is left out, so Jev's stays (src/jev.py _ask_openrouter);
+ * otherwise it becomes the first option (_ask_claude).
+ */
+export function shapeAnswers(questions, got, strict = false) {
   const answers = {};
   for (const [k, q] of Object.entries(questions)) {
     const a = String(got?.[k] ?? '').trim();
     if (q.type === 'choice') {
       const opts = Object.keys(q.criteria);
-      const pick = opts.includes(a) ? a : (opts.find((o) => o.split(' (')[0] === a) || opts[0]);
+      let pick = opts.includes(a) ? a : opts.find((o) => o.split(' (')[0] === a || o.toLowerCase() === a.toLowerCase());
+      if (!pick && strict) continue;
+      pick = pick || opts[0];
       answers[k] = { type: 'choice', choice: pick, confidence: 1, probabilities: Object.fromEntries(opts.map((o) => [o, o === pick ? 1 : 0])) };
     } else if (q.type === 'noul') {
+      if (!a && strict) continue;
       answers[k] = { type: 'noul', noul: /^(yes|true|是)/i.test(a) ? 1 : 0 };
     } else {
+      if (!/^\d+$/.test(a) && strict) continue;
       const n = /^\d+$/.test(a) ? Number(a) : 0;
       answers[k] = { type: 'score', score: n, confidence: 1, probabilities: Object.fromEntries((q.criteria || []).map((_, i) => [String(i), i === n ? 1 : 0])) };
     }
@@ -267,11 +307,11 @@ export function shapeAnswers(questions, got) {
   return answers;
 }
 
-async function askLLM(state, questions, cfg, signal) {
+async function askLLM(state, questions, role, signal, strict) {
   const props = Object.fromEntries(Object.keys(questions).map((k) => [k, { type: 'string' }]));
   const out = await llm({
-    role: 'judge', system: JUDGE_SYSTEM, instructions: judgePrompt(state, questions), signal,
+    role, system: SYSTEMS[role] || SYSTEMS.judge, instructions: judgePrompt(state, questions), signal, maxTurns: 2,
     schema: { type: 'object', properties: { answers: { type: 'object', properties: props, required: Object.keys(props) } }, required: ['answers'] },
   });
-  return shapeAnswers(questions, out.answers || out);
+  return shapeAnswers(questions, out.answers || out, strict);
 }

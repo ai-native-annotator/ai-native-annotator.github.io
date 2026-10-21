@@ -2,7 +2,7 @@
 
 import { h, openModal, closeModal, toast, download } from './ui.js';
 import { S, SKILLSETS, assembled, loadDocs, open, warm } from './core.js';
-import { settings, saveSettings, keys, saveKey, ROLES, shapeAnswers } from './models.js';
+import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, shapeAnswers } from './models.js';
 import { bundle } from './store.js';
 import { py } from './py.js';
 import { t } from './i18n.js';
@@ -10,39 +10,42 @@ import { t } from './i18n.js';
 export function openSettings() {
   const cfg = settings();
   const k = keys();
-  const keyInputs = ['anthropic', 'openai'].map((p) => {
-    const inp = h('input', { type: 'password', value: k[p] || '', placeholder: p === 'anthropic' ? 'sk-ant-…' : 'sk-…', autocomplete: 'off' });
+  const keyInputs = PROVIDERS.map((p) => {
+    const inp = h('input', { type: 'password', value: k[p] || '', placeholder: { openrouter: 'sk-or-…', anthropic: 'sk-ant-…', openai: 'sk-…' }[p], autocomplete: 'off' });
     return [p, inp];
   });
   const roleInputs = Object.keys(ROLES).map((r) => {
-    const prov = h('select', {}, ['anthropic', 'openai'].map((p) => h('option', { value: p, text: p, selected: cfg.roles[r].provider === p })));
+    const prov = h('select', {}, PROVIDERS.map((p) => h('option', { value: p, text: p, selected: cfg.roles[r].provider === p })));
     const model = h('input', { type: 'text', value: cfg.roles[r].model });
     return [r, prov, model];
   });
   const backend = h('select', {},
-    [['llm', t('jevLLM')], ['jev', t('jevApi')], ['manual', t('jevManual')]].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.backend === v })));
+    [['cascade', t('jevCascade')], ['jev', t('jevApi')], ['llm', t('jevLLM')], ['manual', t('jevManual')]].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.backend === v })));
+  const threshold = h('input', { type: 'number', min: 0, max: 1, step: 0.05, value: cfg.jev.threshold, style: 'width:6em' });
   const url = h('input', { type: 'text', value: cfg.jev.url });
   const jmodel = h('input', { type: 'text', value: cfg.jev.model });
-  const jkey = h('input', { type: 'password', value: cfg.jev.key || '', autocomplete: 'off' });
+  const jkey = h('input', { type: 'password', value: cfg.jev.key || '', autocomplete: 'off', placeholder: t('jevKeyHint') });
   const conc = h('input', { type: 'number', min: 1, max: 20, value: cfg.concurrency, style: 'width:5em' });
 
   const body = h('div', { style: 'display:grid;gap:12px' },
     h('h4', { text: t('keys') }),
     h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' }, keyInputs.map(([p, inp]) => [h('label', { text: p }), inp])),
     h('h4', { text: t('roles') }),
-    h('div', { class: 'form-grid' }, roleInputs.map(([r, prov, model]) => [h('label', { text: ROLES[r] }), prov, model])),
+    h('div', { class: 'form-grid' }, roleInputs.map(([r, prov, model]) => [h('label', { text: t(`roleNames.${r}`) }), prov, model])),
     h('h4', { text: t('jevBackend') }),
     h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' },
       h('label', { text: t('jevBackend') }), backend,
       h('label', { text: t('jevUrl') }), url,
       h('label', { text: t('jevModel') }), jmodel,
       h('label', { text: t('jevKey') }), jkey,
+      h('label', { text: t('threshold') }), threshold,
       h('label', { text: t('concurrency') }), conc),
     h('div', { class: 'row' }, h('button', { class: 'btn primary', text: t('saveSettings'), onclick: () => {
       keyInputs.forEach(([p, inp]) => saveKey(p, inp.value));
       saveSettings({
         roles: Object.fromEntries(roleInputs.map(([r, prov, model]) => [r, { provider: prov.value, model: model.value.trim() }])),
-        jev: { ...cfg.jev, backend: backend.value, url: url.value.trim(), model: jmodel.value.trim(), key: jkey.value.trim() },
+        jev: { ...cfg.jev, backend: backend.value, url: url.value.trim(), model: jmodel.value.trim(), key: jkey.value.trim(),
+          threshold: Math.min(1, Math.max(0, Number(threshold.value) || 0.7)) },
         concurrency: Math.max(1, Number(conc.value) || 6),
       });
       closeModal();

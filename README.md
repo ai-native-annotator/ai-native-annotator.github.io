@@ -84,16 +84,19 @@ itself never evaluates a string.
 
 ## SkillParse steps (`index.html`, the front page)
 
-The front page runs **SkillParseUMR's own skills** — the Jev skills (`rsi-jev2` K4) and the Haiku
-harness (AnnoForge H10, Chinese and English) — in the browser, unchanged: the Python files run in
-Pyodide in a Web Worker (`data/skillparse/`, `js/skillparse/`). The layout follows the registry:
+The front page runs **SkillParseUMR's decision-orchestration procedures** — V12 (after 12 rounds
+of measured reflection) of `umr-zh-v11` and `umr-en-v11` — in the browser, unchanged: the Python
+files run in Pyodide in a Web Worker (`data/skillparse/`, `js/skillparse/`). Rules list the options,
+**Jev** answers the closed questions, and the questions Jev is unsure of (below 0.7) go to **Haiku**,
+as the experiment evaluates V12 (`rsi-batch/run_tests.sh`); both through OpenRouter, so one
+OpenRouter key runs it. The layout follows the registry:
 
-| Pane          | What it holds                                                                                                                                    |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Context**   | the waves (wave 1, 2, 3 …), each wave's `for_each` items to pick from, and its context windows: one sentence, the five before it, or any `range` |
-| **Skills**    | every skill, its kind (jev / rule / agent; rewrite / check / rule for the harness), what the dispatcher starts after it, and its files to edit   |
-| **Generated** | top: the selected step's output, input, Jev questions and answers, prompt, and the whole sentence's graph; bottom: the steps, click to run       |
-| **AI**        | reflection on the selected step                                                                                                                  |
+| Pane          | What it holds                                                                                                                                                                 |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Context**   | the waves (wave 1, 2, 3 …), each wave's `for_each` items to pick from, and its context windows: one sentence, the five before it, or any `range`                              |
+| **Skills**    | every skill, its kind (jev / rule), what the dispatcher starts after it, and its files (`.py`, `prompts.yaml`) to edit                                                        |
+| **Generated** | top: the sentence's graph, drawn (click a box to reach the step that wrote it), and the selected step's output, input, questions and answers; bottom: the steps, click to run |
+| **AI**        | reflection on the selected step                                                                                                                                               |
 
 Every step can be corrected, and a correction is a skill change in one of three ways: **(1)** edit
 the skill file yourself; **(2)** correct the step's output — the AI compares it with the machine's
@@ -101,8 +104,7 @@ and proposes the skill edit that would have produced it; **(3)** say what is wro
 edit the skill. Edits are versioned in the browser and the step can be re-run to check them.
 Export writes the `.umr` file, with alignments left at `0-0` filled in from the words.
 
-Jev questions are answered by an LLM by default (as `JEV_BACKEND=claude` does upstream), by the
-TypeSafe Jev API with your key, or by you.
+Settings can also have Jev alone, an LLM alone, or you answer the questions.
 
 ## Keys and privacy
 
@@ -215,10 +217,11 @@ Skill 修订与调用；审核保留后，AI 自动生成带版本的候选并�
 一步 `validate` 是真的在跑的 JavaScript）。人写的代码在 Web Worker 沙箱里执行 —— 无 DOM、无存储、
 无网络、有超时；页面本身永远不求值字符串。
 
-**SkillParse 逐步标注（首页 `index.html`；原来的工作台在 `classic.html`）**：把 SkillParseUMR 里用 Jev 的 skill（rsi-jev2 K4）和用
-Haiku 的 skill（AnnoForge H10，中英文）原样搬到浏览器里跑（Pyodide，Python 文件不改）。界面按 registry
+**SkillParse 逐步标注（首页 `index.html`；原来的工作台在 `classic.html`）**：把 SkillParseUMR 的决策编排
+（decision orchestration）程序 V12（中文 `umr-zh-v11`、英文 `umr-en-v11`）原样搬到浏览器里跑（Pyodide，
+Python 文件不改）：规则列出选项，Jev 回答封闭问题，Jev 没把握（低于 0.7）的交给 Haiku。界面按 registry
 排：左边是上下文（选 wave 1/2/3、选每个 wave 的 for_each 项、调上下文窗口：一句话还是前五句），然后是
-skill 栏，中间上面是生成内容、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；
+skill 栏，中间上面是生成内容（画出来的图；点图里的框跳到写它的那一步）、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；
 (2) 改生成内容，AI 自动找 skill 的问题；(3) 告诉 AI 哪里错了，由机器改。导出 `.umr` 时自动补齐 alignment。
 
 **Key 存在哪**：只存本机 `localStorage`，live 模式下浏览器直连厂商 API，不经过本项目的任何服务器

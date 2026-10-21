@@ -1,30 +1,21 @@
-"""The Python half of index.html: SkillParseUMR's skills, run one node at a time.
+"""The Python half of index.html: SkillParseUMR's decision-orchestration procedures, run one node
+at a time.
 
 Everything under /sp/skillparseumr and /sp/modular-parsing is the SkillParseUMR (and
-modular-parsing) source as it is on disk, copied by scripts/sync_skillparse.py and not
-changed. This file is the only new Python. It does what src/runner.py and
-experiment/annoforge/af/harness.py do, but split so the page drives it:
+modular-parsing) source as it is on disk, copied by scripts/sync_skillparse.py; only
+propbank.py is swapped for one that reads the merged PropBank file. This file is the only new
+Python. It does what src/runner.py does, split so the page drives it:
 
   - a node is made but not run until someone clicks it (or presses "run all");
-  - a node that needs a model hands the page a request (Jev questions, or a prompt
-    with tools) and is finished when the page sends the answer back;
+  - a kind: jev node hands the page its closed questions (Jev answers them, Haiku takes the ones
+    Jev is unsure of) and is finished when the page sends the answers back;
   - any node's output can be replaced by a person, and everything below it is redone;
   - a wave's context windows (`range`) can be changed per wave before running.
-
-Two engines, one shape (waves -> for_each items = episodes -> nodes):
-
-  RegistryEngine   a registry.yaml (REGISTRY.md): kind rule / jev / agent skills,
-                   the dispatcher, worktree, output handler. Used for the Jev skills.
-  HarnessEngine    an AnnoForge harness version (harness.yaml): per sentence a chain of
-                   steps generate -> critique -> finalize -> rules. Used for Haiku H10.
-                   Shown as a registry with one wave, whose context is a window over the
-                   earlier sentences' final annotations.
 
 The page calls `call(method, json_args)` and gets JSON back; see `Session` for the methods.
 """
 import dataclasses
 import importlib.util
-import inspect
 import json
 import os
 import re
@@ -35,21 +26,20 @@ FS = os.environ.get("SP_FS", "/sp")
 SP = FS + "/skillparseumr"
 MP = FS + "/modular-parsing"
 DOCS = FS + "/docs"
-for p in (SP + "/src", SP + "/experiment/annoforge/af", FS + "/vendor"):
+for p in (SP + "/src", FS + "/vendor"):
     if p not in sys.path:
         sys.path.insert(0, p)
 os.environ.setdefault("PROPBANK_DIR", MP + "/resources")
-os.environ.setdefault("AF_SCHEME", "umr")
 sys.dont_write_bytecode = True
 
+DO = SP + "/experiment/decision-orchestration"
 SKILLSETS = {
-    "jev-k4": {"engine": "registry", "path": SP + "/experiment/rsi-jev2/skills/K4/registry.yaml",
-               "lang": "zh"},
-    "haiku-h10-zh": {"engine": "harness", "path": SP + "/experiment/annoforge/harness/umr-zh/HH/H10",
-                     "bench": "umr-zh", "lang": "zh"},
-    "haiku-h10-en": {"engine": "harness", "path": SP + "/experiment/annoforge/harness/umr-en/HH/H10",
-                     "bench": "umr-en", "lang": "en"},
+    "do-zh-v12": {"path": DO + "/umr-zh-v11/versions/V12/registry.yaml", "lang": "zh"},
+    "do-en-v12": {"path": DO + "/umr-en-v11/versions/V12/registry.yaml", "lang": "en"},
 }
+# modules every version of the procedure has under the same name: a zh and an en version must
+# not share them, and an edited file must be read again
+SHARED_MODULES = ("jevlib", "prompt_loader", "event_modifiers")
 RULE80 = "#" * 80
 
 
@@ -85,6 +75,11 @@ class StepError(Exception):
     pass
 
 
+def purge_modules():
+    for m in [m for m in sys.modules if m in SHARED_MODULES or m.startswith("skill_rules.")]:
+        del sys.modules[m]
+
+
 # ------------------------------------------------------------------ documents
 
 def umr_from_text(text, lang=None):
@@ -118,6 +113,7 @@ class RegistryEngine:
         import registry as R
         from input_handler.umrinputhandler import UMRInputHandler
         self.R = R
+        purge_modules()
         self.sid = sid
         self.path = path
         self.reg = R.Registry.load(path)
@@ -157,13 +153,14 @@ class RegistryEngine:
             files = []
             base = os.path.dirname(os.path.abspath(self.path))
             for f in sorted(os.listdir(s.path)):
-                if f.endswith((".py", ".md")) and not f.startswith("test_"):
+                if f.endswith((".py", ".md", ".yaml")) and not f.startswith("test_"):
                     files.append(os.path.relpath(os.path.join(s.path, f), FS))
             skills.append({"name": s.name, "kind": s.kind, "input": jsonable(s.input), "emit": jsonable(s.emit),
                            "store": s.store, "files": files,
                            "rules": [self._rule_text(r) for r in self.reg.rules(s.name)]})
         shared = [os.path.relpath(os.path.join(os.path.dirname(self.path), f), FS)
-                  for f in sorted(os.listdir(os.path.dirname(self.path))) if f.endswith(".py")]
+                  for f in sorted(os.listdir(os.path.dirname(self.path)))
+                  if f.endswith((".py", ".yaml")) and f != "registry.yaml"]
         shared.append(os.path.relpath(self.path, FS))
         shared.append("skillparseumr/skillsets/tools/propbank.py")
         return {"engine": self.kind, "skillset": self.sid, "waves": waves, "skills": skills,
@@ -598,7 +595,7 @@ class RegistryEngine:
         ep, n = self._node(w, i, nid)
         skill = self.reg.skills[n["skill"]]
         files = [os.path.relpath(os.path.join(skill.path, f), FS) for f in sorted(os.listdir(skill.path))
-                 if f.endswith((".py", ".md"))]
+                 if f.endswith((".py", ".md", ".yaml"))]
         return {**jsonable({k: v for k, v in n.items() if k != "trace"}), "kind": skill.kind,
                 "emit": jsonable(skill.emit), "files": files, "context_keys": list(ep["context"]),
                 "trace": n.get("trace"), "waiting": (w, int(i), nid) in self.gens}
@@ -626,6 +623,42 @@ class RegistryEngine:
         return {"text": text, "added": added, "provenance": jsonable(prov),
                 "sentences": split_umr(text)}
 
+    def graph(self, i, auto_align=True):
+        """Sentence i's assembled graph as nodes and edges, for drawing: every variable with its
+        concept, alignment (and the words there) and the tree node that made it; the edges between
+        variables; the attributes (constants); and the sentence's document-level relations."""
+        import penman
+        out = self.render(auto_align)
+        sent = self.doc.sents[int(i)]
+        block = next((b["text"] for b in out["sentences"] if b["index"] == sent.index), "")
+        graph = block.split("# sentence level graph:", 1)[-1].split("# alignment:", 1)[0].strip()
+        align_text = block.split("# alignment:", 1)[-1].split("# document level annotation:", 1)[0]
+        doc_text = block.split("# document level annotation:", 1)[-1]
+        align = dict(re.findall(r"^\s*(\S+):\s*(\d+-\d+)\s*$", align_text, re.M))
+        added = {v for n, v, _ in out["added"] if n == sent.index}
+        prov = out["provenance"].get(str(sent.index)) or out["provenance"].get(sent.index) or {}
+        tokens = sent.tokenized_text
+        res = {"index": sent.index, "tokens": tokens, "text": block, "top": None, "nodes": [], "edges": [],
+               "attrs": [], "doc": read_doc(doc_text), "error": None}
+        if not graph or graph.startswith("(s%dx0 / empty" % sent.index):
+            return res
+        try:
+            g = penman.decode(graph)
+        except Exception as e:
+            res["error"] = "%s: %s" % (type(e).__name__, e)
+            return res
+        res["top"] = g.top
+        for v, _, concept in g.instances():
+            a = align.get(v, "0-0")
+            lo, hi = (int(x) for x in a.split("-"))
+            p = prov.get(v) or {}
+            res["nodes"].append({"var": v, "concept": concept, "align": a, "auto": v in added,
+                                 "words": " ".join(tokens[lo - 1:hi]) if lo > 0 else "",
+                                 "node": p.get("node"), "skill": p.get("skill")})
+        res["edges"] = [{"src": a, "role": r.lstrip(":"), "tgt": b} for a, r, b in g.edges()]
+        res["attrs"] = [{"var": a, "role": r.lstrip(":"), "value": str(b)} for a, r, b in g.attributes()]
+        return res
+
     def export(self):
         return {"skillset": self.sid, "doc": self._doc(), "windows": [[w, v, r] for (w, v), r in self.windows.items()],
                 "episodes": {w: {str(i): {k: v for k, v in ep.items() if k != "missing"}
@@ -635,442 +668,9 @@ class RegistryEngine:
         """After a skill file changed: forget loaded modules (jevlib included); started
         episodes keep their outputs until they are re-run."""
         self.modules.clear()
-        for m in [m for m in sys.modules if m == "jevlib" or m.startswith("skill_rules.")]:
-            del sys.modules[m]
+        purge_modules()
         import registry as R
         self.reg = R.Registry.load(self.path)
-        return True
-
-
-# ------------------------------------------------------------------ the harness engine
-
-def render_input(b, doc, i, context, current, current_from, findings, kind):
-    """experiment/annoforge/af/harness.py render_input, unchanged (harness.py itself imports
-    the agent layer, which does not run in a browser)."""
-    import bench as benches
-    parts = ["## Document", b.header(doc)]
-    if context:
-        parts.append("## Earlier sentences and their annotations")
-        for j, text, ann in context:
-            parts.append("### Sentence %d\n%s\n\n%s" % (j, text, ann))
-    parts += ["## The sentence to annotate", b.sentence(doc, i)]
-    if current is not None:
-        parts += ["## Current annotation (written by step `%s`)" % current_from, current]
-    if findings:
-        parts.append("## Findings to address")
-        parts += ["- [%s] %s -> %s" % (src, f["problem"], f["fix"]) for src, f in findings]
-    parts += ["## Your task", benches.TASKS[kind].format(i=i)]
-    return "\n\n".join(parts)
-
-
-def _tool_spec(fn):
-    sig = inspect.signature(fn)
-    props, req = {}, []
-    for name, p in sig.parameters.items():
-        ann = p.annotation
-        t = {str: "string", int: "integer", float: "number", bool: "boolean", list: "array", dict: "object"}.get(ann, "string")
-        props[name] = {"type": t}
-        if t == "array":
-            props[name]["items"] = {"type": "string"}
-        if p.default is inspect.Parameter.empty:
-            req.append(name)
-    return {"name": fn.__name__, "description": (fn.__doc__ or "").strip(),
-            "parameters": {"type": "object", "properties": props, "required": req}}
-
-
-class HarnessEngine:
-    kind = "harness"
-    WAVE = "sentence"
-
-    def __init__(self, sid, path, bench, doc_path):
-        import yaml
-        import bench as benches
-        self.sid = sid
-        self.path = path
-        self.b = benches.get(bench)
-        self.doc = self.b.load(doc_path)
-        with open(os.path.join(path, "harness.yaml"), encoding="utf-8") as f:
-            self.spec = yaml.safe_load(f)
-        self.steps = self.spec["steps"]
-        self.context_n = self.spec.get("context", self.b.context)
-        self.eps = {}
-        self.window = None          # [start, stop] over the earlier sentences, default [-context, 0]
-
-    def _rel(self, *p):
-        return os.path.relpath(os.path.join(self.path, *p), FS)
-
-    def describe(self):
-        rng = self.window or [-self.context_n, 0]
-        skills = []
-        for k, s in enumerate(self.steps):
-            files = []
-            if s["kind"] == "rule":
-                files.append(self._rel("rules", s["name"] + ".py"))
-                t = os.path.join(self.path, "rules", "test_%s.txt" % s["name"])
-                if os.path.exists(t):
-                    files.append(self._rel("rules", "test_%s.txt" % s["name"]))
-            else:
-                files.append(self._rel("skills", s["name"] + ".md"))
-                files += [self._rel("tools", t + ".py") for t in s.get("tools", [])]
-            nxt = self.steps[k + 1]["name"] if k + 1 < len(self.steps) else None
-            skills.append({"name": s["name"], "kind": s["kind"], "model": s.get("model"), "tools": s.get("tools", []),
-                           "input": {"annotation": "str", "findings": "list[dict]"} if s["kind"] != "rule"
-                           else {"annotation": "str", "sentence": "dict"},
-                           "emit": {"findings": "list[dict]"} if s["kind"] == "check" else {"annotation": "str"},
-                           "store": [], "files": files,
-                           "rules": [{"run": nxt, "text": "run %s (the next step)" % nxt}] if nxt else []})
-        wave = {"name": self.WAVE, "start": self.steps[0]["name"], "parallel": 1, "max_depth": None, "max_nodes": None,
-                "for_each": {"sentence": "annotation.sents"},
-                "context": {"earlier": {"window": "worktree.sentence", "range": rng, "pick": "final"},
-                            "header": "annotation.header"},
-                "input": {"sentence": "sentence"},
-                "windows": [{"var": "earlier", "where": "context", "source": "worktree.sentence",
-                             "range": [-self.context_n, 0], "override": self.window}]}
-        shared = [self._rel("harness.yaml"), self._rel("CHANGES.md"),
-                  "skillparseumr/experiment/annoforge/af/bench.py", "skillparseumr/experiment/annoforge/af/umr.py"]
-        return {"engine": self.kind, "skillset": self.sid, "waves": [wave], "skills": skills, "shared_files": shared,
-                "doc": self._doc(), "system": self.b.system}
-
-    def _doc(self):
-        return {"id": self.doc["name"], "lang": self.doc["lang"],
-                "sents": [{"index": s["index"], "text": s["text"], "tokens": s["words"]} for s in self.doc["sents"]]}
-
-    def worktree(self):
-        return {self.WAVE: [self._final(i) for i in range(len(self.doc["sents"]))]}
-
-    def items(self, w):
-        out = []
-        for i, s in enumerate(self.doc["sents"]):
-            ep = self.eps.get(i)
-            st = "new"
-            if ep:
-                sts = [n["status"] for n in ep["nodes"]]
-                st = "pending" if "pending" in sts else "error" if "error" in sts else "done"
-                if ep.get("stale"):
-                    st += "+stale"
-            out.append({"index": i, "label": s["text"], "status": st, "nodes": len(ep["nodes"]) if ep else 0})
-        return out
-
-    def _final(self, i):
-        ep = self.eps.get(i)
-        if not ep:
-            return None
-        cur = None
-        for n in ep["nodes"]:
-            if n["status"] == "ok" and n.get("after_text") is not None:
-                cur = n
-        return cur
-
-    def needs(self, w, i):
-        rng = self.window or [-self.context_n, 0]
-        lo, hi = max(0, i + rng[0]), min(i, i + rng[1])
-        return [(self.WAVE, k) for k in range(lo, hi) if self._final(k) is None]
-
-    def _context(self, i):
-        rng = self.window or [-self.context_n, 0]
-        lo, hi = max(0, i + rng[0]), min(i, i + rng[1])
-        out = []
-        for k in range(lo, hi):
-            f = self._final(k)
-            if f is not None:
-                idx = self.doc["sents"][k]["index"]
-                out.append((idx, self.b.text(self.doc, idx), f["after_text"]))
-        return out
-
-    def start(self, w, i):
-        i = int(i)
-        ctx = self._context(i)
-        nodes = []
-        nid = None
-        for k, s in enumerate(self.steps):
-            nid = "0" if nid is None else nid + ".0"
-            nodes.append({"id": nid, "k": k, "skill": s["name"], "kind": s["kind"], "model": s.get("model", "G"),
-                          "status": "pending", "output": None, "human": False, "error": None,
-                          "after_text": None, "after_parsed": None, "after_from": None, "findings_after": None,
-                          "problems": [], "request": None, "machine_output": None, "retried": False,
-                          "tool_calls": []})
-        self.eps[i] = {"index": i, "context": ctx, "nodes": nodes, "stale": False,
-                       "missing": self.needs(w, i)}
-        self._mark_stale(i)
-        return self.episode(w, i)
-
-    def _mark_stale(self, i):
-        for k, ep in self.eps.items():
-            if k > i:
-                ep["stale"] = True
-
-    def _ep(self, i):
-        ep = self.eps.get(int(i))
-        if not ep:
-            raise StepError("sentence #%d has not been started" % (int(i) + 1))
-        return ep
-
-    def _node(self, i, nid):
-        ep = self._ep(i)
-        for n in ep["nodes"]:
-            if n["id"] == nid:
-                return ep, n
-        raise StepError("no node %s" % nid)
-
-    def _before(self, ep, n):
-        """(current, parsed, from, findings) as the step before n left them."""
-        cur, parsed, frm, findings = None, None, None, []
-        for m in ep["nodes"][:n["k"]]:
-            if m["status"] != "ok":
-                if m["status"] == "skipped":
-                    continue
-                raise StepError("run step %s first" % m["skill"])
-            if m["after_text"] is not None:
-                cur, parsed, frm = m["after_text"], m["after_parsed"], m["after_from"]
-            findings = m["findings_after"] if m["findings_after"] is not None else findings
-        return cur, parsed, frm, findings
-
-    def _index(self, i):
-        return self.doc["sents"][int(i)]["index"]
-
-    def _load_fn(self, path, name):
-        return _load_module(path, "af_%s_%d" % (name, os.stat(path).st_mtime_ns)).__dict__[name]
-
-    def _tools(self, step):
-        out = []
-        for t in step.get("tools", []):
-            p = os.path.join(self.path, "tools", t + ".py")
-            if os.path.exists(p):
-                out.append(self._load_fn(p, t))
-        return out
-
-    def step(self, w, i, nid):
-        ep, n = self._node(i, nid)
-        if n["status"] != "pending":
-            self.reset(w, i, nid)
-        step = self.steps[n["k"]]
-        idx = self._index(i)
-        try:
-            cur, parsed, frm, findings = self._before(ep, n)
-        except StepError as e:
-            return {"done": True, "node": nid, "status": "blocked", "error": str(e)}
-        n["error"], n["problems"], n["retried"], n["tool_calls"] = None, [], False, []
-        try:
-            if step["kind"] == "rule":
-                if cur is None:
-                    n["status"] = "skipped"
-                    n["after_text"] = None
-                    return {"done": True, "node": nid, "status": "skipped"}
-                item = {"index": idx, "text": self.b.text(self.doc, idx)}
-                rule = self._load_fn(os.path.join(self.path, "rules", step["name"] + ".py"), "run")
-                out = rule(cur, item)
-                return self._finish_text(ep, n, out, findings, machine=True)
-            ctx = self._context(int(i))
-            ep["context"] = ctx
-            text = render_input(self.b, self.doc, idx, ctx, cur, frm, findings, step["kind"])
-            md = open(os.path.join(self.path, "skills", step["name"] + ".md"), encoding="utf-8").read()
-            n["request"] = {"system": self.b.system, "instructions": md, "input": text}
-            return {"need": "llm", "mode": "findings" if step["kind"] == "check" else "annotation",
-                    "node": nid, "system": self.b.system, "instructions": md, "input": text,
-                    "tools": [_tool_spec(t) for t in self._tools(step)], "role": step.get("model", "G")}
-        except Exception as e:
-            return self._fail(n, e)
-
-    def tool(self, w, i, nid, name, args):
-        ep, n = self._node(i, nid)
-        step = self.steps[n["k"]]
-        fns = {f.__name__: f for f in self._tools(step)}
-        if name not in fns:
-            return "no tool %s" % name
-        try:
-            res = fns[name](**(args or {}))
-        except Exception as e:
-            res = "tool error: %s: %s" % (type(e).__name__, e)
-        res = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
-        n["tool_calls"].append({"tool": name, "args": args, "result": res[:4000]})
-        return res
-
-    def complete(self, w, i, nid, output):
-        ep, n = self._node(i, nid)
-        step = self.steps[n["k"]]
-        try:
-            cur, parsed, frm, findings = self._before(ep, n)
-            if step["kind"] == "check":
-                fs = output.get("findings", []) if isinstance(output, dict) else output
-                fs = [{"problem": str(f.get("problem", "")), "fix": str(f.get("fix", ""))} for f in fs or []]
-                n["output"] = {"findings": fs}
-                n["machine_output"] = n["output"]
-                n["findings_after"] = findings + [(step["name"], f) for f in fs]
-                n["after_text"] = None
-                n["status"] = "ok"
-                return {"done": True, "node": nid, "status": "ok"}
-            ann = output.get("annotation", "") if isinstance(output, dict) else str(output)
-            idx = self._index(i)
-            got, problems = self.b.parse(self.doc, idx, ann)
-            if got is None and not n["retried"]:
-                n["retried"] = True
-                n["problems"] = problems
-                req = n["request"]
-                retry = req["input"] + ("\n\n## Your previous answer could not be read\n%s\n\n%s\n\n"
-                                        "Write it again in the output format." % ("; ".join(problems), ann[:4000]))
-                return {"need": "llm", "mode": "annotation", "node": nid, "system": req["system"],
-                        "instructions": req["instructions"], "input": retry,
-                        "tools": [_tool_spec(t) for t in self._tools(step)], "role": step.get("model", "G"),
-                        "retry": True}
-            return self._finish_text(ep, n, ann, [], machine=True, prior=n["problems"])
-        except Exception as e:
-            return self._fail(n, e)
-
-    def _finish_text(self, ep, n, out, findings, machine, prior=None):
-        idx = self._index(ep["index"])
-        parsed, problems = self.b.parse(self.doc, idx, out)
-        n["output"] = {"annotation": out}
-        if machine:
-            n["machine_output"] = n["output"]
-        n["problems"] = (prior or []) + problems
-        step = self.steps[n["k"]]
-        if parsed is not None:
-            n["after_text"] = self.b.show(self.doc, idx, parsed)
-            n["after_parsed"] = parsed
-            n["after_from"] = step["name"]
-            n["findings_after"] = [] if step["kind"] == "rewrite" else None
-        else:
-            # unreadable: the annotation before this step stays the current one
-            cur, cparsed, frm, f = self._before(ep, n)
-            n["after_text"], n["after_parsed"], n["after_from"] = cur, cparsed, frm
-            n["findings_after"] = None
-        n["status"] = "ok"
-        self._mark_stale(ep["index"])
-        return {"done": True, "node": n["id"], "status": "ok", "problems": n["problems"]}
-
-    def _fail(self, n, e):
-        n["status"] = "error"
-        n["error"] = "%s: %s" % (type(e).__name__, e)
-        n["trace"] = traceback.format_exc()[-3000:]
-        return {"done": True, "node": n["id"], "status": "error", "error": n["error"]}
-
-    def answer(self, w, i, nid, answers):
-        raise StepError("a harness step does not ask Jev")
-
-    def fail(self, w, i, nid, error):
-        ep, n = self._node(i, nid)
-        n["status"] = "error"
-        n["error"] = str(error)
-        return self.episode(w, i)
-
-    def reset(self, w, i, nid):
-        ep, n = self._node(i, nid)
-        for m in ep["nodes"][n["k"]:]:
-            m.update(status="pending", output=None, human=False, error=None, after_text=None, after_parsed=None,
-                     after_from=None, findings_after=None, problems=[], request=None, retried=False, tool_calls=[])
-        self._mark_stale(int(i))
-        return self.episode(w, i)
-
-    def set_output(self, w, i, nid, output):
-        ep, n = self._node(i, nid)
-        machine = n.get("machine_output")
-        for m in ep["nodes"][n["k"] + 1:]:
-            m.update(status="pending", output=None, human=False, error=None, after_text=None, after_parsed=None,
-                     after_from=None, findings_after=None, problems=[], request=None, retried=False, tool_calls=[])
-        step = self.steps[n["k"]]
-        if step["kind"] == "check":
-            res = self.complete(w, i, nid, output)
-        else:
-            text = output.get("annotation", "") if isinstance(output, dict) else str(output)
-            cur, parsed, frm, findings = self._before(ep, n)
-            res = self._finish_text(ep, n, text, findings, machine=False)
-        n["human"] = True
-        n["machine_output"] = machine
-        return res
-
-    def pending(self, w, i):
-        """A chain runs one step at a time: the first pending step, if the steps before it are done."""
-        p = self.next_pending(w, i)
-        return [p] if p else []
-
-    def next_pending(self, w, i):
-        ep = self.eps.get(int(i))
-        if not ep:
-            return None
-        for n in ep["nodes"]:
-            if n["status"] == "pending":
-                return n["id"]
-            if n["status"] == "error":
-                return None
-        return None
-
-    def episode(self, w, i):
-        i = int(i)
-        ep = self.eps.get(i)
-        label = self.doc["sents"][i]["text"]
-        if not ep:
-            return {"wave": w, "index": i, "label": label, "started": False, "nodes": [],
-                    "needs": [list(x) for x in self.needs(w, i)]}
-        nodes = []
-        for n in ep["nodes"]:
-            summ = ""
-            if n["output"]:
-                if "findings" in n["output"]:
-                    summ = "%d findings" % len(n["output"]["findings"])
-                elif n["after_parsed"] is not None:
-                    g = n["after_parsed"][list(n["after_parsed"])[0]]
-                    m = re.search(r"/\s*([^\s()]+)", g)
-                    summ = (m.group(1) if m else "") + (" (+%d problems)" % len(n["problems"]) if n["problems"] else "")
-                else:
-                    summ = "unreadable"
-            nodes.append({"id": n["id"], "skill": n["skill"], "kind": n["kind"], "edge": None,
-                          "depth": 0, "step": n["k"], "status": n["status"], "human": n["human"],
-                          "parent": n["id"].rsplit(".", 1)[0] if "." in n["id"] else None,
-                          "text": None, "summary": summ, "waiting": False, "error": n["error"], "model": n["model"]})
-        ctx = [{"index": j, "text": t, "annotation": a} for j, t, a in ep["context"]]
-        return {"wave": w, "index": i, "label": label, "started": True, "error": None, "stale": ep.get("stale", False),
-                "context": {"earlier": ctx, "sentence": self.b.sentence(self.doc, self._index(i)),
-                            "header": self.b.header(self.doc)},
-                "nodes": nodes, "needs": [list(x) for x in ep.get("missing", [])], "count": len(self.doc["sents"])}
-
-    def node(self, w, i, nid):
-        ep, n = self._node(i, nid)
-        step = self.steps[n["k"]]
-        files = [self._rel("rules", step["name"] + ".py")] if step["kind"] == "rule" else \
-            [self._rel("skills", step["name"] + ".md")] + [self._rel("tools", t + ".py") for t in step.get("tools", [])]
-        out = {k: jsonable(v) for k, v in n.items() if k not in ("after_parsed", "trace")}
-        out.update(kind=step["kind"], files=files, trace=n.get("trace"),
-                   emit={"findings": "list[dict]"} if step["kind"] == "check" else {"annotation": "str"})
-        try:
-            cur, _, frm, findings = self._before(ep, n)
-            out["before"] = {"annotation": cur, "from": frm, "findings": jsonable(findings)}
-        except StepError as e:
-            out["before"] = {"blocked": str(e)}
-        return out
-
-    def set_window(self, w, var, rng):
-        self.window = None if rng is None else [int(rng[0]), int(rng[1])]
-        return self.describe()
-
-    def render(self, auto_align=True):
-        import umr
-        preds = {}
-        for i in range(len(self.doc["sents"])):
-            f = self._final(i)
-            if f is not None:
-                preds[self._index(i)] = f["after_parsed"]
-        text = umr.render_pred(self.doc, None, preds)
-        if self.doc["lang"] == "zh":
-            text = char_alignment(text)
-        added = []
-        if auto_align:
-            text, added = auto_align_umr(text, self.doc["lang"])
-        return {"text": text, "added": added, "provenance": {}, "sentences": split_umr(text)}
-
-    def export(self):
-        eps = {}
-        for i, ep in self.eps.items():
-            eps[str(i)] = {"context": jsonable(ep["context"]),
-                           "nodes": [{k: jsonable(v) for k, v in n.items() if k not in ("after_parsed", "trace")}
-                                     for n in ep["nodes"]]}
-        return {"skillset": self.sid, "doc": self._doc(), "window": self.window, "episodes": {self.WAVE: eps}}
-
-    def reload(self):
-        import yaml
-        with open(os.path.join(self.path, "harness.yaml"), encoding="utf-8") as f:
-            self.spec = yaml.safe_load(f)
-        self.steps = self.spec["steps"]
-        self.context_n = self.spec.get("context", self.b.context)
         return True
 
 
@@ -1125,40 +725,6 @@ def auto_align_umr(text, lang):
     return RULE80.join(out), added
 
 
-def char_alignment(text):
-    """A Chinese .umr whose Words: are jieba (or gold) words, renumbered one token per character,
-    as the input handler tokenises (a run of Latin letters or digits stays one token): the
-    Index / Words lines become characters and every alignment `start-end` in words becomes the
-    span of those words' characters. 0-0 stays 0-0."""
-    from input_handler.umrinputhandler import tokenize
-    from output_handler.umroutputhandler import _index_words
-    out = []
-    for block in text.split(RULE80):
-        m = re.search(r"^Words:\s*(.*)$", block, re.M)
-        if not m or "# alignment:" not in block:
-            out.append(block)
-            continue
-        tokens, span = [], {}
-        for k, w in enumerate(m.group(1).split(), 1):
-            pieces = tokenize(w, "zh") or [w]
-            span[k] = (len(tokens) + 1, len(tokens) + len(pieces))
-            tokens += pieces
-        index_line, words_line = _index_words(tokens)
-        block = re.sub(r"^Index:.*$", lambda _: index_line, block, count=1, flags=re.M)
-        block = re.sub(r"^Words:.*$", lambda _: words_line, block, count=1, flags=re.M)
-        head, rest = block.split("# alignment:", 1)
-        align, sep, tail = rest.partition("# document level annotation:")
-
-        def renumber(mm):
-            a, b = int(mm.group(2)), int(mm.group(3))
-            if a <= 0 or a not in span or b not in span:
-                return mm.group(0)
-            return "%s%d-%d" % (mm.group(1), span[a][0], span[b][1])
-        align = re.sub(r"^([ \t]*\S+:[ \t]*)(\d+)-(\d+)[ \t]*$", renumber, align, flags=re.M)
-        out.append(head + "# alignment:" + align + sep + tail)
-    return RULE80.join(out)
-
-
 def _find(words, lemma, used, lang):
     """1-based (first, last) of the words that spell lemma (one word, or several run together in
     Chinese), preferring a place nobody has."""
@@ -1184,6 +750,21 @@ def _stem(w):
         if w.endswith(suf) and len(w) > len(suf) + 2:
             return w[:-len(suf)]
     return w
+
+
+DOC_GROUP = re.compile(r":(temporal|modal|coref)\b")
+DOC_TRIPLE = re.compile(r"\(\s*([^\s()]+)\s+:([\w-]+)\s+([^\s()]+)\s*\)")
+
+
+def read_doc(text):
+    """[{group, a, rel, b}]: the (a :rel b) triples of a document-level annotation, by group."""
+    marks = [(m.start(), m.group(1)) for m in DOC_GROUP.finditer(text)]
+    out = []
+    for k, (start, group) in enumerate(marks):
+        end = marks[k + 1][0] if k + 1 < len(marks) else len(text)
+        for a, r, b in DOC_TRIPLE.findall(text[start:end]):
+            out.append({"group": group, "a": a, "rel": r, "b": b.rstrip(")")})
+    return out
 
 
 def split_umr(text):
@@ -1238,11 +819,9 @@ class Session:
     def open(self, skillset, doc):
         s = SKILLSETS[skillset]
         doc_path = os.path.join(DOCS, doc + ".umr")
-        if s["engine"] == "registry":
-            lang = "zh" if re.search(r"[一-鿿]", open(doc_path, encoding="utf-8").read()) else "en"
-            self.engine = RegistryEngine(skillset, s["path"], os.path.join(DOCS, doc + ".txt"), lang)
-        else:
-            self.engine = HarnessEngine(skillset, s["path"], s["bench"], doc_path)
+        lang = "zh" if re.search(r"[一-鿿]", open(doc_path, encoding="utf-8").read()) else "en"
+        # the input handler reads the .umr's Words: lines when there is no .txt
+        self.engine = RegistryEngine(skillset, s["path"], os.path.join(DOCS, doc + ".txt"), lang)
         return self.engine.describe()
 
     def read_file(self, path):

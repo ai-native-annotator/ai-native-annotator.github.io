@@ -1,42 +1,29 @@
 /**
- * Middle pane. Top: what the selected step produced, and everything that went into it
- * (input, Jev's questions and answers, the prompt, tool calls), plus the whole sentence's
- * assembled graph. The output can be edited: the edit is saved as the human result of the
- * step and everything under it is redone from it. Bottom: the item's steps as a tree; click
- * to select, ▶ to run.
+ * Middle pane. Top: the sentence's graph as it stands (drawn, with the selected step's part
+ * marked; click a box to go to the step that made it), and the selected step: its output (with
+ * its own graph fragment drawn), input, Jev's questions and answers, prompt, and the sentence's
+ * .umr text. The output can be edited: the edit is saved as the human result of the step and
+ * everything under it is redone from it. Bottom: the item's steps as a tree; click to select,
+ * ▶ to run.
  */
 
 import { h, clear, pretty, toast, diffView } from './ui.js';
-import { S, onRender, render, selectNode, runNode, runItem, resetNode, saveOutput, startItem, assembled } from './core.js';
+import { S, onRender, render, selectNode, selectWave, selectItem, runNode, runItem, resetNode, saveOutput, startItem, sentenceGraph } from './core.js';
+import { drawGraph, fragmentGraph } from './graph-view.js';
 import { lineDiff, hunks, stable } from './diff.js';
 import { t } from './i18n.js';
 
-const TABS = ['output', 'input', 'jev', 'prompt', 'tools', 'graph'];
-const LABEL = { output: 'tabOutput', input: 'tabInput', jev: 'tabJev', prompt: 'tabPrompt', tools: 'tabTools', graph: 'tabGraph' };
+const LABEL = { graph: 'tabGraph', output: 'tabOutput', input: 'tabInput', jev: 'tabJev', prompt: 'tabPrompt', umr: 'tabUmr' };
 
 function tabsFor(d) {
-  if (!d) return ['graph'];
-  const out = ['output', 'input'];
-  if (d.kind === 'jev') out.push('jev');
-  if (d.kind === 'agent' || d.kind === 'rewrite' || d.kind === 'check') out.push('prompt');
-  if (d.tool_calls?.length) out.push('tools');
-  out.push('graph');
-  return out;
-}
-
-function outputText(d) {
-  const o = d.output;
-  if (!o) return '';
-  if (S.desc.engine === 'harness') return 'annotation' in o ? o.annotation : stable(o.findings);
-  return stable(o);
-}
-
-function parseEdited(d, text) {
-  if (S.desc.engine === 'harness') {
-    if (d.kind === 'check') return { findings: JSON.parse(text) };
-    return { annotation: text };
+  const out = ['graph'];
+  if (d) {
+    out.push('output', 'input');
+    if (d.kind === 'jev') out.push('jev');
+    if (d.kind === 'agent') out.push('prompt');
   }
-  return JSON.parse(text);
+  out.push('umr');
+  return out;
 }
 
 function outputTab(d) {
@@ -44,7 +31,7 @@ function outputTab(d) {
     return h('div', {}, h('div', { class: 'empty', text: '—' }),
       h('button', { class: 'btn primary', text: t('run'), disabled: S.running > 0, onclick: () => runNode(d.id) }));
   }
-  const text = outputText(d);
+  const text = d.output ? stable(d.output) : '';
   if (S.editing) {
     const area = h('textarea', { rows: 22, spellcheck: 'false' });
     area.value = text;
@@ -53,7 +40,7 @@ function outputTab(d) {
       h('div', { class: 'row' },
         h('button', { class: 'btn primary', text: t('saveCorrection'), onclick: async () => {
           let value;
-          try { value = parseEdited(d, area.value); } catch (e) { err.textContent = t('badJson', { e: e.message }); return; }
+          try { value = JSON.parse(area.value); } catch (e) { err.textContent = t('badJson', { e: e.message }); return; }
           const r = await saveOutput(value);
           if (r?.status === 'error') toast(`${t('error')}: ${r.error}`);
           else toast(t('saved'));
@@ -62,15 +49,18 @@ function outputTab(d) {
   }
   const parts = [];
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
-  if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('problems')}: ` }), d.problems.join('; ')));
   if (d.human) {
     parts.push(h('div', { class: 'row' }, h('span', { class: 'human-tag', text: t('humanTag') }),
       h('span', { class: 'note', text: t('human') })));
   }
+  const frag = fragmentGraph(d.output);
+  if (frag) {
+    parts.push(h('div', { class: 'note', text: t('fragment') }),
+      h('div', { class: 'graph-wrap' }, drawGraph(frag.graph, { dashed: frag.dashed })));
+  }
   parts.push(h('pre', { class: 'block', text: text || '—' }));
   if (d.human && d.machine_output) {
-    const machine = S.desc.engine === 'harness' ? (d.machine_output.annotation ?? stable(d.machine_output.findings)) : stable(d.machine_output);
-    parts.push(h('details', {}, h('summary', { text: t('machine') }), diffView(hunks(lineDiff(machine, text), 2))));
+    parts.push(h('details', {}, h('summary', { text: t('machine') }), diffView(hunks(lineDiff(stable(d.machine_output), text), 2))));
   }
   if (d.children?.length) parts.push(h('div', { class: 'note', text: `${t('children')}: ${d.children.join(', ')}` }));
   if (d.dropped?.length) parts.push(h('details', {}, h('summary', { text: `${t('dropped')} (${d.dropped.length})` }), h('pre', { text: pretty(d.dropped) })));
@@ -81,23 +71,17 @@ function outputTab(d) {
 }
 
 function inputTab(d) {
-  if (S.desc.engine === 'harness') {
-    const b = d.before || {};
-    return h('div', { style: 'display:grid;gap:6px' },
-      b.blocked ? h('div', { class: 'warn', text: b.blocked }) : null,
-      b.annotation ? h('details', { open: true }, h('summary', { text: `annotation (${b.from})` }), h('pre', { class: 'block', text: b.annotation })) : null,
-      b.findings?.length ? h('details', { open: true }, h('summary', { text: `findings (${b.findings.length})` }), h('pre', { class: 'block', text: pretty(b.findings) })) : null,
-      d.request ? h('details', {}, h('summary', { text: 'prompt input' }), h('pre', { class: 'block', text: d.request.input })) : null);
-  }
   return h('pre', { class: 'block', text: pretty(d.input) });
 }
 
 function answerLine(q, a) {
   if (!a) return h('span', { class: 'note', text: '…' });
-  if ('noul' in a) return h('span', {}, h('span', { class: 'bar', style: `width:${Math.round(a.noul * 60)}px` }), `yes ${Number(a.noul).toFixed(2)}`);
+  const who = a.escalated ? h('span', { class: 'badge', title: t('escalatedTitle'), text: 'Haiku' }) : null;
+  if ('noul' in a) return h('span', {}, h('span', { class: 'bar', style: `width:${Math.round(a.noul * 60)}px` }), `yes ${Number(a.noul).toFixed(2)} `, who);
   if (a.probabilities) {
     const top = Object.entries(a.probabilities).sort((x, y) => y[1] - x[1]).slice(0, 3).filter(([, p], k) => p >= 0.01 || k === 0);
-    return h('span', {}, top.map(([o, p]) => h('span', { style: 'margin-right:10px' }, h('span', { class: 'bar', style: `width:${Math.round(p * 60)}px` }), `${o} ${Number(p).toFixed(2)}`)));
+    return h('span', {}, top.map(([o, p]) => h('span', { style: 'margin-right:10px' }, h('span', { class: 'bar', style: `width:${Math.round(p * 60)}px` }), `${o} ${Number(p).toFixed(2)}`)), who,
+      a.escalated && a.jev?.choice ? h('span', { class: 'note', text: ` (Jev: ${a.jev.choice})` }) : null);
   }
   return h('span', { text: JSON.stringify(a) });
 }
@@ -116,33 +100,90 @@ function jevTab(d) {
 }
 
 function promptTab(d) {
-  const p = d.prompt || d.request;
+  const p = d.prompt;
   if (!p) return h('div', { class: 'empty', text: t('noPrompt') });
   return h('div', { style: 'display:grid;gap:6px' },
-    p.system ? h('details', {}, h('summary', { text: 'system' }), h('pre', { class: 'block', text: p.system })) : null,
     h('details', {}, h('summary', { text: 'instructions (skill)' }), h('pre', { class: 'block', text: p.instructions })),
     h('details', { open: true }, h('summary', { text: 'input' }), h('pre', { class: 'block', text: p.input })));
 }
 
-function toolsTab(d) {
-  if (!d.tool_calls?.length) return h('div', { class: 'empty', text: t('noTools') });
-  return h('div', {}, d.tool_calls.map((c) => h('div', { class: 'qa' },
-    h('div', { class: 'q mono', text: `${c.tool}(${JSON.stringify(c.args)})` }), h('pre', { class: 'a', text: c.result }))));
+/** Go to the step that made a variable of the sentence graph (it is a node of the sentence wave). */
+async function goToMaker(g, v) {
+  const n = g.nodes.find((x) => x.var === v);
+  if (!n?.node) return;
+  const sentenceWave = S.desc.waves[0].name;
+  const item = S.item;
+  if (S.wave !== sentenceWave) {
+    await selectWave(sentenceWave);
+    await selectItem(item);
+  }
+  S.tab = 'graph';
+  await selectNode(n.node);
 }
 
-async function graphTab(box) {
-  clear(box, h('div', { class: 'loading' }, h('span', { class: 'spinner' }), '…'));
+let fit = true;
+
+function graphPanel(g) {
+  const tokens = h('div', { class: 'tokens' }, g.tokens.map((w, k) => h('span', { class: 'tok', 'data-k': k + 1 }, w, h('sub', { text: k + 1 }))));
+  const onHover = (v) => {
+    tokens.querySelectorAll('.tok.on').forEach((x) => x.classList.remove('on'));
+    const n = v && g.nodes.find((x) => x.var === v);
+    if (!n || !n.align || n.align === '0-0') return;
+    const [lo, hi] = n.align.split('-').map(Number);
+    for (let k = lo; k <= hi; k++) tokens.querySelector(`[data-k="${k}"]`)?.classList.add('on');
+  };
+  const sentenceWave = S.desc.waves[0].name;
+  const mine = new Set(S.wave === sentenceWave && S.node ? g.nodes.filter((n) => n.node === S.node).map((n) => n.var) : []);
+  const parts = [h('div', { class: 'graph-tools' },
+    h('strong', { text: t('graphOf', { n: g.index }) }),
+    h('span', { class: 'note', text: t('graphHelp') }),
+    h('span', { class: 'grow' }),
+    h('button', { class: 'btn sm ghost', text: fit ? '100%' : t('fit'), onclick: () => { fit = !fit; render(); } })),
+  tokens];
+  if (g.error) parts.push(h('div', { class: 'err', text: g.error }));
+  if (!g.nodes.length) {
+    parts.push(h('div', { class: 'empty', text: t('noGraph') }));
+  } else {
+    parts.push(h('div', { class: `graph-wrap${fit ? ' fit' : ''}` },
+      drawGraph(g, { highlight: mine, onPick: (v) => goToMaker(g, v), onHover })));
+  }
+  if (g.doc.length) {
+    const name = (x) => { const n = g.nodes.find((m) => m.var === x); return n ? `${x}/${n.concept}` : x; };
+    parts.push(h('details', { open: S.wave !== sentenceWave },
+      h('summary', { text: t('docRels', { n: g.doc.length }) }),
+      h('div', {}, g.doc.map((r) => h('div', { class: 'doc-rel', text: `${r.group}: ${name(r.a)} :${r.rel} ${name(r.b)}` })))));
+  }
+  return h('div', { class: 'graph-panel' }, parts);
+}
+
+let shown = '';
+
+async function graphTab(out, d) {
+  const key = `${S.skillset}|${S.doc}|${S.wave}|${S.item}|${S.node}|${S.graphStamp}|${fit}`;
+  if (shown === key && out.querySelector('.graph-panel')) return;
+  if (!out.querySelector('.graph-panel')) clear(out, h('div', { class: 'loading' }, h('span', { class: 'spinner' }), '…'));
   try {
-    const u = await assembled(true);
-    const sent = u.sentences.find((s) => s.index === S.item + 1) || u.sentences[S.item];
-    const added = new Set(u.added.filter((a) => a[0] === S.item + 1).map((a) => a[1]));
-    const lines = (sent?.text || '').split('\n').map((ln) => {
+    const g = await sentenceGraph(S.item);
+    if (S.tab !== 'graph') return;
+    shown = key;
+    clear(out, graphPanel(g));
+  } catch (err) {
+    clear(out, h('div', { class: 'err', text: err.message }));
+  }
+}
+
+async function umrTab(out) {
+  try {
+    const g = await sentenceGraph(S.item);
+    if (S.tab !== 'umr') return;
+    const added = new Set(g.nodes.filter((n) => n.auto).map((n) => n.var));
+    const lines = (g.text || '').split('\n').map((ln) => {
       const m = /^(\S+): \d+-\d+$/.exec(ln);
       return h('span', { class: m && added.has(m[1]) ? 'align-added' : '', style: 'display:block', text: ln || ' ' });
     });
-    clear(box, h('div', { class: 'note', text: t('graphNote') }), h('pre', { class: 'block' }, lines));
+    clear(out, h('div', { class: 'note', text: t('umrNote') }), h('pre', { class: 'block' }, lines));
   } catch (err) {
-    clear(box, h('div', { class: 'err', text: err.message }));
+    clear(out, h('div', { class: 'err', text: err.message }));
   }
 }
 
@@ -156,19 +197,16 @@ function drawTop() {
   const tabs = tabsFor(d);
   if (!tabs.includes(S.tab)) S.tab = tabs[0];
   clear(tabsEl, tabs.map((k) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(S.tab === k), text: t(LABEL[k]), onclick: () => { S.tab = k; S.editing = false; render(); } })));
-  if (S.tab === 'graph') {
-    const box = h('div');
-    clear(out, box);
-    graphTab(box);
-    return;
-  }
+  if (S.tab === 'graph') { delete out.dataset.editing; graphTab(out, d); return; }
+  shown = '';
+  if (S.tab === 'umr') { delete out.dataset.editing; umrTab(out); return; }
   if (!d) { clear(out, h('div', { class: 'empty', text: t('noNode') })); return; }
   // a redraw while someone is typing a correction must not throw the typing away
   const key = `${S.item}|${d.id}`;
   if (S.editing && S.tab === 'output' && out.dataset.editing === key) return;
   if (S.editing && S.tab === 'output') out.dataset.editing = key;
   else delete out.dataset.editing;
-  const view = { output: outputTab, input: inputTab, jev: jevTab, prompt: promptTab, tools: toolsTab }[S.tab](d);
+  const view = { output: outputTab, input: inputTab, jev: jevTab, prompt: promptTab }[S.tab](d);
   clear(out, view);
 }
 

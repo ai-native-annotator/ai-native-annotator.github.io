@@ -1,6 +1,0 @@
-a = '# sentence level graph:\n(s1x / 回应-01\n    :aspect performance)\n\n# alignment:\ns1x: 1-1\n\n# document level annotation:\n(s1s0 / sentence\n    :modal ((author :full-negative s1x)))\n'
-r = run(a, {'index': 1, 'text': ''})
-assert '(s1x / 回应-01 :polarity -' in r
-assert run(r, {'index': 1, 'text': ''}) == r
-b = '# sentence level graph:\n(s1x / 回应-01\n    :aspect performance)\n\n# alignment:\ns1x: 1-1\n\n# document level annotation:\n(s1s0 / sentence\n    :modal ((author :full-affirmative s1x)))\n'
-assert run(b, {'index': 1, 'text': ''}) == b

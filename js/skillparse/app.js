@@ -1,5 +1,6 @@
 /**
- * index.html: SkillParseUMR's Jev and Haiku skills, run one step at a time in the browser.
+ * index.html: SkillParseUMR's decision-orchestration procedures (Jev + Haiku), run one step at a
+ * time in the browser.
  *
  *   py-worker.js  Pyodide with the SkillParseUMR sources (data/skillparse/) and bridge/sp_bridge.py
  *   core.js       state, running steps (Jev rounds, LLM calls with tools), corrections
@@ -41,7 +42,13 @@ function wire() {
     const doc = S.docs.find((d) => d.lang === meta.lang && d.id === S.doc) ? S.doc : (S.docs.find((d) => d.lang === meta.lang) || S.docs[0]).id;
     await reopen(e.target.value, doc).catch(fail);
   });
-  document.getElementById('doc').addEventListener('change', (e) => reopen(S.skillset, e.target.value).catch(fail));
+  // a document in the other language opens with that language's procedure
+  document.getElementById('doc').addEventListener('change', (e) => {
+    const lang = S.docs.find((d) => d.id === e.target.value)?.lang;
+    const meta = SKILLSETS.find((s) => s.id === S.skillset);
+    const skillset = lang && meta.lang !== lang ? (SKILLSETS.find((s) => s.lang === lang) || meta).id : S.skillset;
+    reopen(skillset, e.target.value).catch(fail);
+  });
   document.addEventListener('docs-changed', (e) => reopen(S.skillset, e.detail).catch(fail));
 }
 

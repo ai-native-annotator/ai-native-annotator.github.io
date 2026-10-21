@@ -30,17 +30,16 @@ A person is checking the pipeline one step at a time. You get one step (a node):
 its input, what it produced, the person's feedback, and the skill's source files. Find what in the
 skill caused the problem and propose the smallest general edit that fixes it.
 
-How the skills work:
-- A registry skill of kind "jev" is a Python file whose run(**inputs) is a generator. It lists the
-  possible answers locally (words, senses, roles), yields closed questions to Jev (choice / noul =
-  yes-no / score) and builds its output ("emit") from the answers by rule. A wrong output has one of
+How the skills work (SkillParseUMR decision orchestration):
+- A skill of kind "jev" is a Python file whose run(**inputs) is a generator. Its rules split the piece
+  and list the possible answers locally (words, senses, roles), it yields closed questions (choice /
+  noul = yes-no / score; the question texts, instructions and option lists are in the skill's
+  prompts.yaml), Jev answers them with probabilities (a question Jev is unsure of goes to Haiku,
+  marked "escalated"), and rules build its output ("emit") from the answers. A wrong output has one of
   these causes: "question" (the right option was offered but the wording or option descriptions led
   to a wrong pick), "candidates" (the right answer was not among the options, or a needed question
   was never asked), "rule" (the answers were right, the code assembled them wrongly).
-- A registry skill of kind "rule" is plain Python run(**inputs) -> emit.
-- A harness step of kind "rewrite" / "check" is a Markdown instruction file sent to a language model
-  (rewrite: writes the whole annotation; check: lists findings). Its problems are "instructions".
-  A harness rule is Python run(annotation: str, sentence: dict) -> str.
+- A skill of kind "rule" is plain Python run(**inputs) -> emit.
 - "upstream": the step did right with what it got; an earlier step gave it a wrong input.
 - "not-a-skill-problem": the output is fine, or the feedback asks for something no edit should do.
 
@@ -58,7 +57,7 @@ export const SCHEMA = {
   type: 'object',
   properties: {
     diagnosis: { type: 'string', description: 'what went wrong and why, in the language the person wrote in (Chinese if unsure)' },
-    layer: { type: 'string', enum: ['question', 'candidates', 'rule', 'instructions', 'upstream', 'not-a-skill-problem'] },
+    layer: { type: 'string', enum: ['question', 'candidates', 'rule', 'upstream', 'not-a-skill-problem'] },
     edits: {
       type: 'array',
       items: {
@@ -83,10 +82,10 @@ function jevRounds(rounds) {
     qs.slice(0, 80).forEach(([id, q]) => {
       const a = r.answers?.[id];
       let got = '(not answered)';
-      if (a && 'noul' in a) got = `yes ${Number(a.noul).toFixed(2)}`;
+      if (a && 'noul' in a) got = `yes ${Number(a.noul).toFixed(2)}${a.escalated ? ' (escalated to Haiku)' : ''}`;
       else if (a?.probabilities) {
         got = Object.entries(a.probabilities).sort((p, s) => s[1] - p[1]).slice(0, 3)
-          .map(([o, p]) => `${o} ${Number(p).toFixed(2)}`).join(', ');
+          .map(([o, p]) => `${o} ${Number(p).toFixed(2)}`).join(', ') + (a.escalated ? ` (escalated to Haiku; Jev: ${a.jev?.choice ?? '?'})` : '');
       } else if (a) got = JSON.stringify(a);
       const ins = typeof q.instructions === 'string' ? q.instructions : JSON.stringify(q.instructions);
       const opts = q.type === 'choice' ? ` options: ${Object.keys(q.criteria || {}).join(' | ')}` : '';
@@ -98,21 +97,14 @@ function jevRounds(rounds) {
 }
 
 /** The prompt for one node. `files` is {path: text}. */
-export function buildPrompt({ engine, skillset, node, context, mode, feedback, corrected, files, graph }) {
-  const parts = [`# Skillset\n${skillset} (${engine === 'harness' ? 'AnnoForge harness: steps in a chain per sentence' : 'registry: a tree of skill calls per sentence'})`];
+export function buildPrompt({ skillset, node, context, mode, feedback, corrected, files, graph }) {
+  const parts = [`# Procedure\n${skillset} (a registry: a tree of skill calls per sentence)`];
   parts.push(`# The step\nnode ${node.id}, skill \`${node.skill}\`, kind ${node.kind}${node.edge ? `, edge ${node.edge}` : ''}`);
-  if (engine === 'harness') {
-    if (node.request) parts.push(`## What the step was given (prompt input)\n${clip(node.request.input, 14000)}`);
-    if (node.before?.annotation) parts.push(`## Annotation before this step\n${clip(node.before.annotation)}`);
-    if (node.tool_calls?.length) parts.push(`## Tool calls\n${node.tool_calls.map((t) => `${t.tool}(${JSON.stringify(t.args)}) -> ${clip(t.result, 600)}`).join('\n')}`);
-    if (node.problems?.length) parts.push(`## Problems reading its answer\n${node.problems.join('\n')}`);
-  } else {
-    parts.push(`## Context (the same for every step of this sentence)\n${clip(context, 4000)}`);
-    parts.push(`## Input\n${clip(node.input)}`);
-    if (node.rounds?.length) parts.push(`## Jev questions and answers\n${jevRounds(node.rounds)}`);
-    if (node.prompt) parts.push(`## Prompt\n${clip(node.prompt.instructions, 6000)}\n${clip(node.prompt.input, 4000)}`);
-    if (node.dropped?.length) parts.push(`## Children not made\n${clip(node.dropped, 2000)}`);
-  }
+  parts.push(`## Context (the same for every step of this sentence)\n${clip(context, 4000)}`);
+  parts.push(`## Input\n${clip(node.input)}`);
+  if (node.rounds?.length) parts.push(`## Closed questions and answers\n${jevRounds(node.rounds)}`);
+  if (node.prompt) parts.push(`## Prompt\n${clip(node.prompt.instructions, 6000)}\n${clip(node.prompt.input, 4000)}`);
+  if (node.dropped?.length) parts.push(`## Children not made\n${clip(node.dropped, 2000)}`);
   const machine = node.machine_output ?? node.output;
   parts.push(`## What the skill produced\n${clip(machine)}`);
   if (node.error) parts.push(`## Error\n${node.error}\n${clip(node.trace || '', 3000)}`);

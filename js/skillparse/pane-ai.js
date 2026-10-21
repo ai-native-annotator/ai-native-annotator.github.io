@@ -29,7 +29,6 @@ function slot() {
 
 function asText(o) {
   if (o == null) return '';
-  if (S.desc.engine === 'harness') return 'annotation' in o ? o.annotation : stable(o.findings);
   return stable(o);
 }
 
@@ -62,7 +61,7 @@ async function ask(mode, feedback = '') {
     const files = await filesFor(d);
     const corrected = mode === 'corrected' ? d.output : null;
     const res = await reflect({
-      engine: S.desc.engine, skillset: S.skillset, node: d, context: S.episode?.context, mode, feedback, corrected, files, graph,
+      skillset: S.skillset, node: d, context: S.episode?.context, mode, feedback, corrected, files, graph,
     });
     s.proposal = { ...res, mode, target: corrected, picked: (res.edits || []).map(() => true), report: null };
     s.history.push({ at: new Date().toISOString(), mode, feedback, diagnosis: res.diagnosis, layer: res.layer, edits: (res.edits || []).length });

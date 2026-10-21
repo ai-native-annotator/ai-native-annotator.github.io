@@ -4,17 +4,17 @@
 
 The page (index.html) runs these Python files unchanged in the browser (Pyodide). What is copied:
 
-  skillparseumr/src/                 registry.py, the UMR input and output handlers, gold.py, timeml.py
-  skillparseumr/skillsets/tools/     propbank.py (the shared PropBank lookup)
-  skillparseumr/experiment/rsi-jev2/skills/K4/          the Jev skills (kind: jev), RSI round 4
-  skillparseumr/experiment/annoforge/harness/umr-*/HH/H10/   the Haiku harness after 10 RSI rounds
-  skillparseumr/experiment/annoforge/af/   umr.py bench.py tml.py resources.py (what a harness step sees)
+  skillparseumr/src/                registry.py, the UMR input and output handlers
+  skillparseumr/skillsets/tools/    propbank.py (the shared PropBank lookup)
+  skillparseumr/experiment/decision-orchestration/umr-{zh,en}-v11/versions/V12/
+                                    the decision-orchestration procedures (kind: jev skills: rules
+                                    list the options, Jev answers closed questions, Haiku takes the
+                                    ones Jev is unsure of), after 12 rounds of measured reflection
 
-The RSI code itself is not copied. PropBank (modular-parsing/resources) is 24,521 + 5,618 XML files;
-each folder becomes one merged JSON file, and the two modules that read those folders
-(skillsets/tools/propbank.py, af/resources.py) are replaced by the versions in
-data/skillparse/overrides/, which read the merged files and return the same answers. jieba is trimmed to what the Jev
-skills import (the dictionary, finalseg, posseg) and zipped.
+The reflection code itself (rsi-batch/) is not copied. PropBank (modular-parsing/resources) is
+24,521 + 5,618 XML files; each folder becomes one merged JSON file, and propbank.py is replaced by
+the version in data/skillparse/overrides/, which reads the merged file and returns the same answers.
+jieba is trimmed to what the skills import (the dictionary, finalseg, posseg) and zipped.
 """
 import json
 import os
@@ -30,19 +30,13 @@ OUT = os.path.join(SITE, "data", "skillparse")
 FS = os.path.join(OUT, "fs")
 
 SP_FILES = [
-    "src/registry.py", "src/gold.py", "src/timeml.py",
+    "src/registry.py",
     "src/input_handler/__init__.py", "src/input_handler/umrinputhandler.py",
     "src/output_handler/__init__.py", "src/output_handler/umroutputhandler.py",
-    "scripts/compare_ancast.py",
     "skillsets/tools/propbank.py", "skillsets/REGISTRY.md",
-    "experiment/annoforge/af/umr.py", "experiment/annoforge/af/bench.py",
-    "experiment/annoforge/af/tml.py", "experiment/annoforge/af/resources.py",
 ]
-SP_DIRS = [
-    "experiment/rsi-jev2/skills/K4",
-    "experiment/annoforge/harness/umr-zh/HH/H10",
-    "experiment/annoforge/harness/umr-en/HH/H10",
-]
+DO = "experiment/decision-orchestration"
+SP_DIRS = [DO + "/umr-zh-v11/versions/V12", DO + "/umr-en-v11/versions/V12"]
 MP_FILES = [
     "resources/Abstract_predicate_and_rolesets.csv", "resources/All_relations.csv",
     "resources/Attribute_Values.csv", "resources/SP_and_Discourse.csv",
@@ -57,7 +51,9 @@ PROPBANK = {
 # files changed here to read the merged PropBank files (copied over the originals)
 OVERRIDES = os.path.join(OUT, "overrides")
 # sample documents: the sentences only (header-only .umr: snt, Index, Words), no gold
-DOCS = {"chinese_umr-0021": "newdata/chinese_umr-0021.umr", "english_umr-0003": "olddata/gold/en/english_umr-0003.umr"}
+# (both are in the decision-orchestration test sets)
+DOCS = {"chinese_umr-0022": "newdata/chinese_umr-0022.umr",
+        "english_umr-0008": "newdata/umr_en_normalized/english_umr-0008.umr"}
 RULE = "#" * 80
 JIEBA_KEEP = ("__init__.py", "_compat.py", "dict.txt", "finalseg/", "posseg/")
 
@@ -101,8 +97,9 @@ def write_docs(sp):
 
 
 def main(sp, mp, jieba_dir=None, penman_whl=None):
-    if os.path.isdir(FS):
-        shutil.rmtree(FS)
+    for d in (FS, os.path.join(OUT, "docs")):
+        if os.path.isdir(d):
+            shutil.rmtree(d)
     for rel in SP_FILES:
         copy(sp, rel, os.path.join(FS, "skillparseumr"))
     for d in SP_DIRS:

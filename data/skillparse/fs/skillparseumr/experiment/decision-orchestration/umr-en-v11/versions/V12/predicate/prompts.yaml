@@ -1,0 +1,166 @@
+schema_version: 1
+tables:
+  ABSTRACT:
+    verb: an ordinary verb or a stative verb / adjective (举行, 发生, 冷, 重要) is the head
+    identity-91: 'X 是 Y, both things: X is Y (equative, naming); not 是……的 focus, not a role or job'
+    have-role-91: 'X 是 a doctor / teacher / singer: a role with no organization'
+    have-org-role-92: X is the president / an employee / a member of an organization or country
+    have-rel-role-92: 'kinship or social relation: X is Y''s mother / boss / friend'
+    have-mod-91: X is (has the property) Y, with no verb or adjective that can be the head
+    have-91: 'X 有 Y: ownership, or a whole that has kinds or parts'
+    exist-91: there is X (有人敲门, 存在问题), with no owner
+    have-place-91: X is at / in Y (location), with no verb
+    have-quant-91: 'X 有 / 仅有 + number + classifier: how many X there are'
+    belong-91: X belongs to Y (X 属于 Y)
+    resemble-91: X is like Y (像, 如同)
+  ABSTRACT_ROLES:
+    identity-91:
+      ARG1: the thing
+      ARG2: what it is
+    have-role-91:
+      ARG1: the holder of the role
+      ARG3: the role
+    have-org-role-92:
+      ARG1: the office holder
+      ARG2: the organization
+      ARG3: the title
+    have-rel-role-92:
+      ARG1: the person
+      ARG2: the other person
+      ARG3: the relation
+    have-mod-91:
+      ARG1: the thing
+      ARG2: the property
+    have-91:
+      ARG1: the owner / whole
+      ARG2: the thing owned / its kinds
+    exist-91:
+      ARG1: the thing that exists
+    have-place-91:
+      ARG1: the thing
+      ARG2: the place
+    have-quant-91:
+      ARG1: the thing counted
+      ARG2: the quantity
+    belong-91:
+      ARG1: the thing
+      ARG2: the owner
+    resemble-91:
+      ARG1: the thing
+      ARG2: what it is like
+  ASPECT:
+    habitual: 'a habit or characteristic activity in general, not one occasion: what someone regularly does (他每天跑步), a clause
+      that describes people by what they usually do. NOT a single event that only carries a frequency or continuation adverb
+      (频繁, 经常, 多次, 照常): give it the aspect it would have without that adverb'
+    state: 'a lasting condition with no act or change in it: being (是), having (有), belonging, knowing, believing, wanting,
+      needing, a property or adjective, an abstract concept, a general rule of what a place or group does; also serving or
+      counting as something (作为, 担任), an amount standing at a level (超过, 达到, 占), being located or gathered somewhere as a
+      result (站在, 聚集在 + a place), being under someone''s attention; a product''s specification, equipment or features (配备,
+      搭载, 配置, 配有, 装有: a device fitted with a part). NOT an act of saying, reporting, asking or announcing (说, 指, 表示, 要求, 宣布),
+      NOT a document or picture showing something (显示, 表明), NOT becoming (成为, 变成), NOT putting or hiding something somewhere
+      (藏于, 放在): those name events'
+    performance: 'one bounded occurrence of an event: holding or organizing something, saying, announcing, stating, requesting
+      or expressing something, giving, providing, helping, returning, launching or starting something, becoming something,
+      a kickoff or opening, a change with a result (举行了, 死亡, 发生爆炸, 被定罪). Judge the event itself, not its tense or certainty:
+      it is performance also when planned, promised, announced, future, possible, negated, hypothetical or under a belief
+      or suspicion verb, and for a durative verb told as one step of a narrative (回家休息). Also a completed past event over
+      a stated period'
+    activity: 'explicitly ongoing at the time talked about: 正在 / 在 + verb, 着, a progressive, an event going on while another
+      happens; an open-ended activity described as under way (an ongoing inquiry, a search one needs to make); living or staying
+      somewhere over time (住在, 居住). Not a verb that launches or offers something (展开, 提供): that is performance'
+    endeavor: an attempt, or an action carried out whose result the text does not state or which failed (试图, 尝试, 抢救, 劝说)
+    directed-activity: 'a change of a value or amount in one direction with no final value reached in the clause: a price
+      or number falling or rising (下跌, 上涨, 减少, 增加, 下降, 降低, 提高), when no 至 / 到 + end value follows'
+    process: 'only an event with no single occurrence: a generic or unbounded event, a gradual change with no end point (逐渐,
+      越来越), an outcome only hoped for or judged good or bad for (对X有利), an event noun that names no single occurrence; or
+      nothing above fits'
+  MODSTR:
+    full-affirmative: 'asserted as fact (also a fact in a past report); also the reporting, claiming, implying or suspecting
+      verb itself, and a plan or future event that someone announces or states (将 / 会 + verb under 宣布, 表示). A hedge inside
+      its complement or in another clause does not lower this event: judge only the event `predicate` itself'
+    partial-affirmative: 'probably, very likely, presumably: the writer leans toward it (很可能, 大概, 多半, 想必). Plain 可能 without
+      很 is NOT this'
+    neutral-affirmative: possibly, may, might (可能, 也许, 或许), a question, a wish, a requirement or ability right on the event
+      (能, 应该)
+    neutral-negative: 'may not, cannot, must not, should not: a negated ability, possibility, permission or requirement (不能,
+      不可, 不应该, 不得 + verb)'
+    partial-negative: probably not
+    full-negative: asserted not to happen, with no modal (没有, 不, 从未, 并未 + verb); not 不能 / 不可 (those are neutral-negative)
+  GENERAL:
+    place: 'a place: in Beijing, at the arena (在X)'
+    temporal: 'a time: a date or clock time (2017年5月22日, 22点33分), 当晚, 去年, 今后, after / before / when X (X后, X时, 当X时); a time adverb such as just, then, now, already, recently, soon, later, 刚, 刚刚, 现在'
+    duration: 'how long: 三天, for 20 years'
+    vocative: 'a person addressed directly by name or title, set off by a comma at the start or end of the clause (Marsha, did you ...; Mr. President, ...). Not a participant of the verb'
+    frequency: 'how often: 每天, twice'
+    manner: 'how: 认真地, quickly'
+    instrument: 'by what means: 用刀, by train'
+    degree: 'a degree word on an adjective: 非常, 十分, 最, 极其'
+    mod: 'another adverb: 大量, 只, 再也, 也, 都'
+    reason: 'because ...: 因为, 由于, 因X而Y'
+    purpose: 'in order to ...: 为了'
+    condition: 'if ...: 如果, 只要'
+    concession: 'although ...: 虽然, 尽管'
+    source: 'from X: 从X'
+    goal: 'to X: 到X, 向X'
+    companion: 'together with X: 和X一起, 与X'
+    example: 特别是 / 尤其是 + an illustrating part
+    affectee: An entity benefiting from or adversely affected by the event, beyond the selected frame roles.
+    cause: An event or condition directly causing this event; distinguish it from a reason offered as an explanation.
+    result: The outcome brought about by this event; use a numbered frame role if that frame explicitly assigns it.
+    extent: The range, distance or scope over which the event or state holds.
+    direction: The direction of movement or orientation of this event.
+    path: The route through which movement proceeds, distinct from its starting point and goal.
+    start: The initial point of a movement or trajectory.
+    other-role: An explicitly expressed event participant not covered by the selected frame or a more specific relation.
+    material: The substance used, transformed or constituting something in the event; distinguish it from a reusable tool.
+    end-state: The resulting state explicitly associated with this event in the target annotation scheme.
+    concessive-condition: A condition presented as insufficient to prevent the event, distinct from an ordinary condition.
+  OTHER:
+    predicate: 'part of the predicate itself, right next to it: the head''s own particles, aspect 了 / 着 / 过, auxiliary, ability
+      or possibility modal (能, 会, 可以), negation (不, 没), light verb (进行, 作出), copula 是. Not a verb the head governs (the verb
+      or clause after a phase, obligation, citing or belief verb is that verb''s argument), and not a modal, negation or light
+      verb of another verb inside a participant''s phrase (that word takes the phrase''s role)'
+    none: only marks a role or links clauses (在, 从, 把, 被, 对, 的, 因为, 如果, 当), or punctuation
+  FALLBACK_ROLES:
+    ARG0: agent, causer
+    ARG1: patient, theme, thing affected
+    actor: An animate participant initiating the event.
+    co-actor: A second independent participant acting alongside the actor.
+    undergoer: A participant affected by the event.
+    theme: An entity moving or being transferred, including abstract transfer.
+    recipient: An animate participant receiving possession or control.
+    force: An inanimate force bringing about the event.
+    causer: The participant inducing another event or action.
+    experiencer: A participant experiencing a perception, emotion or mental state.
+    stimulus: The entity or event eliciting an experience.
+instructions:
+  question_1: What is the head concept of the clause `piece` (marked 【】 in `sentence_with_piece_marked`)?
+  question_2: 'Which word is the predicate of the clause `piece`: its main verb or predicate adjective? When one verb governs
+    another verb or a whole clause, choose the GOVERNING verb; the governed verb or clause is its argument: a phase verb (开始,
+    继续, 停止, 坚持 + a verb), an obligation verb (必须 + a verb), a citing or reporting verb whose content follows (引用, 报道, 宣布,
+    声称, 说, 表示; in 据X所说 the verb after 所), a belief verb (认为, 相信). Do NOT choose an aspect particle (了, 着, 过), an ability or
+    possibility modal (能, 会, 可以, 可能, 应该), a future marker (将, 将要), a light verb before an event noun (进行, 作出, 加以, 遭到, 受到,
+    发生 + noun), a polite 请 before a verb (请坐 -> 坐) or a causative 令 / 使 / 让 + someone (令人吃惊 -> 吃惊): choose the event word
+    they govern. Copula 是: in 是……的 choose the verb inside; in 最X的(就)是Y choose the adjective X; under a belief verb (认为这是Y)
+    choose the belief verb. Only for a plain X是Y between two things choose 是; for X有Y choose 有. A relative clause''s head
+    is its verb, not the noun after 的.'
+  question_3: What is the aspect of the event `predicate` in `piece`? Choose the most specific licensed value from the aspect
+    inventory. A generic or habitual statement is not one particular occurrence. Do not infer completion from past tense alone.
+  question_4: How certain does the writer present the event `predicate` of the clause `piece`?
+  question_5: Is the event `predicate` negated in the clause `piece` (不, 没, 未, 非, not, never right on it)?
+  question_6: 'Which PropBank sense of `predicate` is used in the clause `piece`? Each option lists the sense''s name and
+    its argument roles. Do not take the first sense by default: choose the sense whose roles match the participants the clause
+    actually has. (a) If the verb has an object and then a predicate about that object (V + X + 是 / 为 / 成 / 作为 + Y, or X 被V
+    + a predicate: regard, call, confirm or designate X as Y), choose the sense with a role for that attribute (an ARG2 such
+    as attribute, as what, description), not the plain ''think / say that'' sense; a full clause with its own subject as the
+    content takes the ''that'' sense. (b) If a recipient is marked by 向 / 给, choose the sense with a recipient role. (c) If
+    an action or resources are launched or put into or against a target, choose the sense with separate roles for the thing
+    and the target. (d) 有 with no owner (there is X) takes the exist sense; V + 起来 (looks, seems) takes the seem sense.'
+templates:
+  question_1: The clause `piece` has the predicate `predicate` ({concept}). Which part of the clause is the word `word` in?
+    A word inside a participant's phrase (its modifier, relative clause or name) belongs to that participant.
+  question_2: Where is the {r} ({role_description}) of `predicate` in this clause? `inside` if a word of the clause expresses
+    it; `unexpressed` if nothing in the sentence is it, or if the clause is a relative clause and it is the noun the clause
+    modifies. Otherwise the head word outside the clause that is it (a dropped subject shared with another clause, the subject
+    of a controlling verb).
+  option_description_3: 'part of the phrase that is {k}: {v}'

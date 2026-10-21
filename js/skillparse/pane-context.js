@@ -1,6 +1,6 @@
 /**
- * Left pane: the registry's waves, the selected wave's for_each items (each an episode),
- * and its context windows. A window is `range: [start, stop)` relative to the current item;
+ * Left pane: the registry's waves, the selected wave's for_each items (one episode each; pick
+ * one and the other panes show it), and its context windows. A window is `range: [start, stop)` relative to the current item;
  * the presets set how many items before it the skills see (one sentence, five before, ...).
  */
 
@@ -30,7 +30,7 @@ function windowCard(wave, win) {
     h('div', { class: 'row' }, h('strong', { text: t('windowTitle', { var: win.var }) }), h('span', { class: 'note', text: `(${win.where})` })),
     h('div', { class: 'note', text: t('windowSrc', { src: win.source, a: cur[0], b: cur[1] }) }),
     h('div', { class: 'row' }, h('label', { class: 'row' }, h('span', { text: t('winBefore') }), num, h('span', { text: t('winAfter') })),
-      S.desc.engine === 'harness' ? null : h('label', { class: 'row' }, inc, h('span', { text: t('withCurrent') }))),
+      h('label', { class: 'row' }, inc, h('span', { text: t('withCurrent') }))),
     h('div', { class: 'presets' },
       presets.map(([label, rng]) => h('button', {
         class: 'chip', 'aria-pressed': String(cur[0] === rng[0] && cur[1] === rng[1]), text: label,
@@ -43,14 +43,6 @@ function windowCard(wave, win) {
 function contextView(ep) {
   if (!ep?.started) return h('div', { class: 'note', text: t('notStarted') });
   const ctx = ep.context || {};
-  if (ctx.earlier) {           // a harness: the earlier sentences with their final annotations
-    return h('div', {},
-      h('details', {}, h('summary', { text: `header` }), h('pre', { class: 'ctx-val', text: ctx.header })),
-      ctx.earlier.length ? ctx.earlier.map((e) => h('details', {},
-        h('summary', { text: `#${e.index} ${e.text.slice(0, 40)}` }), h('pre', { class: 'ctx-val', text: e.annotation })))
-        : h('div', { class: 'note', text: 'earlier: []' }),
-      h('details', {}, h('summary', { text: 'sentence' }), h('pre', { class: 'ctx-val', text: ctx.sentence })));
-  }
   return h('dl', { class: 'kv' }, Object.entries(ctx).map(([k, v]) => [
     h('dt', { text: k }),
     h('dd', {}, typeof v === 'string' && v.length < 200 ? v
@@ -77,13 +69,10 @@ function draw() {
       h('dl', { class: 'kv' }, Object.entries(wave.input).map(([k, v]) => [h('dt', { text: k }), h('dd', { text: exprText(v) })]))),
     wave.windows.map((w) => windowCard(wave, w)));
 
-  const sel = S.selected;
-  const list = h('ul', { class: 'items' }, S.items.map((it) => {
+  const list = h('ul', { class: 'items', role: 'listbox', 'aria-label': t('items', { n: S.items.length }) }, S.items.map((it) => {
     const st = it.status.replace('+stale', '');
-    const box = h('input', { type: 'checkbox', checked: sel.has(it.index), 'aria-label': `#${it.index + 1}`, onclick: (e) => e.stopPropagation() });
-    box.addEventListener('change', () => { if (box.checked) sel.add(it.index); else sel.delete(it.index); draw(); });
-    return h('li', { 'aria-selected': String(it.index === S.item), onclick: () => selectItem(it.index) },
-      box, h('span', { class: `dot ${st}${it.status.includes('stale') ? ' stale' : ''}`, title: it.status }),
+    return h('li', { role: 'option', 'aria-selected': String(it.index === S.item), onclick: () => selectItem(it.index) },
+      h('span', { class: `dot ${st}${it.status.includes('stale') ? ' stale' : ''}`, title: it.status }),
       h('span', { class: 'n', text: it.index + 1 }), h('span', { class: 'lbl', text: it.label }));
   }));
   const ep = S.episode;
@@ -95,10 +84,8 @@ function draw() {
   clear(el, tabs, spec,
     h('div', { class: 'row', style: 'margin:6px 0' },
       h('strong', { class: 'grow', text: t('items', { n: S.items.length }) }),
-      h('button', { class: 'btn link sm', text: t('all'), onclick: () => { S.items.forEach((it) => sel.add(it.index)); draw(); } }),
-      h('button', { class: 'btn link sm', text: t('none'), onclick: () => { sel.clear(); draw(); } })),
-    sel.size ? h('button', { class: 'btn sm primary', style: 'margin-bottom:6px', disabled: S.running > 0, text: t('runSelected', { n: sel.size }),
-      onclick: () => runItems([...sel].sort((a, b) => a - b)) }) : null,
+      h('button', { class: 'btn sm', disabled: S.running > 0, text: t('runWave', { n: S.items.length }),
+        onclick: () => runItems(S.items.map((it) => it.index)) })),
     list,
     needs,
     h('div', { class: 'card', style: 'margin-top:8px' }, h('h4', { text: `${t('episodeCtx')} · #${S.item + 1}` }), contextView(ep)));

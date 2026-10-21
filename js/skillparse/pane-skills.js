@@ -1,5 +1,5 @@
 /**
- * Second pane: the skills of the registry (or the harness's steps), what each one starts next
+ * Second pane: the skills of the registry, what each one starts next
  * (the dispatcher), and their files. A file opens in the editor; saving makes a new version
  * that the next run uses (store.js keeps the versions in this browser).
  */

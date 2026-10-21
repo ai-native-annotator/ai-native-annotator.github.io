@@ -1,0 +1,47 @@
+schema_version: 1
+tables:
+  EVENT_MODIFIERS:
+    place: 'a place: in Beijing, at the arena (在X)'
+    temporal: 'a time: a date or clock time (2017年5月22日, 22点33分), 当晚, 去年, 今后, after / before / when X (X后, X时, 当X时)'
+    duration: 'how long: 三天, for 20 years'
+    frequency: 'how often: 每天, twice'
+    manner: 'how: 认真地, quickly'
+    instrument: 'by what means: 用刀, by train'
+    degree: 'a degree word on an adjective: 非常, 十分, 最, 极其'
+    mod: 'another adverb: 大量, 只, 再也, 也, 都'
+    reason: 'because ...: 因为, 由于, 因X而Y'
+    purpose: 'in order to ...: 为了'
+    condition: 'if ...: 如果, 只要'
+    concession: 'although ...: 虽然, 尽管'
+    source: 'from X: 从X'
+    goal: 'to X: 到X, 向X'
+    companion: 'together with X: 和X一起, 与X'
+    example: 特别是 / 尤其是 + an illustrating part
+    affectee: An entity benefiting from or adversely affected by the event, beyond the selected frame roles.
+    cause: |-
+      An event or condition directly causing this event; distinguish it from a reason offered as an explanation.
+    result: |-
+      The outcome brought about by this event; use a numbered frame role if that frame explicitly assigns it.
+    extent: The range, distance or scope over which the event or state holds.
+    direction: The direction of movement or orientation of this event.
+    path: The route through which movement proceeds, distinct from its starting point and goal.
+    start: The initial point of a movement or trajectory.
+    other-role: |-
+      An explicitly expressed event participant not covered by the selected frame or a more specific relation.
+    material: |-
+      The substance used, transformed or constituting something in the event; distinguish it from a reusable tool.
+    end-state: The resulting state explicitly associated with this event in the target annotation scheme.
+    concessive-condition: A condition presented as insufficient to prevent the event, distinct from an ordinary
+      condition.
+  NATIVE_CORE_ROLES:
+    actor: An animate participant initiating the event.
+    co-actor: A second independent participant acting alongside the actor.
+    undergoer: A participant affected by the event.
+    theme: An entity moving or being transferred, including abstract transfer.
+    recipient: An animate participant receiving possession or control.
+    force: An inanimate force bringing about the event.
+    causer: The participant inducing another event or action.
+    experiencer: A participant experiencing a perception, emotion or mental state.
+    stimulus: The entity or event eliciting an experience.
+instructions: {}
+templates: {}

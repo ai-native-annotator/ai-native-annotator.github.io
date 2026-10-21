@@ -3,8 +3,9 @@
  * render() redraws every pane (they are small).
  *
  * Running a node: the bridge's step() either finishes it (a rule) or says what it needs:
- *   {need: "jev", state, questions}   -> models.jev()  -> bridge.answer()  (repeat per round)
- *   {need: "llm", instructions, ...}  -> models.llm()  -> bridge.complete()
+ *   {need: "jev", state, questions}   -> models.jev() (Jev, Haiku for the unsure ones)
+ *                                         -> bridge.answer()  (repeat per round)
+ *   {need: "llm", instructions, ...}  -> models.llm()  -> bridge.complete()  (kind: agent)
  * until it is done. Nodes of one item run several at a time (Settings: steps at once); items
  * run one after another, because later items may read earlier ones.
  */
@@ -15,19 +16,17 @@ import { edited } from './store.js';
 import { t } from './i18n.js';
 
 export const SKILLSETS = [
-  { id: 'jev-k4', label: 'Jev · 中文 (rsi-jev2 K4)', lang: 'zh', jieba: true },
-  { id: 'haiku-h10-zh', label: 'Haiku · 中文 (AnnoForge H10)', lang: 'zh' },
-  { id: 'haiku-h10-en', label: 'Haiku · English (AnnoForge H10)', lang: 'en' },
+  { id: 'do-zh-v12', label: '决策编排 V12 · 中文 (Jev + Haiku)', lang: 'zh' },
+  { id: 'do-en-v12', label: 'Decision orchestration V12 · English (Jev + Haiku)', lang: 'en' },
 ];
 
 export const S = {
   skillset: null, doc: null, docs: [], desc: null,
   wave: null, item: 0, node: null,
   items: [], episode: null, detail: null,
-  selected: new Set(),
-  tab: 'output', editing: false,
+  tab: 'graph', editing: false,
   running: 0, cancel: false,
-  umr: null, umrStale: true,
+  umr: null, umrStale: true, graphStamp: 0, graphs: new Map(),
   ai: {},                 // node key -> {history: [], proposal, verify}
   status: '',
 };
@@ -38,6 +37,25 @@ export function render() { renderers.forEach((fn) => fn()); }
 
 let manualAnswerer = null;
 export function setManualAnswerer(fn) { manualAnswerer = fn; }
+
+/** The results changed: the assembled .umr and the drawn graphs are out of date. */
+export function changed() {
+  S.umrStale = true;
+  S.graphStamp++;
+  S.graphs.clear();
+}
+
+/** Sentence i's assembled graph (bridge.graph), cached until the results change. */
+export async function sentenceGraph(i) {
+  const key = `${S.skillset}|${S.doc}|${i}|${S.graphStamp}`;
+  if (!S.graphs.has(key)) S.graphs.set(key, py('graph', { i }));
+  try {
+    return await S.graphs.get(key);
+  } catch (err) {
+    S.graphs.delete(key);
+    throw err;
+  }
+}
 
 export function status(text) {
   S.status = text;
@@ -75,8 +93,7 @@ export async function open(skillset, doc) {
   S.skillset = skillset;
   S.doc = doc;
   status(t('opening', { skillset, doc }));
-  const meta = SKILLSETS.find((s) => s.id === skillset);
-  if (meta?.jieba || S.docs.find((d) => d.id === doc)?.lang === 'zh') await warm();
+  await warm();          // both versions import jieba
   S.desc = await py('open', { skillset, doc });
   // this browser's edited versions of the skill files
   const files = edited(skillset);
@@ -91,8 +108,7 @@ export async function open(skillset, doc) {
   S.item = 0;
   S.node = null;
   S.detail = null;
-  S.selected = new Set();
-  S.umrStale = true;
+  changed();
   await refresh();
   status(problems.length ? problems.join('; ') : t('ready'));
 }
@@ -110,7 +126,6 @@ export async function refresh({ detail = true } = {}) {
 export async function selectWave(name) {
   S.wave = name;
   S.node = null;
-  S.selected = new Set();
   if (S.item >= (await py('items', { w: name })).length) S.item = 0;
   await refresh();
 }
@@ -139,7 +154,7 @@ export async function setWindow(variable, range) {
 
 export async function startItem(i = S.item) {
   await py('start', { w: S.wave, i });
-  S.umrStale = true;
+  changed();
   if (i === S.item) {
     S.node = null;
     await refresh();
@@ -149,17 +164,6 @@ export async function startItem(i = S.item) {
 }
 
 // ------------------------------------------------------------------ running
-
-const FINDINGS = {
-  type: 'object',
-  properties: { findings: { type: 'array', items: { type: 'object', properties: { problem: { type: 'string' }, fix: { type: 'string' } }, required: ['problem', 'fix'] } } },
-  required: ['findings'],
-};
-const ANNOTATION = {
-  type: 'object',
-  properties: { annotation: { type: 'string', description: 'the complete annotation of the sentence, in the output format' } },
-  required: ['annotation'],
-};
 
 function emitSchema(emit) {
   const props = {};
@@ -178,15 +182,16 @@ export async function drive(w, i, nid, signal) {
     while (r.need) {
       if (S.cancel) throw new Error(t('stopped'));
       if (r.need === 'jev') {
-        status(t('running', { what: `${nid} · Jev ${t('round', { n: r.round })} · ${t('questions', { n: Object.keys(r.questions || {}).length })}` }));
+        const n = Object.keys(r.questions || {}).length;
+        status(t('running', { what: `${nid} · Jev ${t('round', { n: r.round })} · ${t('questions', { n })}` }));
         const answers = await jev(r.state, r.questions, { onManual: manualAnswerer, signal });
+        const up = Object.values(answers).filter((a) => a?.escalated).length;
+        if (up) status(t('running', { what: `${nid} · ${t('escalated', { n: up, of: n })}` }));
         r = await py('answer', { w, i, nid, answers });
       } else if (r.need === 'llm') {
-        status(t('running', { what: `${nid} · ${settings().roles[r.role]?.model || r.role}` }));
-        const schema = r.mode === 'findings' ? FINDINGS : r.mode === 'annotation' ? ANNOTATION : emitSchema(r.emit);
+        status(t('running', { what: `${nid} · ${settings().roles.judge.model}` }));
         const out = await llm({
-          role: r.role, system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [], schema, signal,
-          callTool: (name, args) => py('tool', { w, i, nid, name, args }),
+          role: 'judge', system: r.system, instructions: r.instructions, input: r.input, schema: emitSchema(r.emit), signal,
         });
         r = await py('complete', { w, i, nid, output: out });
       } else {
@@ -197,7 +202,7 @@ export async function drive(w, i, nid, signal) {
     await py('fail', { w, i, nid, error: err.message }).catch(() => {});
     throw err;
   }
-  S.umrStale = true;
+  changed();
   return r;
 }
 
@@ -351,7 +356,7 @@ export async function runNeeds(needs) {
 
 export async function saveOutput(output) {
   const r = await py('set_output', { w: S.wave, i: S.item, nid: S.node, output });
-  S.umrStale = true;
+  changed();
   S.editing = false;
   await refresh();
   return r;
@@ -359,7 +364,7 @@ export async function saveOutput(output) {
 
 export async function resetNode(nid = S.node) {
   await py('reset', { w: S.wave, i: S.item, nid });
-  S.umrStale = true;
+  changed();
   await refresh();
 }
 

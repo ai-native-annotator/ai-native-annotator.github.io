@@ -1,22 +1,22 @@
 /**
- * index.html (SkillParse): SkillParseUMR's skills run in the browser, step by step.
+ * index.html (SkillParse): SkillParseUMR's decision-orchestration procedures (V12, Chinese and
+ * English) run in the browser, step by step.
  *
- * The page boots Pyodide from the CDN, so this test needs the network for that
- * (not for any model: Anthropic is answered by a stand-in below). It walks the
- * whole loop once:
+ * The page boots Pyodide from the CDN, so this test needs the network for that (not for any
+ * model: OpenRouter is answered by a stand-in below, Jev's `systemone` endpoint and Haiku's
+ * chat completions both). It walks the whole loop once:
  *
- *   1. Python boots and the Jev skills open on a Chinese document.
- *   2. Running sentence 1 makes a tree of steps; every Jev round is answered
- *      (here by the "LLM answers Jev" path, which is the default backend).
- *   3. A person corrects one step's output: it is kept as the human result and
- *      the steps under it are redone.
- *   4. The AI pane turns that correction into a skill edit; applying it writes
- *      a new version of the file; re-running the step reports whether the step
- *      now produces the correction.
- *   5. A context window can be narrowed to the one sentence.
- *   6. Export writes a .umr file with an alignment block.
- *   7. The Haiku harness runs its chain (generate, critique, finalize, rules)
- *      and alignments the model left at 0-0 are filled in from the words.
+ *   1. Python boots and the Chinese procedure opens.
+ *   2. Running sentence 1 makes a tree of steps; Jev answers every round, and the questions it is
+ *      unsure of (below 0.7) go to Haiku — the cascade.
+ *   3. The sentence's graph is drawn (SVG boxes), and clicking a box selects the step that wrote it.
+ *   4. A person corrects one step's output: it is kept as the human result and the steps under it
+ *      are redone; a jev step that writes a fragment also draws it.
+ *   5. The AI pane turns that correction into a skill edit; applying it writes a new version of the
+ *      file; re-running the step reports whether the step now produces the correction.
+ *   6. A context window can be narrowed to the one sentence.
+ *   7. Export writes a .umr file with an alignment block.
+ *   8. Choosing the English document switches to the English procedure, which runs too.
  *
  * Run: npm run test:browser -- skillparse-test.js
  */
@@ -30,7 +30,30 @@ const check = (label, ok, extra = '') => {
   console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`);
 };
 
-/** A stand-in for Jev-by-LLM: the first option of every choice, "no" to every yes/no. */
+const calls = { jev: 0, questions: 0, escalate: 0, reflect: 0 };
+
+/** Jev: the first option, sure for most questions and unsure (0.5) for every third one. */
+async function systemone(route) {
+  const body = JSON.parse(route.request().postData());
+  calls.jev++;
+  const answers = {};
+  Object.entries(body.questions).forEach(([k, q], n) => {
+    calls.questions++;
+    const p = n % 3 === 2 ? 0.5 : 0.9;
+    if (q.type === 'choice') {
+      const opts = Object.keys(q.criteria);
+      const probabilities = Object.fromEntries(opts.map((o, i) => [o, i === 0 ? p : (1 - p) / Math.max(1, opts.length - 1)]));
+      answers[k] = { type: 'choice', choice: opts[0], confidence: p, probabilities };
+    } else if (q.type === 'noul') {
+      answers[k] = { type: 'noul', noul: n % 3 === 2 ? 0.5 : 0.1 };
+    } else {
+      answers[k] = { type: 'score', score: 0, probabilities: { 0: 1 } };
+    }
+  });
+  return route.fulfill({ json: { answers, model: body.model, usage: {} } });
+}
+
+/** Haiku answering a closed question: the first option, "no", 0 (src/jev.py's prompt format). */
 function judge(prompt) {
   const ans = {};
   let cur = null;
@@ -43,25 +66,21 @@ function judge(prompt) {
   return ans;
 }
 
-const calls = { judge: 0, reflect: 0, annotate: 0, tools: 0 };
-async function anthropic(route) {
+async function chat(route) {
   const body = JSON.parse(route.request().postData());
-  const sys = typeof body.system === 'string' ? body.system : (body.system || []).map((x) => x.text).join('');
-  const first = body.messages[0].content.map((c) => c.text).join('\n');
-  const fin = body.tools.find((x) => x.name === 'final_result');
-  const tools = body.tools.filter((x) => x.name !== 'final_result');
-  const reply = (input, name = 'final_result') => route.fulfill({ json: { content: [{ type: 'tool_use', id: `tu${Math.random()}`, name, input }], stop_reason: 'tool_use' } });
-  if (tools.length && body.messages.length === 1) { calls.tools++; return reply({ lemma: 'taste' }, tools[0].name); }
-  if (sys.includes('careful judge')) { calls.judge++; return reply({ answers: judge(first) }); }
+  const sys = body.messages.find((m) => m.role === 'system')?.content || '';
+  const user = body.messages.find((m) => m.role === 'user')?.content || '';
+  let input;
   if (sys.includes('maintain the skills')) {
     calls.reflect++;
-    const m = /## (skillparseumr\/[^\n]*\.py)\n```/.exec(first);
-    return reply({ diagnosis: 'test diagnosis', layer: 'rule', edits: [{ file: m ? m[1] : 'none', op: 'add', find: '', replace: '# edit proposed by the test', why: 'test' }] });
+    const m = /## (skillparseumr\/[^\n]*\.py)\n```/.exec(user);
+    input = { diagnosis: 'test diagnosis', layer: 'rule', edits: [{ file: m ? m[1] : 'none', op: 'add', find: '', replace: '# edit proposed by the test', why: 'test' }] };
+  } else {
+    calls.escalate++;
+    input = { answers: judge(user) };
   }
-  calls.annotate++;
-  if (fin.input_schema.properties.findings) return reply({ findings: [{ problem: 'p', fix: 'f' }] });
-  const i = (/Return the complete annotation of sentence (\d+)/.exec(first) || [0, 1])[1];
-  return reply({ annotation: `# sentence level graph:\n(s${i}t / taste-01 :ARG0 (s${i}p / person) :ARG1 (s${i}f / freedom))\n\n# alignment:\ns${i}t: 0-0\n\n# document level annotation:\n(s${i}s0 / sentence)` });
+  return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: null,
+    tool_calls: [{ id: `c${Math.random()}`, type: 'function', function: { name: 'final_result', arguments: JSON.stringify(input) } }] } }] } });
 }
 
 const statusIs = (page, re, timeout = 120000) =>
@@ -71,9 +90,10 @@ const statusIs = (page, re, timeout = 120000) =>
   const proxy = process.env.HTTPS_PROXY ? [`--proxy-server=${process.env.HTTPS_PROXY}`, '--proxy-bypass-list=localhost;127.0.0.1'] : [];
   const browser = await launchBrowser({ args: proxy });
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, acceptDownloads: true, locale: 'zh-CN' });
-  await ctx.route('https://api.anthropic.com/**', anthropic);
+  await ctx.route('https://openrouter.ai/api/v1/systemone', systemone);
+  await ctx.route('https://openrouter.ai/api/v1/chat/completions', chat);
   await ctx.addInitScript(() => {
-    localStorage.setItem('annotator_secrets', JSON.stringify({ apiKeys: { anthropic: 'test-key' } }));
+    localStorage.setItem('annotator_secrets', JSON.stringify({ apiKeys: { openrouter: 'test-key' } }));
     localStorage.setItem('skillparse_lang', 'zh');
   });
   const page = await ctx.newPage();
@@ -83,20 +103,32 @@ const statusIs = (page, re, timeout = 120000) =>
 
   await page.goto(`${BASE}/index.html`);
   await statusIs(page, /就绪/);
-  check('Python boots and the Jev skills open', (await page.$$('.skill')).length >= 9);
-  check('the registry\'s three waves are shown', (await page.$$('.wave-tab')).length === 3);
+  check('Python boots and the Chinese V12 procedure opens', (await page.$$('.skill')).length >= 9
+    && (await page.$eval('#skillset', (e) => e.value)) === 'do-zh-v12');
+  check("the registry's three waves are shown", (await page.$$('.wave-tab')).length === 3);
+  check('for_each items are picked one at a time (no checkboxes)', (await page.$$('#context .items input[type=checkbox]')).length === 0);
 
   await page.click('button:text-is("运行这一项")');
   await statusIs(page, /完成|出错/);
   const steps = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('running sentence 1 makes a tree of steps', steps.length >= 5, `${steps.length} steps`);
   check('every step finished', steps.every((s) => s === '✓'), steps.join(''));
-  check('Jev rounds were answered', calls.judge > 0, `${calls.judge} calls`);
-  // after a run the first step is selected, so the output and the AI pane are not empty
-  await page.waitForFunction(() => document.querySelector('.tree li[aria-selected="true"]'), null, { timeout: 5000 }).catch(() => {});
-  check('a finished run leaves a step selected', !(await page.textContent('#ai')).includes('先在下面选一步'));
+  check('Jev answered the rounds', calls.jev > 0, `${calls.jev} requests, ${calls.questions} questions`);
+  check('the questions Jev was unsure of went to Haiku', calls.escalate > 0, `${calls.escalate} Haiku calls`);
+
+  await page.waitForSelector('#output .graph-svg .g-node', { timeout: 20000 }).catch(() => {});
+  const boxes = await page.$$('#output .graph-svg .g-node');
+  check('the sentence graph is drawn', boxes.length >= 2, `${boxes.length} boxes`);
+  const pick = await page.$('#output .graph-svg .g-node:not(.hl)') || boxes[0];
+  const v = await pick.getAttribute('data-var');
+  await pick.click();
+  await page.waitForTimeout(800);
+  const hl = await page.$$eval('#output .graph-svg .g-node.hl', (e) => e.map((x) => x.getAttribute('data-var')));
+  check('clicking a box selects the step that wrote it', hl.includes(v) && !!(await page.$('.tree li[aria-selected="true"]')), `${v} -> ${hl.join(',')}`);
 
   await page.click('.tree li:has(.sk:text-is("predicate"))');
+  await page.click('.tab:text-is("输出")');
+  check("a step's graph fragment is drawn with its output", !!(await page.$('#output .graph-svg')));
   await page.click('button:text-is("修改输出")');
   const ta = await page.$('#output textarea');
   await ta.fill((await ta.inputValue()).replace(/"aspect": "[^"]+"/, '"aspect": "state"'));
@@ -109,7 +141,7 @@ const statusIs = (page, re, timeout = 120000) =>
   check('the AI proposes a skill edit from the correction', calls.reflect === 1 && (await page.textContent('.proposal')).includes('test diagnosis'));
   await page.click('button:text-is("应用选中的修改")');
   await page.waitForSelector('.proposal .ok');
-  const stored = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('skillparse_files:jev-k4') || '{}')));
+  const stored = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('skillparse_files:do-zh-v12') || '{}')));
   check('applying it saves a new version of the skill file', stored.some((p) => p.endsWith('.py')), stored.join(', '));
   await page.click('button:text-is("重跑这一步验证")');
   await page.waitForFunction(() => /重跑后/.test(document.querySelector('.proposal')?.textContent || ''), null, { timeout: 60000 });
@@ -125,16 +157,13 @@ const statusIs = (page, re, timeout = 120000) =>
   const umr = fs.readFileSync(await dl.path(), 'utf8');
   check('export writes a .umr file with alignments', dl.suggestedFilename().endsWith('.umr') && umr.includes('# alignment:') && umr.includes('# :: snt1'));
 
-  await page.selectOption('#skillset', 'haiku-h10-en');
+  await page.selectOption('#doc', 'english_umr-0008');
   await statusIs(page, /就绪/);
+  check('the English document opens with the English procedure', (await page.$eval('#skillset', (e) => e.value)) === 'do-en-v12');
   await page.click('button:text-is("运行这一项")');
-  await statusIs(page, /完成|出错/, 60000);
-  const chain = await page.$$eval('.tree li .sk', (els) => els.map((e) => e.textContent));
-  check('the Haiku harness runs its chain', chain[0] === 'generate' && chain.includes('finalize') && chain.length >= 5, chain.join(' → '));
-  check('the generate step used its lookup tool', calls.tools > 0);
-  await page.click('.tab:text-is("整句图")');
-  await page.waitForSelector('#output .align-added');
-  check('alignments left at 0-0 are filled in from the words', (await page.$$('#output .align-added')).length >= 1);
+  await statusIs(page, /完成|出错/);
+  const en = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
+  check('the English procedure runs', en.length >= 5 && en.every((s) => s === '✓'), en.join(''));
 
   check('no page errors', errs.length === 0, errs.slice(0, 5).join('\n      '));
   await browser.close();

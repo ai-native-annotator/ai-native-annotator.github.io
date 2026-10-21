@@ -1,0 +1,92 @@
+schema_version: 1
+tables:
+  KINDS:
+    name: |-
+      a proper name of a person, place, organization, facility, event, show, product, ..., or a country or place name used as a modifier (美国 in 美国歌手, Russian)
+    date: a calendar date or a clock time (2017年5月22日, 当地时间22:33, 22点33分, 星期五)
+    quantity: a number with a unit (20年, 3499美元, 3公里)
+    percentage: a percentage (百分之五, 4.6%)
+    ordinal: an ordinal (第三, 首次, the first)
+  NETYPES:
+  - individual-person
+  - country
+  - country-region
+  - province
+  - state
+  - city
+  - city-district
+  - local-region
+  - world-region
+  - continent
+  - island
+  - river
+  - mountain
+  - planet
+  - park
+  - road
+  - station
+  - building
+  - sports-facility
+  - facility
+  - company
+  - government-organization
+  - armed-organization
+  - political-party
+  - sports-organization
+  - school
+  - academic-organization
+  - religious-organization
+  - organization
+  - social-group
+  - ethnic-group
+  - language
+  - newspaper
+  - publication
+  - book
+  - broadcast-program
+  - show
+  - work-of-art
+  - game
+  - event
+  - product
+  - ship
+  - cultural-artifact
+  - award
+  - law
+  - disease
+  NETYPE_HINTS:
+    sports-facility: a named stadium, arena, sports ground or gym; always this, not building or facility
+    station: a named railway, metro or bus station or stop (not a website)
+    building: a named building that is not a sports venue, a station or a school
+    facility: a named installation no more specific type fits (an airport, a port, a bridge, a power plant)
+    school: a named school, college or university, where people study
+    academic-organization: a research academy, institute or learned society that does not teach; a university is
+      school
+    game: 'a named sports competition: a cup, a league season, a tournament, a final, a match'
+    event: a named happening that is not a sports competition (a festival, a summit, an attack, an election)
+    country: a sovereign country that exists today, including city-states such as the Vatican (梵蒂冈) or Monaco; a state named as a political entity is country even when it is also a religious centre
+    country-region: |-
+      a country or polity that no longer exists (a former state, a dissolved union, an empire), or a region that is not a sovereign country
+    company: |-
+      a business named as a business (it sells, hires, is bought, is a parent company); a named source of news is newspaper
+    government-organization: a state body acting as a body (parliament, ministry, police, court)
+    newspaper: |-
+      a news outlet of any medium: a newspaper, a news agency, a news website or portal, a broadcaster's news site; any named source that reports news
+    publication: a publication that is not a news outlet (a journal, a catalogue, a yearbook)
+  QUANTITIES:
+    temporal-quantity: a length of time (年, 月, 天, 小时)
+    monetary-quantity: money (元, 美元, 欧元, 英镑)
+    distance-quantity: a distance (公里, 米)
+    mass-quantity: a weight (吨, 公斤)
+    area-quantity: an area (平方米, 公顷)
+    volume-quantity: a volume (升)
+    temperature-quantity: a temperature (度)
+    count: a number of things with a classifier (23人, 三起)
+instructions:
+  question_1: What is `piece` (marked 【】 in `sentence_with_piece_marked`)?
+  question_2: |-
+    If `piece` is a name, what is the most specific type of the thing it names? Prefer the specific type to a generic one: a stadium, arena or sports ground is sports-facility (not building or facility), a school, college or university is school (not academic-organization), a railway, metro or bus station is station (not facility), and a named cup, league, tournament, final or match is game (not event). A state body (parliament, ministry, police, court) is government-organization. A named outlet that reports or publishes news (print, agency, website or portal) is newspaper, not company or publication. A country that no longer exists (called former) is country-region.
+  question_3: If `piece` is a quantity, what does it measure?
+  question_4: |-
+    If `piece` names a person, does it begin with a title, office, rank or job of that person written before the name (a head of state or government, a monarch, a minister, a general, a bishop, a coach)? Choose the words that are the title, or none if every word belongs to the name. A given name, a surname or a nickname is never a title; a generation number after the name (II, Jr.) is part of the name.
+templates: {}

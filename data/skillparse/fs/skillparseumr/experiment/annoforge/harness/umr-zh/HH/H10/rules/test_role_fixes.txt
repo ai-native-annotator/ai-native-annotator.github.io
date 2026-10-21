@@ -1,4 +1,0 @@
-assert run('(s1a / x :poss (s1b / y))\n\n# alignment:\ns1a: 1-1', {'index': 1}).startswith('(s1a / x :possessor (s1b / y))')
-assert ':place (s1b' in run('(s1a / x :location (s1b / y))', {'index': 1})
-assert ':goal s1b' in run('(s1a / x :destination s1b)', {'index': 1})
-assert ':possessor (s1b' in run('(s1a / x :possessor (s1b / y))', {'index': 1})
