@@ -34,8 +34,8 @@ How the skills work (SkillParseUMR decision orchestration):
 - A skill of kind "jev" is a Python file whose run(**inputs) is a generator. Its rules split the piece
   and list the possible answers locally (words, senses, roles), it yields closed questions (choice /
   noul = yes-no / score; the question texts, instructions and option lists are in the skill's
-  prompts.yaml), Jev answers them with probabilities (a question Jev is unsure of goes to Haiku,
-  marked "escalated"), and rules build its output ("emit") from the answers. A wrong output has one of
+  prompts.yaml), Jev or Haiku answers them (which one is set per skill; Jev gives probabilities,
+  Haiku one option), and rules build its output ("emit") from the answers. A wrong output has one of
   these causes: "question" (the right option was offered but the wording or option descriptions led
   to a wrong pick), "candidates" (the right answer was not among the options, or a needed question
   was never asked), "rule" (the answers were right, the code assembled them wrongly).
@@ -82,10 +82,10 @@ function jevRounds(rounds) {
     qs.slice(0, 80).forEach(([id, q]) => {
       const a = r.answers?.[id];
       let got = '(not answered)';
-      if (a && 'noul' in a) got = `yes ${Number(a.noul).toFixed(2)}${a.escalated ? ' (escalated to Haiku)' : ''}`;
+      if (a && 'noul' in a) got = `yes ${Number(a.noul).toFixed(2)}${a.by ? ` (${a.by})` : ''}`;
       else if (a?.probabilities) {
         got = Object.entries(a.probabilities).sort((p, s) => s[1] - p[1]).slice(0, 3)
-          .map(([o, p]) => `${o} ${Number(p).toFixed(2)}`).join(', ') + (a.escalated ? ` (escalated to Haiku; Jev: ${a.jev?.choice ?? '?'})` : '');
+          .map(([o, p]) => `${o} ${Number(p).toFixed(2)}`).join(', ') + (a.by ? ` (${a.by})` : '');
       } else if (a) got = JSON.stringify(a);
       const ins = typeof q.instructions === 'string' ? q.instructions : JSON.stringify(q.instructions);
       const opts = q.type === 'choice' ? ` options: ${Object.keys(q.criteria || {}).join(' | ')}` : '';

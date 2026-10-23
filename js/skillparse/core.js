@@ -3,7 +3,7 @@
  * render() redraws every pane (they are small).
  *
  * Running a node: the bridge's step() either finishes it (a rule) or says what it needs:
- *   {need: "jev", state, questions}   -> models.jev() (Jev, Haiku for the unsure ones)
+ *   {need: "jev", state, questions}   -> models.jev() (Jev or Haiku, by skill)
  *                                         -> bridge.answer()  (repeat per round)
  *   {need: "llm", instructions, ...}  -> models.llm()  -> bridge.complete()  (kind: agent)
  * until it is done. Nodes of one item run several at a time (Settings: steps at once); items
@@ -11,7 +11,7 @@
  */
 
 import { py } from './py.js';
-import { jev, llm, settings } from './models.js';
+import { jev, llm, settings, answererOf } from './models.js';
 import { edited } from './store.js';
 import { t } from './i18n.js';
 
@@ -183,15 +183,14 @@ export async function drive(w, i, nid, signal) {
       if (S.cancel) throw new Error(t('stopped'));
       if (r.need === 'jev') {
         const n = Object.keys(r.questions || {}).length;
-        status(t('running', { what: `${nid} · Jev ${t('round', { n: r.round })} · ${t('questions', { n })}` }));
-        const answers = await jev(r.state, r.questions, { onManual: manualAnswerer, signal });
-        const up = Object.values(answers).filter((a) => a?.escalated).length;
-        if (up) status(t('running', { what: `${nid} · ${t('escalated', { n: up, of: n })}` }));
+        const who = { jev: 'Jev', haiku: 'Haiku', manual: t('jevManual') }[answererOf(r.skill)];
+        status(t('running', { what: `${nid} ${r.skill} · ${who} · ${t('round', { n: r.round })} · ${t('questions', { n })}` }));
+        const answers = await jev(r.state, r.questions, { skill: r.skill, onManual: manualAnswerer, signal });
         r = await py('answer', { w, i, nid, answers });
       } else if (r.need === 'llm') {
-        status(t('running', { what: `${nid} · ${settings().roles.judge.model}` }));
+        status(t('running', { what: `${nid} · ${settings().roles.haiku.model}` }));
         const out = await llm({
-          role: 'judge', system: r.system, instructions: r.instructions, input: r.input, schema: emitSchema(r.emit), signal,
+          role: 'haiku', system: r.system, instructions: r.instructions, input: r.input, schema: emitSchema(r.emit), signal,
         });
         r = await py('complete', { w, i, nid, output: out });
       } else {

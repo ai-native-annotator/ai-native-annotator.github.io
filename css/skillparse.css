@@ -214,3 +214,7 @@ details > summary { cursor: pointer; color: var(--muted); }
 .tok.on { background: var(--accent-soft); color: var(--accent); }
 .doc-rel { font-family: var(--mono); font-size: 11.5px; }
 .graph-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 4px; }
+button.badge.answerer { cursor: pointer; background: none; font: inherit; font-size: 10.5px; }
+button.badge.answerer:disabled { cursor: default; }
+.badge.by-jev { color: #7a4fd0; border-color: #c9b5f0; }
+.badge.by-haiku { color: var(--accent); border-color: var(--accent); }

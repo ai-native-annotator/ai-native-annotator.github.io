@@ -7,8 +7,9 @@
  * chat completions both). It walks the whole loop once:
  *
  *   1. Python boots and the Chinese procedure opens.
- *   2. Running sentence 1 makes a tree of steps; Jev answers every round, and the questions it is
- *      unsure of (below 0.7) go to Haiku — the cascade.
+ *   2. Running sentence 1 makes a tree of steps. Who answers is set per skill: sent_type and
+ *      discourse ask Jev, the other skills ask Haiku directly (no cascade); the Skills pane shows
+ *      it, and a click there switches a skill to the other one.
  *   3. The sentence's graph is drawn (SVG boxes), and clicking a box selects the step that wrote it.
  *   4. A person corrects one step's output: it is kept as the human result and the steps under it
  *      are redone; a jev step that writes a fragment also draws it.
@@ -30,12 +31,13 @@ const check = (label, ok, extra = '') => {
   console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`);
 };
 
-const calls = { jev: 0, questions: 0, escalate: 0, reflect: 0 };
+const calls = { jev: 0, questions: 0, haiku: 0, reflect: 0, jevStates: [] };
 
 /** Jev: the first option, sure for most questions and unsure (0.5) for every third one. */
 async function systemone(route) {
   const body = JSON.parse(route.request().postData());
   calls.jev++;
+  calls.jevStates.push(JSON.stringify(body.state));
   const answers = {};
   Object.entries(body.questions).forEach(([k, q], n) => {
     calls.questions++;
@@ -76,7 +78,7 @@ async function chat(route) {
     const m = /## (skillparseumr\/[^\n]*\.py)\n```/.exec(user);
     input = { diagnosis: 'test diagnosis', layer: 'rule', edits: [{ file: m ? m[1] : 'none', op: 'add', find: '', replace: '# edit proposed by the test', why: 'test' }] };
   } else {
-    calls.escalate++;
+    calls.haiku++;
     input = { answers: judge(user) };
   }
   return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: null,
@@ -113,8 +115,26 @@ const statusIs = (page, re, timeout = 120000) =>
   const steps = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('running sentence 1 makes a tree of steps', steps.length >= 5, `${steps.length} steps`);
   check('every step finished', steps.every((s) => s === '✓'), steps.join(''));
-  check('Jev answered the rounds', calls.jev > 0, `${calls.jev} requests, ${calls.questions} questions`);
-  check('the questions Jev was unsure of went to Haiku', calls.escalate > 0, `${calls.escalate} Haiku calls`);
+  check('Jev answered the sent_type / discourse rounds', calls.jev > 0, `${calls.jev} requests, ${calls.questions} questions`);
+  check('Haiku answered the other skills directly', calls.haiku > 0, `${calls.haiku} Haiku calls`);
+  const badges = await page.$$eval('#skills .skill', (els) => Object.fromEntries(els.map((e) => [
+    e.querySelector('.name').textContent, e.querySelector('.answerer')?.textContent || ''])));
+  check('the Skills pane shows who answers each skill', badges.sent_type === '→ Jev' && badges.discourse === '→ Jev'
+    && badges.predicate === '→ Haiku' && badges.np_phrase === '→ Haiku', JSON.stringify(badges));
+  await page.click('.tree li:has(.sk:text-is("predicate"))');
+  await page.click('.tab:text-is("问答")');
+  const by = await page.$$eval('#output .qa .badge', (e) => [...new Set(e.map((x) => x.textContent))]);
+  check("predicate's questions were answered by Haiku, not Jev", by.length === 1 && by[0] === 'Haiku', by.join(','));
+  await page.click('.tree li:has(.sk:text-is("sent_type"))');
+  await page.click('.tab:text-is("问答")');
+  const by2 = await page.$$eval('#output .qa .badge', (e) => [...new Set(e.map((x) => x.textContent))]);
+  check("sent_type's questions were answered by Jev", by2.length === 1 && by2[0] === 'Jev', by2.join(','));
+  await page.click('#skills .skill:has(.name:text-is("predicate")) .answerer');
+  const flipped = await page.evaluate(() => JSON.parse(localStorage.getItem('skillparse_settings_v3') || '{}').jev?.route?.predicate);
+  check('a click on the badge switches the skill to Jev', flipped === 'jev'
+    && (await page.textContent('#skills .skill:has(.name:text-is("predicate")) .answerer')) === '→ Jev');
+  await page.click('#skills .skill:has(.name:text-is("predicate")) .answerer');
+  await page.click('.tab:text-is("图")');
 
   await page.waitForSelector('#output .graph-svg .g-node', { timeout: 20000 }).catch(() => {});
   const boxes = await page.$$('#output .graph-svg .g-node');

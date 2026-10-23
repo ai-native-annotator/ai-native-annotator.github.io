@@ -9,6 +9,7 @@ import { S, onRender, render } from './core.js';
 import { py } from './py.js';
 import { addVersion, versions, forget, original, edited } from './store.js';
 import { lineDiff, hunks } from './diff.js';
+import { settings, saveSettings, answererOf } from './models.js';
 import { t } from './i18n.js';
 
 const root = () => document.getElementById('skills');
@@ -17,6 +18,23 @@ function fileChip(path) {
   const name = path.split('/').pop();
   const isEdited = (edited(S.skillset)[path] || []).length > 0;
   return h('button', { class: `file${isEdited ? ' edited' : ''}`, title: path, text: name, onclick: (e) => { e.stopPropagation(); openEditor(path); } });
+}
+
+/** Who answers this skill's questions; a click switches Jev <-> Haiku (Settings keeps it). */
+function answererBadge(skill) {
+  const who = answererOf(skill);
+  const label = { jev: 'Jev', haiku: 'Haiku', manual: t('jevManual') }[who];
+  const switchable = settings().jev.backend === 'route';
+  return h('button', {
+    class: `badge answerer by-${who}`, text: `→ ${label}`, title: t('answeredBy', { who: label }), disabled: !switchable,
+    onclick: (e) => {
+      e.stopPropagation();
+      const cfg = settings();
+      cfg.jev.route[skill] = who === 'jev' ? 'haiku' : 'jev';
+      saveSettings(cfg);
+      render();
+    },
+  });
 }
 
 function draw() {
@@ -29,6 +47,7 @@ function draw() {
       const anyEdited = s.files.some((f) => (files[f] || []).length);
       return h('div', { class: `skill${s.name === currentSkill ? ' current' : ''}`, onclick: () => s.files[0] && openEditor(s.files[0]) },
         h('div', {}, h('span', { class: 'name', text: s.name }), h('span', { class: `badge ${s.kind}`, text: t(`kinds.${s.kind}`) }),
+          s.kind === 'jev' ? answererBadge(s.name) : null,
           s.model ? h('span', { class: 'badge', text: s.model }) : null,
           anyEdited ? h('span', { class: 'badge edited', text: '✎' }) : null),
         s.rules.length ? h('ul', { class: 'rules' }, s.rules.map((r) => h('li', { title: r.text, text: r.short || r.text }))) : null,

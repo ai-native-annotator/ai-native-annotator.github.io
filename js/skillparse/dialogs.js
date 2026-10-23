@@ -2,7 +2,7 @@
 
 import { h, openModal, closeModal, toast, download } from './ui.js';
 import { S, SKILLSETS, assembled, loadDocs, open, warm } from './core.js';
-import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, shapeAnswers } from './models.js';
+import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, DEFAULT_ROUTE, shapeAnswers } from './models.js';
 import { bundle } from './store.js';
 import { py } from './py.js';
 import { t } from './i18n.js';
@@ -20,8 +20,9 @@ export function openSettings() {
     return [r, prov, model];
   });
   const backend = h('select', {},
-    [['cascade', t('jevCascade')], ['jev', t('jevApi')], ['llm', t('jevLLM')], ['manual', t('jevManual')]].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.backend === v })));
-  const threshold = h('input', { type: 'number', min: 0, max: 1, step: 0.05, value: cfg.jev.threshold, style: 'width:6em' });
+    [['route', t('byRoute')], ['jev', t('allJev')], ['haiku', t('allHaiku')], ['manual', t('jevManual')]].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.backend === v })));
+  const routeInputs = Object.keys(DEFAULT_ROUTE).map((skill) => [skill, h('select', {},
+    [['jev', 'Jev'], ['haiku', 'Haiku']].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.route[skill] === v })))]);
   const url = h('input', { type: 'text', value: cfg.jev.url });
   const jmodel = h('input', { type: 'text', value: cfg.jev.model });
   const jkey = h('input', { type: 'password', value: cfg.jev.key || '', autocomplete: 'off', placeholder: t('jevKeyHint') });
@@ -38,14 +39,16 @@ export function openSettings() {
       h('label', { text: t('jevUrl') }), url,
       h('label', { text: t('jevModel') }), jmodel,
       h('label', { text: t('jevKey') }), jkey,
-      h('label', { text: t('threshold') }), threshold,
       h('label', { text: t('concurrency') }), conc),
+    h('h4', { text: t('routeTitle') }),
+    h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' },
+      routeInputs.map(([skill, sel]) => [h('label', { class: 'mono', text: skill }), sel])),
     h('div', { class: 'row' }, h('button', { class: 'btn primary', text: t('saveSettings'), onclick: () => {
       keyInputs.forEach(([p, inp]) => saveKey(p, inp.value));
       saveSettings({
         roles: Object.fromEntries(roleInputs.map(([r, prov, model]) => [r, { provider: prov.value, model: model.value.trim() }])),
         jev: { ...cfg.jev, backend: backend.value, url: url.value.trim(), model: jmodel.value.trim(), key: jkey.value.trim(),
-          threshold: Math.min(1, Math.max(0, Number(threshold.value) || 0.7)) },
+          route: Object.fromEntries(routeInputs.map(([skill, sel]) => [skill, sel.value])) },
         concurrency: Math.max(1, Number(conc.value) || 6),
       });
       closeModal();

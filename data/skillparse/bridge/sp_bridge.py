@@ -7,8 +7,8 @@ propbank.py is swapped for one that reads the merged PropBank file. This file is
 Python. It does what src/runner.py does, split so the page drives it:
 
   - a node is made but not run until someone clicks it (or presses "run all");
-  - a kind: jev node hands the page its closed questions (Jev answers them, Haiku takes the ones
-    Jev is unsure of) and is finished when the page sends the answers back;
+  - a kind: jev node hands the page its closed questions (Jev or Haiku answers them, by skill)
+    and is finished when the page sends the answers back;
   - any node's output can be replaced by a person, and everything below it is redone;
   - a wave's context windows (`range`) can be changed per wave before running.
 
@@ -395,7 +395,7 @@ class RegistryEngine:
     def _ask(self, w, i, node, req):
         node["rounds"].append({"state": jsonable(req.get("state")), "questions": jsonable(req.get("questions")),
                                "answers": None})
-        return {"need": "jev", "node": node["id"], "round": len(node["rounds"]),
+        return {"need": "jev", "node": node["id"], "skill": node["skill"], "round": len(node["rounds"]),
                 "state": node["rounds"][-1]["state"], "questions": node["rounds"][-1]["questions"]}
 
     def answer(self, w, i, nid, answers):
