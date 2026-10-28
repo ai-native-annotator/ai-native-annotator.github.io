@@ -10,6 +10,9 @@
  *   3. "Export .umr" writes a file with every sentence's graph, alignment and document-level
  *      annotation, and none of the imported annotation.
  *   4. Plain text imports too, one sentence per line or split into sentences.
+ *   5. A .umr file's annotation can be loaded: its word alignment is converted to characters,
+ *      its steps are in the tree (loaded, confirmed), the export keeps its graph, and a loaded
+ *      step runs again with its skill. The site's own (character-aligned) export loads as it is.
  *
  * Models are stand-ins (see _skillparse-mocks.js); Pyodide comes from the CDN.
  * Run: npm run test:browser -- skillparse-fullrun-test.js
@@ -61,8 +64,9 @@ const statusIs = (page, re, timeout = 180000) =>
   fs.writeFileSync(umrPath, ANNOTATED);
   await page.click('#btn-import');
   await page.setInputFiles('#modal input[type=file]', umrPath);
-  await page.waitForFunction(() => document.querySelector('#modal input[value="umr"]')?.checked);
-  check('a .umr file is imported as "re-annotate"', true);
+  await page.waitForFunction(() => document.querySelector('#modal input[value="umr-load"]')?.checked);
+  check('a .umr file with graphs is offered as "load its annotation"', true);
+  await page.check('#modal input[value="umr"]');
   await page.click('#modal button:text-is("导入")');
   await page.waitForFunction(() => document.getElementById('doc').value === 'hawksbill'
     && /就绪/.test(document.getElementById('status').textContent), null, { timeout: 60000 });
@@ -139,6 +143,44 @@ const statusIs = (page, re, timeout = 180000) =>
     const got = await page.$$eval('#context .items li', (e) => e.length);
     check(`text imports as ${fmt}`, got === n, `${got} sentences`);
   }
+
+  // 5. load an annotated .umr: word alignment converted to characters, every step can run again
+  await page.click('#btn-import');
+  await page.setInputFiles('#modal input[type=file]', umrPath);
+  await page.waitForFunction(() => document.querySelector('#modal input[value="umr-load"]')?.checked);
+  await page.fill('#modal input[type=text]', 'hawksbill-gold');
+  await page.click('#modal button:text-is("导入")');
+  await statusIs(page, /载入了已有标注/);
+  const report = await page.textContent('#status');
+  check('a loaded file aligned by words is converted to characters', /3 句.*按词对齐，已转换成按字对齐/.test(report) && !/没能放进来/.test(report), report);
+  const loadedTree = await page.$$eval('.tree li', (els) => els.map((e) => [e.querySelector('.sk').textContent, e.querySelector('.st').textContent, !!e.querySelector('.loaded')]));
+  check('its steps are in the tree, loaded and confirmed', loadedTree.length >= 2 && loadedTree.every(([, st, l]) => st === '✓' && l),
+    loadedTree.map((x) => x.join(':')).join(' '));
+  const [dl2] = await Promise.all([page.waitForEvent('download'), page.click('#btn-export-umr')]);
+  const back = fs.readFileSync(await dl2.path(), 'utf8');
+  const first = back.split(RULE).find((b) => /# :: snt1\b/.test(b)) || '';
+  const al = Object.fromEntries([...first.matchAll(/^(\S+): (\d+-\d+)$/gm)].map((m) => [m[1], m[2]]));
+  const vars = Object.fromEntries([...first.matchAll(/\((\S+) \/ ([^\s()]+)/g)].map((m) => [m[2], m[1]]));
+  check('the export has its graph, aligned by characters (玳瑁 1-2, 是 3)', al[vars['ZZGOLDCONCEPT-01']] === '3-3' && al[vars['玳瑁']] === '1-2',
+    JSON.stringify({ vars, al }));
+  const before = calls.haiku;
+  await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
+  await page.click('.tab:text-is("输出")');
+  await page.click('#output .review-card button:text-is("↻ 重跑这一步")');
+  await page.waitForFunction(() => (document.body.dataset.running || '0') === '0');
+  const rerun = await page.$eval('.tree li[aria-selected="true"]', (e) => [e.querySelector('.st').textContent, !!e.querySelector('.loaded')]);
+  check('a loaded step runs again with its skill, and then waits to be confirmed', calls.haiku > before && rerun[0] === '◆' && !rerun[1],
+    `${calls.haiku - before} Haiku calls, ${rerun}`);
+  // the site's own export aligns characters: loaded as it is
+  const charPath = path.join(dir, 'hawksbill-char.umr');
+  fs.writeFileSync(charPath, back);
+  await page.click('#btn-import');
+  await page.setInputFiles('#modal input[type=file]', charPath);
+  await page.waitForFunction(() => document.querySelector('#modal input[value="umr-load"]')?.checked);
+  await page.click('#modal button:text-is("导入")');
+  await page.waitForFunction(() => document.getElementById('doc').value === 'hawksbill-char'
+    && /载入了已有标注/.test(document.getElementById('status').textContent), null, { timeout: 60000 });
+  check('a file aligned by characters is loaded as it is', /按字对齐，照原样载入/.test(await page.textContent('#status')), await page.textContent('#status'));
 
   check('no page errors', errs.length === 0, errs.slice(0, 5).join('\n      '));
   await browser.close();

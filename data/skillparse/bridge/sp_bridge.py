@@ -259,6 +259,8 @@ class RegistryEngine:
         self.windows = {}                           # (wave, var) -> [start, stop]
         self.gens = {}                              # (wave, i, node id) -> a jev skill's generator
         self.modules = {}
+        self.loading = False                        # umr_load: a person's tree, made without limits
+        self.loaded = None                          # what umr_load reported
 
     # -- description
 
@@ -450,7 +452,7 @@ class RegistryEngine:
         live = [n for n in ep["nodes"].values() if n["status"] != "dropped"]
         if wave.max_nodes is not None and len(live) >= wave.max_nodes:
             return "episode already has max_nodes %d" % wave.max_nodes
-        a = parent
+        a = None if self.loading else parent        # a loaded tree may repeat a part on purpose
         while a:
             if a["skill"] == skill and a["input"] == inp:
                 return "same skill and input as node %s" % a["id"]
@@ -643,7 +645,9 @@ class RegistryEngine:
         for k, t in skill.emit.items():
             v = out[k]
             if isinstance(t, list):
-                if v not in t:
+                if self.loading and v == "none":
+                    pass            # a loaded file can leave a choice empty (umr_load: modstr)
+                elif v not in t:
                     raise StepError("%s = %r is not one of %s" % (k, v, ", ".join(map(str, t))))
             elif t in ("list[str]", "list[int]", "list[float]", "list[dict]") and not isinstance(v, list):
                 raise StepError("%s must be a list" % k)
@@ -712,7 +716,7 @@ class RegistryEngine:
         self._drop_gens(w, i, nid)
         node.update(status="pending", output=None, stored={}, error=None, rounds=[], prompt=None, human=False,
                     children=[], dropped=[], rules=[], tool_calls=[], retried=False, problems=[],
-                    confirmed=False)
+                    confirmed=False, loaded=False)
         self._mark_stale(w, int(i))
         return self.episode(w, i)
 
@@ -794,7 +798,8 @@ class RegistryEngine:
                           "depth": n["depth"], "status": n["status"], "human": n["human"],
                           "parent": n["parent"], "text": n["input"].get("text") if isinstance(n["input"], dict) else None,
                           "summary": self._summary(n), "waiting": (w, int(i), n["id"]) in self.gens,
-                          "error": n["error"], "confirmed": bool(n.get("confirmed")), "hint": n.get("hint") or ""})
+                          "error": n["error"], "confirmed": bool(n.get("confirmed")), "hint": n.get("hint") or "",
+                          "loaded": bool(n.get("loaded"))})
         return {"wave": w, "index": int(i), "label": label, "started": True, "error": ep["error"],
                 "stale": ep.get("stale", False), "context": jsonable(ep["context"]), "nodes": nodes,
                 "needs": [list(x) for x in ep.get("missing", [])], "count": len(items),
@@ -1032,10 +1037,16 @@ class Session:
             "txt-split": running text, cut into sentences by the input handler's split_sentences;
             "umr":       a .umr file to annotate again: only its sentences are kept (each block's
                          Words: line, else the text after `# :: sntN`); its annotation is dropped.
+            "umr-load":  a .umr file with its annotation: the sentences as for "umr", and the
+                         file kept as <name>.annotation, which open() loads into the steps.
         """
         import input_handler.umrinputhandler as U
         name = re.sub(r"[^\w.-]+", "_", name or "imported")[:60] or "imported"
-        if fmt == "umr":
+        annotation = os.path.join(DOCS, name + ".annotation")
+        for old in (annotation, os.path.join(DOCS, name + ".txt")):
+            if os.path.exists(old):
+                os.remove(old)
+        if fmt in ("umr", "umr-load"):
             out = strip_umr(text)
             if not out:
                 raise StepError("no sentences found: a .umr file has `# :: snt1` lines (and Words: lines)")
@@ -1053,16 +1064,35 @@ class Session:
             raise StepError("the document has no sentences")
         with open(os.path.join(DOCS, name + ".umr"), "w", encoding="utf-8") as f:
             f.write(out)
+        if fmt == "umr-load":
+            with open(annotation, "w", encoding="utf-8") as f:
+                f.write(text)
         return {"id": name, "sentences": len(re.findall(r"#\s*::\s*snt\d+", out)), "lang": doc_lang(out)}
 
     def open(self, skillset, doc):
+        """Open a document with a procedure. A document imported as "umr-load" comes with the
+        annotation it had (<doc>.annotation), which is loaded into the steps (umr_load)."""
         s = SKILLSETS[skillset]
         doc_path = os.path.join(DOCS, doc + ".umr")
         with open(doc_path, encoding="utf-8") as fh:
-            lang = doc_lang(fh.read())
-        # the input handler reads the .umr's Words: lines when there is no .txt
+            umr = fh.read()
+        lang = doc_lang(umr)
+        # the input handler reads the .umr's Words: lines when there is no .txt, joined without
+        # spaces (between letters or digits only), which is the Chinese text; an English
+        # document gets a .txt of its words joined by spaces, so its tokens are the words
+        txt = os.path.join(DOCS, doc + ".txt")
+        if lang != "zh" and not os.path.exists(txt):
+            with open(txt, "w", encoding="utf-8") as fh:
+                fh.write("".join(" ".join(re.search(r"^Words:[ \t]*(.*)$", b, re.M).group(1).split()) + "\n"
+                                 for b in umr.split(RULE80) if re.search(r"^Words:", b, re.M)))
         self.engine = RegistryEngine(skillset, s["path"], os.path.join(DOCS, doc + ".txt"), lang)
-        return self.engine.describe()
+        annotation = os.path.join(DOCS, doc + ".annotation")
+        desc = self.engine.describe()
+        if os.path.exists(annotation):
+            import umr_load
+            with open(annotation, encoding="utf-8") as fh:
+                desc["loaded"] = self.engine.loaded = umr_load.load(self.engine, fh.read())
+        return desc
 
     def read_file(self, path):
         full = os.path.normpath(os.path.join(FS, path))

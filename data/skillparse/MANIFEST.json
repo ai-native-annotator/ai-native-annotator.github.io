@@ -1,6 +1,7 @@
 {
 "files": [
 "bridge/sp_bridge.py",
+"bridge/umr_load.py",
 "docs/chinese_umr-0022.umr",
 "docs/english_umr-0008.umr",
 "fs/modular-parsing/resources/Abstract_predicate_and_rolesets.csv",

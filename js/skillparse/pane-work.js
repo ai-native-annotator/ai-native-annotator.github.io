@@ -104,7 +104,10 @@ function outputTab(d) {
   if (d.status === 'ok' || d.status === 'error') parts.push(reviewCard(d));
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
   if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
-  if (d.human) {
+  if (d.loaded) {
+    parts.push(h('div', { class: 'row' }, h('span', { class: 'human-tag loaded', text: t('loadedTag') }),
+      h('span', { class: 'note', text: t('loadedNote') })));
+  } else if (d.human) {
     parts.push(h('div', { class: 'row' }, h('span', { class: 'human-tag', text: t('humanTag') }),
       h('span', { class: 'note', text: t('human') })));
   }
@@ -318,7 +321,8 @@ function drawBottom() {
       h('span', { class: `st ${st}`, text: n.waiting ? '◐' : STATUS[st] || '?' }),
       n.edge ? h('span', { class: 'edge', text: `:${n.edge}` }) : null,
       h('span', { class: 'sk', text: n.skill }),
-      n.human ? h('span', { class: 'human-tag', text: t('humanTag') }) : null,
+      n.loaded ? h('span', { class: 'human-tag loaded', text: t('loadedTag') })
+        : n.human ? h('span', { class: 'human-tag', text: t('humanTag') }) : null,
       st === 'review' ? h('span', { class: 'await-tag', text: t('awaitTag') }) : null,
       n.text ? h('span', { class: 'txt', text: n.text }) : null,
       n.summary ? h('span', { class: 'sum', text: `→ ${n.summary}` }) : null,

@@ -119,6 +119,7 @@ async function stepThrough(page, max = 80) {
   check('the agent skills went to Haiku with the system prompt and their skill.md', calls.haiku > 0 && calls.heads > 0
     && [...calls.systems].every((x) => x.startsWith('You are an expert annotator of Uniform Meaning Representation')), `${calls.haiku} calls`);
   check('a tool call ran for real (get_example read reference/example.md)', !!calls.tools.exampleRead, JSON.stringify(calls.tools));
+  check('propbank_lookup works in the page (吃 → 吃-01 from the merged PropBank file)', !!calls.tools.propbankRead, JSON.stringify(calls.tools));
   await page.click('.tree li:has(.sk:text-is("predicate"))');
   await page.click('.tab:text-is("工具调用")');
   check("the agent step's tool calls are shown", (await page.textContent('#output')).includes('get_example'));

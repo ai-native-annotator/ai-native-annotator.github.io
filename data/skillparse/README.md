@@ -46,9 +46,14 @@ declared). The one import of pydantic-ai left in the copied code is `get_example
 The reflection code (`rsi-batch/`) is not copied: the page's own reflection is per step and
 human-driven (see `js/skillparse/reflect.js`).
 
-- `bridge/sp_bridge.py` — the only new Python: runs a registry one node at a time for the page,
+- `bridge/sp_bridge.py` — the new Python that runs a registry one node at a time for the page,
   draws nothing itself but hands the page each sentence's graph as nodes and edges, and fills in
   alignments the output left at `0-0` on export.
+- `bridge/umr_load.py` — loads an existing `.umr` file's annotation into the steps, as the registry
+  would have built them (sent_type, then the step of the node's kind with one placeholder per
+  child), so every step can be run again. Word alignments are converted to characters; a file
+  aligned by characters is read as it is. A re-entrancy is an antecedent step merged into its
+  node; the document-level relations are the document step's output.
 - `docs/` — two sample documents from the experiment's test sets, sentences only (`# :: sntN`,
   `Index:`, `Words:`; no gold).
 - `vendor/` — penman 1.3.1 (MIT), unpacked into the Python path at boot. There is no word

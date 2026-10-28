@@ -63,7 +63,7 @@ export function openImport() {
   const name = h('input', { type: 'text', value: 'my-document' });
   const area = h('textarea', { rows: 10, style: 'font-family:var(--sans)' });
   const file = h('input', { type: 'file', accept: '.txt,.umr,text/plain' });
-  const formats = [['txt-lines', t('fmtLines')], ['txt-split', t('fmtSplit')], ['umr', t('fmtUmr')]];
+  const formats = [['txt-lines', t('fmtLines')], ['txt-split', t('fmtSplit')], ['umr-load', t('fmtLoad')], ['umr', t('fmtUmr')]];
   const radios = formats.map(([v, label], k) => {
     const r = h('input', { type: 'radio', name: 'import-format', value: v, checked: k === 0 });
     return [v, r, h('label', { class: 'row' }, r, h('span', { text: label }))];
@@ -76,9 +76,10 @@ export function openImport() {
     if (!f) return;
     area.value = await f.text();
     name.value = f.name.replace(/\.(txt|umr)$/i, '');
-    // a .umr file, or text with `# :: snt` blocks, is re-annotated from its sentences
-    if (/\.umr$/i.test(f.name) || /^#\s*::\s*snt\d+/m.test(area.value)) pick('umr');
-    else if (chosen() === 'umr') pick('txt-lines');
+    // a .umr file, or text with `# :: snt` blocks: loaded when it has graphs, else re-annotated
+    if (/\.umr$/i.test(f.name) || /^#\s*::\s*snt\d+/m.test(area.value)) {
+      pick(/#\s*sentence level graph:\s*\n\s*\(/.test(area.value) ? 'umr-load' : 'umr');
+    } else if (chosen().startsWith('umr')) pick('txt-lines');
   });
   const body = h('div', { style: 'display:grid;gap:8px' },
     h('div', { class: 'note', text: t('importDesc') }), file,

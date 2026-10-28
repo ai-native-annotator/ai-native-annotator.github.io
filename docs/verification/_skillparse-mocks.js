@@ -82,6 +82,13 @@ module.exports = function mocks() {
     if (used) {
       const res = body.messages.filter((m) => m.role === 'tool').map((m) => m.content).join('');
       if (res.includes('"example"') && res.length > 200) calls.tools.exampleRead = true;
+      if (res.includes('"吃-01"')) calls.tools.propbankRead = true;
+    }
+    // then PropBank, as a predicate does: the merged Chinese file read in the page's Python
+    const asked = body.messages.flatMap((m) => m.tool_calls || []).map((c) => c.function.name);
+    if (used && names.includes('propbank_lookup') && !asked.includes('propbank_lookup')) {
+      calls.tools.propbank_lookup = (calls.tools.propbank_lookup || 0) + 1;
+      return reply(route, 'propbank_lookup', { lemmas: ['吃'], language: 'zh' });
     }
     return reply(route, 'final_result', emitFor(body.tools.find((t) => t.function.name === 'final_result').function.parameters));
   }

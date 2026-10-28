@@ -16,6 +16,7 @@
 import { py } from './py.js';
 import { jev, llm, settings } from './models.js';
 import { edited } from './store.js';
+import { toast } from './ui.js';
 import { t } from './i18n.js';
 
 export const SKILLSETS = [
@@ -105,7 +106,14 @@ export async function open(skillset, doc) {
   S.detail = null;
   changed();
   await refresh();
+  const loaded = S.desc.loaded;
+  if (loaded) {
+    const more = loaded.problems.length + loaded.more_problems;
+    problems.unshift(t('loadedReport', { n: loaded.sentences, steps: loaded.steps, how: t(`loadedHow.${loaded.alignment}`) })
+      + (more ? ` ${t('loadedProblems', { n: more, list: loaded.problems.slice(0, 3).join('; ') })}` : ''));
+  }
   status(problems.length ? problems.join('; ') : t('ready'));
+  if (loaded) toast(problems[0], 9000);
 }
 
 export async function refresh({ detail = true } = {}) {
