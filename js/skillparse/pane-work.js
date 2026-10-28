@@ -11,6 +11,7 @@ import { h, clear, pretty, toast, diffView } from './ui.js';
 import { S, onRender, render, selectNode, selectWave, selectItem, runNode, runItem, resetNode, saveOutput, startItem, sentenceGraph } from './core.js';
 import { drawGraph, fragmentGraph } from './graph-view.js';
 import { lineDiff, hunks, stable } from './diff.js';
+import { renderMarkdown } from './md.js';
 import { t } from './i18n.js';
 
 const LABEL = { graph: 'tabGraph', output: 'tabOutput', input: 'tabInput', jev: 'tabJev', prompt: 'tabPrompt', tools: 'tabTools', umr: 'tabUmr' };
@@ -104,7 +105,9 @@ function promptTab(d) {
   if (!p) return h('div', { class: 'empty', text: t('noPrompt') });
   return h('div', { style: 'display:grid;gap:6px' },
     h('details', {}, h('summary', { text: 'system' }), h('pre', { class: 'block', text: p.system })),
-    h('details', {}, h('summary', { text: 'instructions (skill.md)' }), h('pre', { class: 'block', text: p.instructions })),
+    h('details', {}, h('summary', { text: 'instructions (skill.md)' }),
+      h('div', { class: 'block md-view' }, renderMarkdown(p.instructions)),
+      h('details', {}, h('summary', { class: 'note', text: t('mdSource') }), h('pre', { class: 'block', text: p.instructions }))),
     h('details', { open: true }, h('summary', { text: 'input' }), h('pre', { class: 'block', text: p.input })));
 }
 

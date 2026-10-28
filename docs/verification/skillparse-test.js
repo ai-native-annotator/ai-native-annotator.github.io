@@ -67,6 +67,17 @@ const statusIs = (page, re, timeout = 120000) =>
     && ['discourse', 'predicate', 'np_phrase', 'special_entity', 'document'].every((k) => badges[k] === '→ Haiku')
     && ['antecedent', 'coverage', 'reentrancy'].every((k) => badges[k] === ''), JSON.stringify(badges));
 
+  // a skill.md opens rendered as Markdown; the edit tab is its source
+  await page.click('#skills .skill:has(.name:text-is("predicate")) .file:text-is("skill.md")');
+  const md = await page.$eval('#modal .md', (e) => ({ h1: e.querySelector('h1')?.textContent, tables: e.querySelectorAll('table').length,
+    slots: [...e.querySelectorAll('.md-slot')].map((x) => x.textContent), raw: /\*\*|^#/m.test(e.innerText) }));
+  const areaShown = await page.isVisible('#modal textarea.code');
+  await page.click('#modal .tab:text-is("编辑原文")');
+  const src = await page.$eval('#modal textarea.code', (e) => (e.offsetParent ? e.value : ''));
+  check('a skill.md is shown as rendered Markdown, with its source one tab away', !!md.h1 && md.tables > 0 && md.slots.includes('{sent}')
+    && !md.raw && !areaShown && src.startsWith('# Skill'), JSON.stringify(md));
+  await page.click('#modal-close');
+
   await page.click('button:text-is("运行这一项")');
   await statusIs(page, /完成|出错/);
   const steps = await page.$$eval('.tree li', (els) => els.map((e) => [e.querySelector('.sk').textContent, e.querySelector('.st').textContent]));
@@ -80,7 +91,8 @@ const statusIs = (page, re, timeout = 120000) =>
   await page.click('.tab:text-is("工具调用")');
   check("the agent step's tool calls are shown", (await page.textContent('#output')).includes('get_example'));
   await page.click('.tab:text-is("提示词")');
-  check("the agent step's prompt is its skill.md", (await page.textContent('#output')).includes('# Output Format'));
+  check("the agent step's prompt is its skill.md, rendered", (await page.textContent('#output')).includes('# Output Format')
+    && !!(await page.$('#output .md h1')));
   await page.click('.tree li:has(.sk:text-is("sent_type"))');
   await page.click('.tab:text-is("问答")');
   const by = await page.$$eval('#output .qa .badge', (e) => [...new Set(e.map((x) => x.textContent))]);

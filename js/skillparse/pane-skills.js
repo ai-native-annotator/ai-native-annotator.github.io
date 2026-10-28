@@ -9,6 +9,7 @@ import { S, onRender, render } from './core.js';
 import { py } from './py.js';
 import { addVersion, versions, forget, original, edited } from './store.js';
 import { lineDiff, hunks } from './diff.js';
+import { renderMarkdown } from './md.js';
 import { t } from './i18n.js';
 
 const root = () => document.getElementById('skills');
@@ -56,6 +57,21 @@ export async function openEditor(path) {
   }
   const area = h('textarea', { class: 'code', spellcheck: 'false' });
   area.value = text;
+  // a Markdown file opens for reading; the Edit tab is the plain text that gets saved
+  const isMd = /\.md$/i.test(name);
+  const view = h('div', { class: 'md-view' });
+  let mode = isMd ? 'read' : 'edit';
+  const modeTabs = h('div', { class: 'tabs', role: 'tablist' });
+  function show(next) {
+    mode = next;
+    if (mode === 'read') clear(view, renderMarkdown(area.value, { prompt: name === 'skill.md' }));
+    view.hidden = mode !== 'read';
+    area.hidden = mode !== 'edit';
+    clear(modeTabs, [['read', t('mdRead')], ['edit', t('mdEdit')]].map(([k, label]) =>
+      h('button', { class: 'tab', role: 'tab', 'aria-selected': String(mode === k), text: label, onclick: () => show(k) })));
+    if (mode === 'edit') area.focus();
+  }
+  view.addEventListener('dblclick', () => show('edit'));
   const msg = h('div', { class: 'note' });
   const vs = versions(S.skillset, path);
   const diffBox = h('div', { class: 'block' });
@@ -68,7 +84,7 @@ export async function openEditor(path) {
         clear(diffBox, h('div', { class: 'note', text: `v${k + 1}` }), diffView(hunks(lineDiff(prev, v.content), 3)));
         diffBox.hidden = false;
       } }),
-      ' ', h('button', { class: 'btn link sm', text: '↺', title: 'restore', onclick: () => { area.value = v.content; } })))));
+      ' ', h('button', { class: 'btn link sm', text: '↺', title: 'restore', onclick: () => { area.value = v.content; show(mode); } })))));
 
   async function save(content, note, source = 'manual') {
     const res = await py('write_file', { path, content });
@@ -81,7 +97,8 @@ export async function openEditor(path) {
 
   const body = h('div', { style: 'display:grid;gap:8px' },
     h('div', { class: 'note mono', text: path }),
-    area,
+    isMd ? modeTabs : null,
+    view, area,
     h('div', { class: 'row' },
       h('button', { class: 'btn primary', text: t('save'), onclick: () => save(area.value, '') }),
       h('button', { class: 'btn', text: t('revert'), onclick: async () => {
@@ -89,6 +106,7 @@ export async function openEditor(path) {
         await py('write_file', { path, content: orig });
         forget(S.skillset, path);
         area.value = orig;
+        show(mode);
         msg.textContent = t('original');
         S.desc = await py('describe');
         render();
@@ -98,7 +116,7 @@ export async function openEditor(path) {
       msg),
     hist, diffBox);
   openModal(t('editorTitle', { f: name }), body);
-  area.focus();
+  show(mode);
 }
 
 export function closeEditor() {
