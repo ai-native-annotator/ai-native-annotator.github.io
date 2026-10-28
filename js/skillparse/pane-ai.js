@@ -35,7 +35,8 @@ function asText(o) {
 async function filesFor(d) {
   const out = {};
   const list = [...(d.files || [])];
-  // a jev skill's helpers are shared; send them with it so an edit can land where the bug is
+  // a jev skill's helpers are shared; send them with it (an agent skill's files already include
+  // its reference/example.md and tools)
   if (d.kind === 'jev') list.push(...S.desc.shared_files.filter((f) => f.endsWith('jevlib.py')));
   for (const f of list) {
     if (f.endsWith('.md') || f.endsWith('.py') || f.endsWith('.yaml') || f.endsWith('.txt')) {

@@ -2,7 +2,7 @@
 
 import { h, openModal, closeModal, toast, download } from './ui.js';
 import { S, SKILLSETS, assembled, loadDocs, open, warm } from './core.js';
-import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, DEFAULT_ROUTE, shapeAnswers } from './models.js';
+import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, shapeAnswers } from './models.js';
 import { bundle } from './store.js';
 import { py } from './py.js';
 import { t } from './i18n.js';
@@ -40,15 +40,12 @@ export function openSettings() {
       h('label', { text: t('jevModel') }), jmodel,
       h('label', { text: t('jevKey') }), jkey,
       h('label', { text: t('concurrency') }), conc),
-    h('h4', { text: t('routeTitle') }),
-    h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' },
-      routeInputs.map(([skill, sel]) => [h('label', { class: 'mono', text: skill }), sel])),
+
     h('div', { class: 'row' }, h('button', { class: 'btn primary', text: t('saveSettings'), onclick: () => {
       keyInputs.forEach(([p, inp]) => saveKey(p, inp.value));
       saveSettings({
         roles: Object.fromEntries(roleInputs.map(([r, prov, model]) => [r, { provider: prov.value, model: model.value.trim() }])),
-        jev: { ...cfg.jev, backend: backend.value, url: url.value.trim(), model: jmodel.value.trim(), key: jkey.value.trim(),
-          route: Object.fromEntries(routeInputs.map(([skill, sel]) => [skill, sel.value])) },
+        jev: { ...cfg.jev, backend: backend.value, url: url.value.trim(), model: jmodel.value.trim(), key: jkey.value.trim() },
         concurrency: Math.max(1, Number(conc.value) || 6),
       });
       closeModal();

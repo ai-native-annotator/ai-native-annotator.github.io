@@ -31,11 +31,15 @@ its input, what it produced, the person's feedback, and the skill's source files
 skill caused the problem and propose the smallest general edit that fixes it.
 
 How the skills work (SkillParseUMR decision orchestration):
-- A skill of kind "jev" is a Python file whose run(**inputs) is a generator. Its rules split the piece
-  and list the possible answers locally (words, senses, roles), it yields closed questions (choice /
-  noul = yes-no / score; the question texts, instructions and option lists are in the skill's
-  prompts.yaml), Jev or Haiku answers them (which one is set per skill; Jev gives probabilities,
-  Haiku one option), and rules build its output ("emit") from the answers. A wrong output has one of
+- The procedure is a registry (src/runner.py): a tree of skill calls per sentence.
+- sent_type is kind "jev": a Python file whose run(**inputs) is a generator. Its rules list the
+  possible answers locally, it yields closed questions (choice / noul = yes-no / score; texts and
+  option lists in its prompts.yaml), Jev answers them with probabilities, and rules build its output
+  ("emit") from the answers.
+- Every other model skill is kind "agent": its skill.md is the prompt (the part before "## Input" is
+  the instructions, the rest this call's input) sent to Haiku, which may call tools (get_example reads
+  reference/example.md; propbank_lookup) and returns the emit as JSON. Its problems are "instructions"
+  (the skill.md, or an example in reference/example.md). A jev skill's wrong output has one of
   these causes: "question" (the right option was offered but the wording or option descriptions led
   to a wrong pick), "candidates" (the right answer was not among the options, or a needed question
   was never asked), "rule" (the answers were right, the code assembled them wrongly).
@@ -57,7 +61,7 @@ export const SCHEMA = {
   type: 'object',
   properties: {
     diagnosis: { type: 'string', description: 'what went wrong and why, in the language the person wrote in (Chinese if unsure)' },
-    layer: { type: 'string', enum: ['question', 'candidates', 'rule', 'upstream', 'not-a-skill-problem'] },
+    layer: { type: 'string', enum: ['question', 'candidates', 'rule', 'instructions', 'upstream', 'not-a-skill-problem'] },
     edits: {
       type: 'array',
       items: {
@@ -103,7 +107,8 @@ export function buildPrompt({ skillset, node, context, mode, feedback, corrected
   parts.push(`## Context (the same for every step of this sentence)\n${clip(context, 4000)}`);
   parts.push(`## Input\n${clip(node.input)}`);
   if (node.rounds?.length) parts.push(`## Closed questions and answers\n${jevRounds(node.rounds)}`);
-  if (node.prompt) parts.push(`## Prompt\n${clip(node.prompt.instructions, 6000)}\n${clip(node.prompt.input, 4000)}`);
+  if (node.prompt) parts.push(`## The prompt's input part (the instructions are the skill.md below)\n${clip(node.prompt.input, 6000)}`);
+  if (node.tool_calls?.length) parts.push(`## Tool calls\n${node.tool_calls.map((c) => `${c.tool}(${JSON.stringify(c.args)}) -> ${clip(c.result, 500)}`).join('\n')}`);
   if (node.dropped?.length) parts.push(`## Children not made\n${clip(node.dropped, 2000)}`);
   const machine = node.machine_output ?? node.output;
   parts.push(`## What the skill produced\n${clip(machine)}`);

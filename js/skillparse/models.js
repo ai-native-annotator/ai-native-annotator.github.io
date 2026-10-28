@@ -1,36 +1,27 @@
 /**
- * Model calls for index.html.
+ * Model calls for index.html, as SkillParseUMR's Runner makes them (src/skill_callable.py):
  *
- * A kind: jev skill asks closed questions; who answers them is set per skill (backend "route", the
- * default): sent_type and discourse ask Jev (TypeSafe's judgment model, through OpenRouter's
- * systemone endpoint, typesafe/jev-1.13), and predicate, np_phrase, special_entity and document
- * ask Haiku directly, with the same questions written out as src/jev.py does for a language model
- * (_claude_prompt / _ask_claude). One OpenRouter key runs both. Settings can also send every
- * question to Jev, to Haiku, or to the person.
+ *   kind: jev   (sent_type) its closed questions go to Jev, TypeSafe's judgment model, through
+ *               OpenRouter's systemone endpoint (typesafe/jev-1.13), as src/jev.py sends them
+ *   kind: agent (every other model skill) its skill.md prompt goes to Haiku, with the skill's tools;
+ *               the answer comes back through the `final_result` output tool (src/agent.py)
  *
- *   jev(state, questions, {skill, onManual}) -> answers in Jev's shape, each marked `by`
- *   llm({role, instructions, input, schema}) -> the object the model returned through the
- *       `final_result` tool (Haiku answering questions, and the reflection in the AI pane)
+ *   jev(state, questions, {onManual}) -> answers in Jev's shape
+ *   llm({role, system, instructions, input, tools, callTool, schema}) -> the final_result object
  *
- * Keys are read from the same localStorage entry as the classic workbench (`annotator_secrets`).
- * Calls go from the browser straight to the provider; there is no server.
+ * One OpenRouter key runs both. Keys are read from the same localStorage entry as the classic
+ * workbench (`annotator_secrets`). Calls go from the browser straight to the provider.
  */
 
 const SECRETS = 'annotator_secrets';
-const SETTINGS = 'skillparse_settings_v3';
+const SETTINGS = 'skillparse_settings_v4';
 
 export const ROLES = {
-  haiku: 'Haiku: answers the questions of the skills routed to it',
+  haiku: 'Haiku: runs every kind: agent skill (its skill.md prompt)',
   reflect: 'Reflection (finds skill problems, proposes edits)',
 };
 
 export const PROVIDERS = ['openrouter', 'anthropic', 'openai'];
-
-/** Who answers each kind: jev skill's questions by default; a skill not listed goes to Haiku. */
-export const DEFAULT_ROUTE = {
-  sent_type: 'jev', discourse: 'jev',
-  predicate: 'haiku', np_phrase: 'haiku', special_entity: 'haiku', document: 'haiku',
-};
 
 const DEFAULTS = {
   roles: {
@@ -38,8 +29,9 @@ const DEFAULTS = {
     reflect: { provider: 'openrouter', model: 'anthropic/claude-sonnet-5.5' },
   },
   // rsi-batch/run_tests.sh: JEV_URL=https://openrouter.ai/api/v1/systemone JEV_MODEL=typesafe/jev-1.13
-  jev: { backend: 'route', url: 'https://openrouter.ai/api/v1/systemone', model: 'typesafe/jev-1.13',
-    key: '', batch: 40, route: { ...DEFAULT_ROUTE } },
+  // backend "jev" (Jev answers) or "manual" (the person does)
+  jev: { backend: 'jev', url: 'https://openrouter.ai/api/v1/systemone', model: 'typesafe/jev-1.13',
+    key: '', batch: 40 },
   concurrency: 6,
 };
 
@@ -55,7 +47,7 @@ export function settings() {
   const s = readJson(SETTINGS);
   return {
     roles: { ...DEFAULTS.roles, ...(s.roles || {}) },
-    jev: { ...DEFAULTS.jev, ...(s.jev || {}), route: { ...DEFAULT_ROUTE, ...(s.jev?.route || {}) } },
+    jev: { ...DEFAULTS.jev, ...(s.jev || {}) },
     concurrency: s.concurrency || DEFAULTS.concurrency,
   };
 }
@@ -200,21 +192,13 @@ async function openaiLoop({ cfg, key, url, system, instructions, input, all, cal
 
 const jevCache = new Map();
 
-/** Who answers this skill's questions: "jev", "haiku" or "manual". */
-export function answererOf(skill) {
-  const cfg = settings().jev;
-  if (cfg.backend !== 'route') return cfg.backend;
-  return cfg.route[skill] || 'haiku';
-}
-
-/** Answers keyed like `questions`, in Jev's shape, each marked with who gave it (`by`). */
-export async function jev(state, questions, { skill, onManual, signal } = {}) {
+/** Answers keyed like `questions`, in Jev's shape (from Jev, or from the person). */
+export async function jev(state, questions, { onManual, signal } = {}) {
   const ids = Object.keys(questions || {});
   if (!ids.length) return {};
-  const all = settings();
-  const cfg = all.jev;
-  const who = answererOf(skill);
-  const cacheKey = JSON.stringify([who, who === 'jev' ? cfg.model : all.roles.haiku, state, questions]);
+  const cfg = settings().jev;
+  const who = cfg.backend === 'manual' ? 'manual' : 'jev';
+  const cacheKey = JSON.stringify([who, cfg.model, state, questions]);
   if (jevCache.has(cacheKey)) return jevCache.get(cacheKey);
   let answers;
   if (who === 'manual') {
@@ -224,8 +208,7 @@ export async function jev(state, questions, { skill, onManual, signal } = {}) {
     for (let k = 0; k < ids.length; k += cfg.batch) {
       pieces.push(Object.fromEntries(ids.slice(k, k + cfg.batch).map((id) => [id, questions[id]])));
     }
-    const ask = who === 'jev' ? (q) => askJev(state, q, cfg, signal) : (q) => askLLM(state, q, signal);
-    answers = Object.assign({}, ...(await Promise.all(pieces.map(ask))));
+    answers = Object.assign({}, ...(await Promise.all(pieces.map((q) => askJev(state, q, cfg, signal)))));
   }
   for (const id of Object.keys(answers)) answers[id] = { ...answers[id], by: who };
   jevCache.set(cacheKey, answers);
@@ -247,36 +230,9 @@ async function askJev(state, questions, cfg, signal) {
   return data.answers;
 }
 
-/** src/jev.py _claude_prompt: the same closed questions, written out for a language model. */
-export function judgePrompt(state, questions) {
-  const lines = ['# State', '', JSON.stringify(state, null, 1), '', '# Questions', ''];
-  for (const [k, q] of Object.entries(questions)) {
-    const ins = typeof q.instructions === 'string' ? q.instructions : JSON.stringify(q.instructions);
-    const crit = q.criteria;
-    if (q.type === 'choice') {
-      lines.push(`[${k}] choose one option. ${ins}`);
-      for (const [o, d] of Object.entries(crit)) lines.push(`  - ${o}${d ? `: ${d}` : ''}`);
-    } else if (q.type === 'noul') {
-      lines.push(`[${k}] yes or no. ${ins}${crit && typeof crit === 'object' ? ` (yes: ${crit.true}; no: ${crit.false})` : ''}`);
-    } else {
-      lines.push(`[${k}] score. ${ins}`);
-      (crit || []).forEach((d, n) => lines.push(`  ${n}: ${d}`));
-    }
-    lines.push('');
-  }
-  lines.push('# Answer', '', 'Return `answers`: an object with every question id as a key. For a choice, the option exactly '
-    + 'as written before its colon; for yes or no, "yes" or "no"; for a score, the level number. '
-    + 'Words in backticks refer to fields of the state.');
-  return lines.join('\n');
-}
-
-// src/jev.py CLAUDE_SYSTEM: a language model answering Jev's questions
-const JUDGE_SYSTEM = 'You are a careful judge of Chinese and English text for Uniform Meaning Representation '
-  + '(UMR) annotation. You answer closed questions exactly as asked.';
-
 /**
- * Model answers in Jev's shape: the chosen option with probability 1 (src/jev.py _ask_claude); an
- * answer that is not an option becomes the first option.
+ * Picked answers in Jev's shape: the chosen option with probability 1 (src/jev.py _ask_claude); an
+ * answer that is not an option becomes the first option. Used for the person's answers.
  */
 export function shapeAnswers(questions, got) {
   const answers = {};
@@ -295,13 +251,4 @@ export function shapeAnswers(questions, got) {
     }
   }
   return answers;
-}
-
-async function askLLM(state, questions, signal) {
-  const props = Object.fromEntries(Object.keys(questions).map((k) => [k, { type: 'string' }]));
-  const out = await llm({
-    role: 'haiku', system: JUDGE_SYSTEM, instructions: judgePrompt(state, questions), signal, maxTurns: 2,
-    schema: { type: 'object', properties: { answers: { type: 'object', properties: props, required: Object.keys(props) } }, required: ['answers'] },
-  });
-  return shapeAnswers(questions, out.answers || out);
 }

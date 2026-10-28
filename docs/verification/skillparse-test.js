@@ -1,18 +1,21 @@
 /**
- * index.html (SkillParse): SkillParseUMR's decision-orchestration procedures (V12, Chinese and
- * English) run in the browser, step by step.
+ * index.html (SkillParse): SkillParseUMR's registry run in the browser the way src/runner.py runs
+ * it: sent_type is kind: jev (Jev answers its closed questions), every other model skill is kind:
+ * agent (its skill.md is the prompt, Haiku answers through the final_result tool, with the skill's
+ * tools), and the rules are rules.
  *
  * The page boots Pyodide from the CDN, so this test needs the network for that (not for any
- * model: OpenRouter is answered by a stand-in below, Jev's `systemone` endpoint and Haiku's
- * chat completions both). It walks the whole loop once:
+ * model: OpenRouter is answered by a stand-in below, Jev's `systemone` endpoint and Haiku's chat
+ * completions both). It walks the whole loop once:
  *
- *   1. Python boots and the Chinese procedure opens.
- *   2. Running sentence 1 makes a tree of steps. Who answers is set per skill: sent_type and
- *      discourse ask Jev, the other skills ask Haiku directly (no cascade); the Skills pane shows
- *      it, and a click there switches a skill to the other one.
- *   3. The sentence's graph is drawn (SVG boxes), and clicking a box selects the step that wrote it.
+ *   1. Python boots and the Chinese procedure opens; the Skills pane says Jev for sent_type and
+ *      Haiku for the agent skills.
+ *   2. Running sentence 1 makes a tree of steps; only sent_type's rounds go to Jev; the agent
+ *      skills get the system prompt and their skill.md (split at "## Input"), call get_example
+ *      for real, and answer through final_result.
+ *   3. The sentence's graph is drawn, and clicking a box selects the step that wrote it.
  *   4. A person corrects one step's output: it is kept as the human result and the steps under it
- *      are redone; a jev step that writes a fragment also draws it.
+ *      are redone.
  *   5. The AI pane turns that correction into a skill edit; applying it writes a new version of the
  *      file; re-running the step reports whether the step now produces the correction.
  *   6. A context window can be narrowed to the one sentence.
@@ -31,58 +34,70 @@ const check = (label, ok, extra = '') => {
   console.log(`  ${ok ? '✓' : '✖'} ${label}${extra ? '\n      ' + extra : ''}`);
 };
 
-const calls = { jev: 0, questions: 0, haiku: 0, reflect: 0, jevStates: [] };
+const calls = { jev: 0, questions: 0, haiku: 0, reflect: 0, tools: {}, systems: new Set(), heads: 0, skills: new Set() };
 
-/** Jev: the first option, sure for most questions and unsure (0.5) for every third one. */
+/** Jev: the first option of every choice ("predicate" when it is one), "no" to every yes/no. */
 async function systemone(route) {
   const body = JSON.parse(route.request().postData());
   calls.jev++;
-  calls.jevStates.push(JSON.stringify(body.state));
   const answers = {};
-  Object.entries(body.questions).forEach(([k, q], n) => {
+  for (const [k, q] of Object.entries(body.questions)) {
     calls.questions++;
-    const p = n % 3 === 2 ? 0.5 : 0.9;
     if (q.type === 'choice') {
       const opts = Object.keys(q.criteria);
-      const probabilities = Object.fromEntries(opts.map((o, i) => [o, i === 0 ? p : (1 - p) / Math.max(1, opts.length - 1)]));
-      answers[k] = { type: 'choice', choice: opts[0], confidence: p, probabilities };
+      const pick = opts.includes('predicate') ? 'predicate' : opts[0];
+      answers[k] = { type: 'choice', choice: pick, confidence: 0.9, probabilities: Object.fromEntries(opts.map((o) => [o, o === pick ? 0.9 : 0.1 / Math.max(1, opts.length - 1)])) };
     } else if (q.type === 'noul') {
-      answers[k] = { type: 'noul', noul: n % 3 === 2 ? 0.5 : 0.1 };
+      answers[k] = { type: 'noul', noul: 0.1 };
     } else {
       answers[k] = { type: 'score', score: 0, probabilities: { 0: 1 } };
     }
-  });
+  }
   return route.fulfill({ json: { answers, model: body.model, usage: {} } });
 }
 
-/** Haiku answering a closed question: the first option, "no", 0 (src/jev.py's prompt format). */
-function judge(prompt) {
-  const ans = {};
-  let cur = null;
-  for (const ln of prompt.split('\n')) {
-    let m = /^\[([^\]]+)\] (choose one option|yes or no|score)/.exec(ln);
-    if (m) { cur = m[1]; ans[cur] = m[2] === 'yes or no' ? 'no' : m[2] === 'score' ? '0' : null; continue; }
-    m = /^ {2}- ([^:]+?)(:|$)/.exec(ln);
-    if (m && cur && ans[cur] === null) ans[cur] = m[1];
+/** An emit that fits the final_result schema; a skill that writes a graph writes one node. */
+function emitFor(schema) {
+  const out = {};
+  for (const [k, p] of Object.entries(schema.properties || {})) {
+    out[k] = p.enum ? p.enum[0] : p.type === 'array' ? [] : p.type === 'object' ? {} : p.type === 'string' ? '' : 0;
   }
-  return ans;
+  if ('graph' in out) {
+    out.graph = { nodes: [{ var: 'x', concept: 'test-01', span: [1, 1] }], edges: [], attrs: [] };
+    if ('alignment' in out) out.alignment = [1, 1];
+  }
+  return out;
 }
+
+const reply = (route, name, args) => route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: null,
+  tool_calls: [{ id: `c${Math.random()}`, type: 'function', function: { name, arguments: JSON.stringify(args) } }] } }] } });
 
 async function chat(route) {
   const body = JSON.parse(route.request().postData());
   const sys = body.messages.find((m) => m.role === 'system')?.content || '';
   const user = body.messages.find((m) => m.role === 'user')?.content || '';
-  let input;
   if (sys.includes('maintain the skills')) {
     calls.reflect++;
-    const m = /## (skillparseumr\/[^\n]*\.py)\n```/.exec(user);
-    input = { diagnosis: 'test diagnosis', layer: 'rule', edits: [{ file: m ? m[1] : 'none', op: 'add', find: '', replace: '# edit proposed by the test', why: 'test' }] };
-  } else {
-    calls.haiku++;
-    input = { answers: judge(user) };
+    const m = /## (skillparseumr\/[^\n]*\.(?:md|py))\n```/.exec(user);
+    return reply(route, 'final_result', { diagnosis: 'test diagnosis', layer: 'instructions',
+      edits: [{ file: m ? m[1] : 'none', op: 'add', find: '', replace: '<!-- edit proposed by the test -->', why: 'test' }] });
   }
-  return route.fulfill({ json: { choices: [{ message: { role: 'assistant', content: null,
-    tool_calls: [{ id: `c${Math.random()}`, type: 'function', function: { name: 'final_result', arguments: JSON.stringify(input) } }] } }] } });
+  calls.haiku++;
+  calls.systems.add(sys);
+  if (user.startsWith('# Output Format')) calls.heads++;
+  const skill = /## Input/.test(user) ? 'agent' : '?';
+  calls.skills.add(skill);
+  const names = body.tools.map((t) => t.function.name);
+  const used = body.messages.some((m) => m.role === 'tool');
+  if (!used && names.includes('get_example')) {
+    calls.tools.get_example = (calls.tools.get_example || 0) + 1;
+    return reply(route, 'get_example', {});
+  }
+  if (used) {
+    const res = body.messages.filter((m) => m.role === 'tool').map((m) => m.content).join('');
+    if (res.includes('"example"') && res.length > 200) calls.tools.exampleRead = true;
+  }
+  return reply(route, 'final_result', emitFor(body.tools.find((t) => t.function.name === 'final_result').function.parameters));
 }
 
 const statusIs = (page, re, timeout = 120000) =>
@@ -105,37 +120,35 @@ const statusIs = (page, re, timeout = 120000) =>
 
   await page.goto(`${BASE}/index.html`);
   await statusIs(page, /就绪/);
-  check('Python boots and the Chinese V12 procedure opens', (await page.$$('.skill')).length >= 9
-    && (await page.$eval('#skillset', (e) => e.value)) === 'do-zh-v12');
+  check('Python boots and the Chinese procedure opens', (await page.$$('.skill')).length >= 9
+    && (await page.$eval('#skillset', (e) => e.value)) === 'web-zh');
   check("the registry's three waves are shown", (await page.$$('.wave-tab')).length === 3);
   check('for_each items are picked one at a time (no checkboxes)', (await page.$$('#context .items input[type=checkbox]')).length === 0);
+  const badges = await page.$$eval('#skills .skill', (els) => Object.fromEntries(els.map((e) => [
+    e.querySelector('.name').textContent, e.querySelector('.by-jev, .by-haiku')?.textContent || ''])));
+  check('only sent_type is Jev; every other model skill is Haiku (kind: agent)', badges.sent_type === '→ Jev'
+    && ['discourse', 'predicate', 'np_phrase', 'special_entity', 'document'].every((k) => badges[k] === '→ Haiku')
+    && ['antecedent', 'coverage', 'reentrancy'].every((k) => badges[k] === ''), JSON.stringify(badges));
 
   await page.click('button:text-is("运行这一项")');
   await statusIs(page, /完成|出错/);
-  const steps = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
-  check('running sentence 1 makes a tree of steps', steps.length >= 5, `${steps.length} steps`);
-  check('every step finished', steps.every((s) => s === '✓'), steps.join(''));
-  check('Jev answered the sent_type / discourse rounds', calls.jev > 0, `${calls.jev} requests, ${calls.questions} questions`);
-  check('Haiku answered the other skills directly', calls.haiku > 0, `${calls.haiku} Haiku calls`);
-  const badges = await page.$$eval('#skills .skill', (els) => Object.fromEntries(els.map((e) => [
-    e.querySelector('.name').textContent, e.querySelector('.answerer')?.textContent || ''])));
-  check('the Skills pane shows who answers each skill', badges.sent_type === '→ Jev' && badges.discourse === '→ Jev'
-    && badges.predicate === '→ Haiku' && badges.np_phrase === '→ Haiku', JSON.stringify(badges));
+  const steps = await page.$$eval('.tree li', (els) => els.map((e) => [e.querySelector('.sk').textContent, e.querySelector('.st').textContent]));
+  check('running sentence 1 makes a tree of steps', steps.length >= 3, steps.map((x) => x[0]).join(' '));
+  check('every step finished', steps.every((x) => x[1] === '✓'), steps.map((x) => x[1]).join(''));
+  check('sent_type asked Jev', calls.jev > 0, `${calls.jev} requests, ${calls.questions} questions`);
+  check('the agent skills went to Haiku with the system prompt and their skill.md', calls.haiku > 0 && calls.heads > 0
+    && [...calls.systems].every((x) => x.startsWith('You are an expert annotator of Uniform Meaning Representation')), `${calls.haiku} calls`);
+  check('a tool call ran for real (get_example read reference/example.md)', !!calls.tools.exampleRead, JSON.stringify(calls.tools));
   await page.click('.tree li:has(.sk:text-is("predicate"))');
-  await page.click('.tab:text-is("问答")');
-  const by = await page.$$eval('#output .qa .badge', (e) => [...new Set(e.map((x) => x.textContent))]);
-  check("predicate's questions were answered by Haiku, not Jev", by.length === 1 && by[0] === 'Haiku', by.join(','));
+  await page.click('.tab:text-is("工具调用")');
+  check("the agent step's tool calls are shown", (await page.textContent('#output')).includes('get_example'));
+  await page.click('.tab:text-is("提示词")');
+  check("the agent step's prompt is its skill.md", (await page.textContent('#output')).includes('# Output Format'));
   await page.click('.tree li:has(.sk:text-is("sent_type"))');
   await page.click('.tab:text-is("问答")');
-  const by2 = await page.$$eval('#output .qa .badge', (e) => [...new Set(e.map((x) => x.textContent))]);
-  check("sent_type's questions were answered by Jev", by2.length === 1 && by2[0] === 'Jev', by2.join(','));
-  await page.click('#skills .skill:has(.name:text-is("predicate")) .answerer');
-  const flipped = await page.evaluate(() => JSON.parse(localStorage.getItem('skillparse_settings_v3') || '{}').jev?.route?.predicate);
-  check('a click on the badge switches the skill to Jev', flipped === 'jev'
-    && (await page.textContent('#skills .skill:has(.name:text-is("predicate")) .answerer')) === '→ Jev');
-  await page.click('#skills .skill:has(.name:text-is("predicate")) .answerer');
+  const by = await page.$$eval('#output .qa .badge', (e) => [...new Set(e.map((x) => x.textContent))]);
+  check("sent_type's questions were answered by Jev", by.length === 1 && by[0] === 'Jev', by.join(','));
   await page.click('.tab:text-is("图")');
-
   await page.waitForSelector('#output .graph-svg .g-node', { timeout: 20000 }).catch(() => {});
   const boxes = await page.$$('#output .graph-svg .g-node');
   check('the sentence graph is drawn', boxes.length >= 2, `${boxes.length} boxes`);
@@ -161,8 +174,8 @@ const statusIs = (page, re, timeout = 120000) =>
   check('the AI proposes a skill edit from the correction', calls.reflect === 1 && (await page.textContent('.proposal')).includes('test diagnosis'));
   await page.click('button:text-is("应用选中的修改")');
   await page.waitForSelector('.proposal .ok');
-  const stored = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('skillparse_files:do-zh-v12') || '{}')));
-  check('applying it saves a new version of the skill file', stored.some((p) => p.endsWith('.py')), stored.join(', '));
+  const stored = await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('skillparse_files:web-zh') || '{}')));
+  check('applying it saves a new version of the skill file', stored.some((p) => p.endsWith('predicate/skill.md')), stored.join(', '));
   await page.click('button:text-is("重跑这一步验证")');
   await page.waitForFunction(() => /重跑后/.test(document.querySelector('.proposal')?.textContent || ''), null, { timeout: 60000 });
   check('re-running reports against the correction', /重跑后/.test(await page.textContent('.proposal')));
@@ -179,11 +192,11 @@ const statusIs = (page, re, timeout = 120000) =>
 
   await page.selectOption('#doc', 'english_umr-0008');
   await statusIs(page, /就绪/);
-  check('the English document opens with the English procedure', (await page.$eval('#skillset', (e) => e.value)) === 'do-en-v12');
+  check('the English document opens with the English procedure', (await page.$eval('#skillset', (e) => e.value)) === 'web-en');
   await page.click('button:text-is("运行这一项")');
   await statusIs(page, /完成|出错/);
   const en = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
-  check('the English procedure runs', en.length >= 5 && en.every((s) => s === '✓'), en.join(''));
+  check('the English procedure runs', en.length >= 3 && en.every((s) => s === '✓'), en.join(''));
 
   check('no page errors', errs.length === 0, errs.slice(0, 5).join('\n      '));
   await browser.close();

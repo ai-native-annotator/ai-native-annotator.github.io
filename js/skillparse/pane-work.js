@@ -13,14 +13,14 @@ import { drawGraph, fragmentGraph } from './graph-view.js';
 import { lineDiff, hunks, stable } from './diff.js';
 import { t } from './i18n.js';
 
-const LABEL = { graph: 'tabGraph', output: 'tabOutput', input: 'tabInput', jev: 'tabJev', prompt: 'tabPrompt', umr: 'tabUmr' };
+const LABEL = { graph: 'tabGraph', output: 'tabOutput', input: 'tabInput', jev: 'tabJev', prompt: 'tabPrompt', tools: 'tabTools', umr: 'tabUmr' };
 
 function tabsFor(d) {
   const out = ['graph'];
   if (d) {
     out.push('output', 'input');
     if (d.kind === 'jev') out.push('jev');
-    if (d.kind === 'agent') out.push('prompt');
+    if (d.kind === 'agent') out.push('prompt', 'tools');
   }
   out.push('umr');
   return out;
@@ -49,6 +49,7 @@ function outputTab(d) {
   }
   const parts = [];
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
+  if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
   if (d.human) {
     parts.push(h('div', { class: 'row' }, h('span', { class: 'human-tag', text: t('humanTag') }),
       h('span', { class: 'note', text: t('human') })));
@@ -102,8 +103,17 @@ function promptTab(d) {
   const p = d.prompt;
   if (!p) return h('div', { class: 'empty', text: t('noPrompt') });
   return h('div', { style: 'display:grid;gap:6px' },
-    h('details', {}, h('summary', { text: 'instructions (skill)' }), h('pre', { class: 'block', text: p.instructions })),
+    h('details', {}, h('summary', { text: 'system' }), h('pre', { class: 'block', text: p.system })),
+    h('details', {}, h('summary', { text: 'instructions (skill.md)' }), h('pre', { class: 'block', text: p.instructions })),
     h('details', { open: true }, h('summary', { text: 'input' }), h('pre', { class: 'block', text: p.input })));
+}
+
+function toolsTab(d) {
+  const calls = d.tool_calls || [];
+  if (!calls.length) return h('div', { class: 'empty', text: t('noTools') });
+  return h('div', {}, calls.map((c) => h('div', { class: 'qa' },
+    h('div', { class: 'q mono', text: `${c.tool}(${JSON.stringify(c.args)})` }),
+    h('details', {}, h('summary', { text: `${String(c.result).length} chars` }), h('pre', { class: 'block', text: c.result })))));
 }
 
 /** Go to the step that made a variable of the sentence graph (it is a node of the sentence wave). */
@@ -205,7 +215,7 @@ function drawTop() {
   if (S.editing && S.tab === 'output' && out.dataset.editing === key) return;
   if (S.editing && S.tab === 'output') out.dataset.editing = key;
   else delete out.dataset.editing;
-  const view = { output: outputTab, input: inputTab, jev: jevTab, prompt: promptTab }[S.tab](d);
+  const view = { output: outputTab, input: inputTab, jev: jevTab, prompt: promptTab, tools: toolsTab }[S.tab](d);
   clear(out, view);
 }
 

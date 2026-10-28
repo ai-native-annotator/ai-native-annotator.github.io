@@ -16,6 +16,7 @@ The page calls `call(method, json_args)` and gets JSON back; see `Session` for t
 """
 import dataclasses
 import importlib.util
+import inspect
 import json
 import os
 import re
@@ -33,13 +34,19 @@ os.environ.setdefault("PROPBANK_DIR", MP + "/resources")
 sys.dont_write_bytecode = True
 
 DO = SP + "/experiment/decision-orchestration"
+# web-procedures/<lang>: composed by scripts/sync_skillparse.py (sent_type kind: jev, the other
+# model skills kind: agent); see the header of each registry.yaml
 SKILLSETS = {
-    "do-zh-v12": {"path": DO + "/umr-zh-v11/versions/V12/registry.yaml", "lang": "zh"},
-    "do-en-v12": {"path": DO + "/umr-en-v11/versions/V12/registry.yaml", "lang": "en"},
+    "web-zh": {"path": SP + "/web-procedures/zh/registry.yaml", "lang": "zh"},
+    "web-en": {"path": SP + "/web-procedures/en/registry.yaml", "lang": "en"},
 }
+# scripts/run_experiment.py: the system prompt every agent skill call gets
+SYSTEM = ("You are an expert annotator of Uniform Meaning Representation (UMR), following the "
+          "UMR guidelines. Do exactly the one task you are given.")
 # modules every version of the procedure has under the same name: a zh and an en version must
 # not share them, and an edited file must be read again
 SHARED_MODULES = ("jevlib", "prompt_loader", "event_modifiers")
+TOOL_PREFIXES = ("skill_rules.", "skill_tools.", "skillset_tools.", "shared_tools")
 RULE80 = "#" * 80
 
 
@@ -76,8 +83,104 @@ class StepError(Exception):
 
 
 def purge_modules():
-    for m in [m for m in sys.modules if m in SHARED_MODULES or m.startswith("skill_rules.")]:
+    for m in [m for m in sys.modules if m in SHARED_MODULES or m.startswith(TOOL_PREFIXES)]:
         del sys.modules[m]
+
+
+def _pydantic_ai_stub():
+    """skillsets/tools/example.py types its first parameter as pydantic_ai.RunContext[dict]; the
+    browser has no pydantic-ai, so a RunContext that only carries `deps` stands in for it."""
+    import types
+    if "pydantic_ai" in sys.modules:
+        return
+    mod = types.ModuleType("pydantic_ai")
+
+    class RunContext:
+        def __init__(self, deps=None):
+            self.deps = deps
+
+        def __class_getitem__(cls, item):
+            return cls
+    mod.RunContext = RunContext
+    sys.modules["pydantic_ai"] = mod
+
+
+def _wants_ctx(fn):
+    params = list(inspect.signature(fn).parameters.values())
+    return bool(params) and getattr(params[0].annotation, "__name__", "") == "RunContext"
+
+
+def _tools_in(directory, prefix):
+    """skill_callable._tools_in: every public function of every <directory>/*.py not starting with _."""
+    tools = []
+    if not os.path.isdir(directory):
+        return tools
+    for filename in sorted(os.listdir(directory)):
+        if not filename.endswith(".py") or filename.startswith("_"):
+            continue
+        name = "%s.%s" % (prefix, filename[:-3])
+        module = _load_module(os.path.join(directory, filename), name)
+        sys.modules[name] = module
+        for fname, obj in inspect.getmembers(module, inspect.isfunction):
+            if not fname.startswith("_") and obj.__module__ == name:
+                tools.append(obj)
+    return tools
+
+
+def skill_tools(path):
+    """skill_callable._load: the skill's own tools/, then its skillset's tools/, then the tools/
+    next to the skillset; a name already taken is skipped."""
+    _pydantic_ai_stub()
+    slug = "".join(ch if ch.isalnum() else "_" for ch in path)
+    tools = _tools_in(os.path.join(path, "tools"), "skill_tools.%s" % slug)
+    skillset = os.path.dirname(os.path.abspath(path))
+    tools += _tools_in(os.path.join(skillset, "tools"), "skillset_tools.%s" % slug)
+    tools += _tools_in(os.path.join(os.path.dirname(skillset), "tools"), "shared_tools.%s" % slug)
+    seen, unique = set(), []
+    for t in tools:
+        if t.__name__ not in seen:
+            seen.add(t.__name__)
+            unique.append(t)
+    return unique
+
+
+def skill_files(path):
+    """A skill's editable files under /sp: its own files, then reference/ (examples) and tools/."""
+    out = []
+    for sub in ("", "reference", "tools"):
+        d = os.path.join(path, sub)
+        if os.path.isdir(d):
+            out += [os.path.relpath(os.path.join(d, f), FS) for f in sorted(os.listdir(d))
+                    if f.endswith((".py", ".md", ".yaml")) and not f.startswith("test_")]
+    return out
+
+
+JSON_TYPES = {str: {"type": "string"}, int: {"type": "integer"}, float: {"type": "number"},
+              bool: {"type": "boolean"}, dict: {"type": "object"}}
+
+
+def _json_type(ann):
+    origin = getattr(ann, "__origin__", None)
+    if origin is list:
+        args = getattr(ann, "__args__", ()) or (str,)
+        return {"type": "array", "items": _json_type(args[0])}
+    if ann is list:
+        return {"type": "array", "items": {"type": "string"}}
+    return dict(JSON_TYPES.get(ann, {"type": "string"}))
+
+
+def tool_spec(fn):
+    """A tool as the model sees it: name, docstring, JSON schema of its parameters (without ctx)."""
+    params = list(inspect.signature(fn).parameters.values())
+    if _wants_ctx(fn):
+        params = params[1:]
+    props, required = {}, []
+    for p in params:
+        props[p.name] = _json_type(p.annotation)
+        if p.default is inspect.Parameter.empty:
+            required.append(p.name)
+    return {"name": fn.__name__, "description": inspect.getdoc(fn) or "",
+            "parameters": {"type": "object", "properties": props, "required": required}}
 
 
 # ------------------------------------------------------------------ documents
@@ -150,11 +253,7 @@ class RegistryEngine:
             })
         skills = []
         for s in self.reg.skills.values():
-            files = []
-            base = os.path.dirname(os.path.abspath(self.path))
-            for f in sorted(os.listdir(s.path)):
-                if f.endswith((".py", ".md", ".yaml")) and not f.startswith("test_"):
-                    files.append(os.path.relpath(os.path.join(s.path, f), FS))
+            files = skill_files(s.path)
             skills.append({"name": s.name, "kind": s.kind, "input": jsonable(s.input), "emit": jsonable(s.emit),
                            "store": s.store, "files": files,
                            "rules": [self._rule_text(r) for r in self.reg.rules(s.name)]})
@@ -375,8 +474,11 @@ class RegistryEngine:
                 except StopIteration as done:
                     return self._finish(w, ep, node, done.value)
                 return self._ask(w, i, node, req)
-            # agent: skill.md as SkillCallable.prompt_parts builds it
-            md = open(os.path.join(skill.path, "skill.md"), encoding="utf-8").read()
+            # agent: skill.md as SkillCallable.prompt_parts builds it, the system prompt of
+            # scripts/run_experiment.py, the tools skill_callable._load finds; the answer comes back
+            # through the output tool (pydantic-ai's final_result), validated against emit
+            with open(os.path.join(skill.path, "skill.md"), encoding="utf-8") as f:
+                md = f.read()
             values = {k: v if isinstance(v, str) else json.dumps(jsonable(v), ensure_ascii=False)
                       for k, v in inputs.items()}
             fields = ", ".join('"%s"' % k for k in skill.emit)
@@ -386,9 +488,10 @@ class RegistryEngine:
                 instructions, user = head + md.format(**values), ""
             else:
                 instructions, user = head + md[:cut].format(**values), md[cut:].format(**values)
-            node["prompt"] = {"system": "", "instructions": instructions, "input": user}
-            return {"need": "llm", "mode": "json", "node": nid, "system": "", "instructions": instructions,
-                    "input": user, "emit": jsonable(skill.emit), "tools": [], "role": "G"}
+            node["prompt"] = {"system": SYSTEM, "instructions": instructions, "input": user}
+            node["tool_calls"] = []
+            node["retried"] = False
+            return self._llm_request(node, skill)
         except Exception as e:
             return self._fail(w, ep, node, e)
 
@@ -415,9 +518,48 @@ class RegistryEngine:
             return self._fail(w, ep, node, e)
         return self._ask(w, i, node, req)
 
-    def complete(self, w, i, nid, output):
-        """A model's JSON answer for an agent node."""
+    def _llm_request(self, node, skill, retry=None):
+        p = node["prompt"]
+        return {"need": "llm", "node": node["id"], "skill": node["skill"], "system": p["system"],
+                "instructions": p["instructions"], "input": p["input"] + (retry or ""),
+                "emit": jsonable(skill.emit), "tools": [tool_spec(t) for t in skill_tools(skill.path)],
+                "retry": bool(retry)}
+
+    def tool(self, w, i, nid, name, args):
+        """Run one tool for an agent node; ctx.deps is {"skill_dir", "skill"} as SkillCallable gives it."""
         ep, node = self._node(w, i, nid)
+        skill = self.reg.skills[node["skill"]]
+        fns = {t.__name__: t for t in skill_tools(skill.path)}
+        if name not in fns:
+            res = "Unknown tool name: %r. Tools: %s" % (name, ", ".join(sorted(fns)))
+        else:
+            fn = fns[name]
+            try:
+                if _wants_ctx(fn):
+                    ctx = sys.modules["pydantic_ai"].RunContext({"skill_dir": skill.path, "skill": skill.name})
+                    res = fn(ctx, **(args or {}))
+                else:
+                    res = fn(**(args or {}))
+            except Exception as e:
+                res = "%s: %s" % (type(e).__name__, e)
+        text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
+        node.setdefault("tool_calls", []).append({"tool": name, "args": args, "result": text[:4000]})
+        return text
+
+    def complete(self, w, i, nid, output):
+        """A model's JSON answer for an agent node. An answer that does not fit emit is sent back
+        once with what is wrong (agent.run's retries=1), then the node is in error."""
+        ep, node = self._node(w, i, nid)
+        skill = self.reg.skills[node["skill"]]
+        try:
+            self._check_emit(skill, output)
+        except Exception as e:
+            if not node.get("retried"):
+                node["retried"] = True
+                node["problems"] = [str(e)]
+                retry = ("\n\n## Your previous answer was not valid\n%s\n%s\n\nFix the errors and answer again."
+                         % (e, json.dumps(jsonable(output), ensure_ascii=False)[:3000]))
+                return self._llm_request(node, skill, retry)
         try:
             return self._finish(w, ep, node, output)
         except Exception as e:
@@ -514,7 +656,7 @@ class RegistryEngine:
             del ep["nodes"][k]
         self._drop_gens(w, i, nid)
         node.update(status="pending", output=None, stored={}, error=None, rounds=[], prompt=None, human=False,
-                    children=[], dropped=[], rules=[])
+                    children=[], dropped=[], rules=[], tool_calls=[], retried=False, problems=[])
         self._mark_stale(w, int(i))
         return self.episode(w, i)
 
@@ -594,8 +736,7 @@ class RegistryEngine:
     def node(self, w, i, nid):
         ep, n = self._node(w, i, nid)
         skill = self.reg.skills[n["skill"]]
-        files = [os.path.relpath(os.path.join(skill.path, f), FS) for f in sorted(os.listdir(skill.path))
-                 if f.endswith((".py", ".md", ".yaml"))]
+        files = skill_files(skill.path)
         return {**jsonable({k: v for k, v in n.items() if k != "trace"}), "kind": skill.kind,
                 "emit": jsonable(skill.emit), "files": files, "context_keys": list(ep["context"]),
                 "trace": n.get("trace"), "waiting": (w, int(i), nid) in self.gens}

@@ -1,13 +1,12 @@
 /** Interface strings, Chinese and English. t(key, {var}) fills {var}. */
 
 const ZH = {
-  roleNames: { haiku: 'Haiku：回答分给它的 skill 的问题', reflect: '反思（找 skill 的问题、提修改）' },
+  roleNames: { haiku: 'Haiku：运行每个 agent skill（它的 skill.md）', reflect: '反思（找 skill 的问题、提修改）' },
   tabGraph: '图', tabUmr: 'UMR 文本', fragment: '这一步写出的图片段（虚线框 = 交给下一步的占位）：',
   graphOf: '第 {n} 句的图', graphHelp: '框 = 节点（概念 / 变量 · 对齐的字）；蓝框 = 当前这一步写的；橙色虚线 = 重入。点框跳到写它的那一步，悬停看对齐的字。',
   fit: '适应宽度', noGraph: '这一句还没有图：在 wave 1 运行这一句。', docRels: '文档级关系（{n}）',
   umrNote: '这一句的 .umr（output handler 拼出；单字编号；自动补齐的 alignment 标黄）。',
-  byRoute: '按 skill 分（默认：sent_type、discourse 用 Jev，其余用 Haiku）', allJev: '全部用 Jev', allHaiku: '全部用 Haiku',
-  routeTitle: '每个 skill 的问题由谁回答', answeredBy: '由 {who} 回答（点一下切换）',
+  jevTitle: 'kind: jev：规则列选项，Jev 回答封闭问题', haikuTitle: 'kind: agent：skill.md 作为提示词交给 Haiku', tabTools: '工具调用', noTools: '没有工具调用。', retried: '第一次的回答不合格，已重试',
   runWave: '运行这个 wave 的全部 {n} 项',
   jevKeyHint: '留空就用 OpenRouter key',
   title: 'SkillParse 工作台', back: '回到标注工作台', skillset: 'Skill', document: '文档', import: '导入…', stop: '停止',
@@ -47,7 +46,7 @@ const ZH = {
   importTitle: '导入文档', importDesc: '每行一句的文本（.txt）或 .umr 文件。中文会用 jieba 分词。', paste: '或者粘贴文本：',
   importGo: '导入', docName: '文档名', imported: '已导入 {id}',
   settingsTitle: '设置', keys: 'API key（只存在这个浏览器）', roles: '模型', provider: '服务', model: '模型名',
-  jevBackend: '封闭问题由谁回答', jevManual: '我自己回答',
+  jevBackend: 'sent_type 的封闭问题由谁回答', jevManual: '我自己回答',
   jevUrl: 'Jev 地址', jevModel: 'Jev 模型', jevKey: 'Jev key', concurrency: '同时运行的步数', saveSettings: '保存',
   manualTitle: '回答 Jev 的问题（{n}）', manualGo: '提交答案', yes: '是', no: '否',
   exported: '已导出', alignAdded: '自动补了 {n} 个 alignment', nothing: '还没有结果可以导出。',
@@ -55,13 +54,12 @@ const ZH = {
 };
 
 const EN = {
-  roleNames: { haiku: 'Haiku: answers the questions of the skills routed to it', reflect: 'Reflection (finds skill problems, proposes edits)' },
+  roleNames: { haiku: 'Haiku: runs every agent skill (its skill.md)', reflect: 'Reflection (finds skill problems, proposes edits)' },
   tabGraph: 'Graph', tabUmr: 'UMR text', fragment: 'The graph fragment this step wrote (dashed = placeholders handed to the next steps):',
   graphOf: 'Sentence {n} graph', graphHelp: 'Box = node (concept / variable · aligned words); blue = written by the selected step; orange dashed = re-entrancy. Click a box to go to the step that wrote it; hover to see its words.',
   fit: 'Fit width', noGraph: 'No graph for this sentence yet: run it in wave 1.', docRels: 'Document-level relations ({n})',
   umrNote: "This sentence's .umr (assembled by the output handler; one token per character in Chinese; filled-in alignments highlighted).",
-  byRoute: 'By skill (default: Jev for sent_type and discourse, Haiku for the rest)', allJev: 'Jev for all', allHaiku: 'Haiku for all',
-  routeTitle: "Who answers each skill's questions", answeredBy: 'Answered by {who} (click to switch)',
+  jevTitle: 'kind: jev: rules list the options, Jev answers closed questions', haikuTitle: 'kind: agent: the skill.md is the prompt, Haiku answers', tabTools: 'Tool calls', noTools: 'No tool calls.', retried: 'The first answer was invalid and was retried',
   runWave: 'Run all {n} items of this wave',
   jevKeyHint: 'empty: use the OpenRouter key',
   title: 'SkillParse Workbench', back: 'Back to the annotation workbench', skillset: 'Skills', document: 'Document', import: 'Import…', stop: 'Stop',
@@ -101,7 +99,7 @@ const EN = {
   importTitle: 'Import a document', importDesc: 'Text with one sentence per line (.txt), or a .umr file. Chinese is cut into words with jieba.', paste: 'Or paste text:',
   importGo: 'Import', docName: 'Name', imported: 'Imported {id}',
   settingsTitle: 'Settings', keys: 'API keys (kept in this browser only)', roles: 'Models', provider: 'Provider', model: 'Model',
-  jevBackend: 'Who answers the closed questions', jevManual: 'I answer them myself',
+  jevBackend: "Who answers sent_type's closed questions", jevManual: 'I answer them myself',
   jevUrl: 'Jev URL', jevModel: 'Jev model', jevKey: 'Jev key', concurrency: 'Steps run at once', saveSettings: 'Save',
   manualTitle: "Answer Jev's questions ({n})", manualGo: 'Submit', yes: 'yes', no: 'no',
   exported: 'Exported', alignAdded: 'filled in {n} alignments', nothing: 'Nothing to export yet.',

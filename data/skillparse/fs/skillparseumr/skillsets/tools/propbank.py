@@ -10,16 +10,12 @@ skillset keeps it in its own tools/).
 The PropBank files are not in this repository. They are found under
 $PROPBANK_DIR, else in resources/ or modular-parsing/resources/ in or next to
 any directory above this file (the repository, or a copied skillset in it).
-
-ai-native-annotator.github.io: chinese-propbank/ (24,521 XML files) is one merged
-file, chinese-propbank.json ({lemma: [[roleset id, name, [[n, descr], ...]], ...]},
-made by scripts/sync_skillparse.py); the lookup reads it instead of a file per lemma
-and returns the same rolesets.
 """
 import functools
 import json
 import os
 import re
+import xml.etree.ElementTree as ET
 
 _CANDIDATES = [os.environ.get("PROPBANK_DIR", "")]
 _d = os.path.dirname(os.path.abspath(__file__))
@@ -105,6 +101,9 @@ def _english():
 
 @functools.lru_cache(maxsize=1)
 def _chinese():
+    # ai-native-annotator.github.io: chinese-propbank/ (24,521 XML files) is one merged file,
+    # chinese-propbank.json ({lemma: [[roleset id, name, [[n, descr], ...]], ...]}, made by
+    # scripts/sync_skillparse.py); the lookup reads it instead of a file per lemma, same answers
     path = os.path.join(_resources(), "chinese-propbank.json")
     if not os.path.exists(path):
         return {}

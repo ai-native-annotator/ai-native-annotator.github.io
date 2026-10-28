@@ -84,12 +84,14 @@ itself never evaluates a string.
 
 ## SkillParse steps (`index.html`, the front page)
 
-The front page runs **SkillParseUMR's decision-orchestration procedures** — V12 (after 12 rounds
-of measured reflection) of `umr-zh-v11` and `umr-en-v11` — in the browser, unchanged: the Python
-files run in Pyodide in a Web Worker (`data/skillparse/`, `js/skillparse/`). Rules list the options
-and closed questions; `sent_type` and `discourse` ask **Jev**, and `predicate`, `np_phrase`,
-`special_entity` and `document` ask **Haiku** directly (switchable per skill in the Skills pane).
-Both go through OpenRouter, so one OpenRouter key runs it. The layout follows the registry:
+The front page runs a **SkillParseUMR registry the way `src/runner.py` runs it**, in the browser:
+the Python files run in Pyodide in a Web Worker (`data/skillparse/`, `js/skillparse/`). Only
+`sent_type` is `kind: jev` (rules list the options, **Jev** answers the closed questions, from
+decision-orchestration V12); every other model skill (`discourse`, `predicate`, `np_phrase`,
+`special_entity`, `document`) is `kind: agent`: its `skill.md` is the prompt and **Haiku** answers,
+with the skill's tools (`get_example`, `propbank_lookup`), as `src/skill_callable.py` does. The
+Chinese prompts are decision-orchestration's `umr-zh-frag` R42, the English ones the `umr-tree` seed.
+Both models go through OpenRouter, so one OpenRouter key runs it. The layout follows the registry:
 
 | Pane          | What it holds                                                                                                                                                                 |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -104,7 +106,7 @@ and proposes the skill edit that would have produced it; **(3)** say what is wro
 edit the skill. Edits are versioned in the browser and the step can be re-run to check them.
 Export writes the `.umr` file, with alignments left at `0-0` filled in from the words.
 
-Settings can also send every question to Jev, to Haiku, or to you.
+Settings can also have you answer sent_type's questions instead of Jev.
 
 ## Keys and privacy
 
@@ -217,10 +219,12 @@ Skill 修订与调用；审核保留后，AI 自动生成带版本的候选并�
 一步 `validate` 是真的在跑的 JavaScript）。人写的代码在 Web Worker 沙箱里执行 —— 无 DOM、无存储、
 无网络、有超时；页面本身永远不求值字符串。
 
-**SkillParse 逐步标注（首页 `index.html`；原来的工作台在 `classic.html`）**：把 SkillParseUMR 的决策编排
-（decision orchestration）程序 V12（中文 `umr-zh-v11`、英文 `umr-en-v11`）原样搬到浏览器里跑（Pyodide，
-Python 文件不改）：规则列出选项和封闭问题，sent_type、discourse 的问题交给 Jev，其余（predicate、np_phrase、
-special_entity、document）直接交给 Haiku（在 skill 栏里可以逐个切换）。界面按 registry
+**SkillParse 逐步标注（首页 `index.html`；原来的工作台在 `classic.html`）**：严格按 SkillParseUMR 的
+Runner（`src/runner.py`、`src/skill_callable.py`）在浏览器里跑一个 registry（Pyodide，Python 文件不改）：
+只有 sent_type 是 `kind: jev`（规则列选项，Jev 回答封闭问题，来自决策编排 V12）；其余调模型的 skill
+（discourse、predicate、np_phrase、special_entity、document）都是 `kind: agent`：skill.md 就是提示词，
+直接交给 Haiku，带 skill 的工具（get_example、propbank_lookup）。中文提示词是决策编排的 umr-zh-frag R42，
+英文是 umr-tree 种子。界面按 registry
 排：左边是上下文（选 wave 1/2/3、选每个 wave 的 for_each 项、调上下文窗口：一句话还是前五句），然后是
 skill 栏，中间上面是生成内容（画出来的图；点图里的框跳到写它的那一步）、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；
 (2) 改生成内容，AI 自动找 skill 的问题；(3) 告诉 AI 哪里错了，由机器改。导出 `.umr` 时自动补齐 alignment。

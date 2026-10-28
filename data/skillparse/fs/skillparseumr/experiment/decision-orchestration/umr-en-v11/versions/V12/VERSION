@@ -1,1 +1,0 @@
-v1.1 = np-relations-v1 + two gold-convention fixes by the author: the aspect options of predicate and np_phrase are K4's coarse set (the values the gold uses), and a negated event gets :polarity - again

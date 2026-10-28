@@ -3,21 +3,23 @@
  * render() redraws every pane (they are small).
  *
  * Running a node: the bridge's step() either finishes it (a rule) or says what it needs:
- *   {need: "jev", state, questions}   -> models.jev() (Jev or Haiku, by skill)
+ *   {need: "jev", state, questions}   -> models.jev() (kind: jev, i.e. sent_type)
  *                                         -> bridge.answer()  (repeat per round)
- *   {need: "llm", instructions, ...}  -> models.llm()  -> bridge.complete()  (kind: agent)
+ *   {need: "llm", instructions, input, tools, emit}   (kind: agent: the skill.md prompt)
+ *                                     -> models.llm() (Haiku; tool calls run in the bridge)
+ *                                         -> bridge.complete()  (one retry if the answer is invalid)
  * until it is done. Nodes of one item run several at a time (Settings: steps at once); items
  * run one after another, because later items may read earlier ones.
  */
 
 import { py } from './py.js';
-import { jev, llm, settings, answererOf } from './models.js';
+import { jev, llm, settings } from './models.js';
 import { edited } from './store.js';
 import { t } from './i18n.js';
 
 export const SKILLSETS = [
-  { id: 'do-zh-v12', label: '决策编排 V12 · 中文 (Jev + Haiku)', lang: 'zh' },
-  { id: 'do-en-v12', label: 'Decision orchestration V12 · English (Jev + Haiku)', lang: 'en' },
+  { id: 'web-zh', label: '中文 · sent_type: Jev, 其余: Haiku (R42 + V12)', lang: 'zh' },
+  { id: 'web-en', label: 'English · sent_type: Jev, rest: Haiku (umr-tree + V12)', lang: 'en' },
 ];
 
 export const S = {
@@ -183,14 +185,14 @@ export async function drive(w, i, nid, signal) {
       if (S.cancel) throw new Error(t('stopped'));
       if (r.need === 'jev') {
         const n = Object.keys(r.questions || {}).length;
-        const who = { jev: 'Jev', haiku: 'Haiku', manual: t('jevManual') }[answererOf(r.skill)];
-        status(t('running', { what: `${nid} ${r.skill} · ${who} · ${t('round', { n: r.round })} · ${t('questions', { n })}` }));
-        const answers = await jev(r.state, r.questions, { skill: r.skill, onManual: manualAnswerer, signal });
+        status(t('running', { what: `${nid} ${r.skill} · Jev · ${t('round', { n: r.round })} · ${t('questions', { n })}` }));
+        const answers = await jev(r.state, r.questions, { onManual: manualAnswerer, signal });
         r = await py('answer', { w, i, nid, answers });
       } else if (r.need === 'llm') {
-        status(t('running', { what: `${nid} · ${settings().roles.haiku.model}` }));
+        status(t('running', { what: `${nid} ${r.skill} · ${settings().roles.haiku.model}${r.retry ? ' · retry' : ''}` }));
         const out = await llm({
-          role: 'haiku', system: r.system, instructions: r.instructions, input: r.input, schema: emitSchema(r.emit), signal,
+          role: 'haiku', system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
+          schema: emitSchema(r.emit), signal, callTool: (name, args) => py('tool', { w, i, nid, name, args }),
         });
         r = await py('complete', { w, i, nid, output: out });
       } else {

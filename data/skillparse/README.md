@@ -5,21 +5,29 @@ written into the browser's Python (Pyodide) file system under `/sp/`:
 
 | here | from | what |
 |---|---|---|
-| `fs/skillparseumr/experiment/decision-orchestration/umr-zh-v11/versions/V12/` | sxndqc/SkillParseUMR @ 4534a9f | **the Chinese procedure**: `kind: jev` skills (rules list the options, Jev or Haiku answers closed questions, rules assemble), questions and options in each skill's `prompts.yaml`, after 12 rounds of measured reflection |
-| `fs/skillparseumr/experiment/decision-orchestration/umr-en-v11/versions/V12/` | 〃 | **the English procedure**, the same way |
+| `fs/skillparseumr/web-procedures/zh/` | sxndqc/SkillParseUMR @ 4534a9f: `experiment/decision-orchestration/umr-zh-frag/versions/R42`, with `sent_type` from `umr-zh-v11/versions/V12` | **the Chinese procedure**: R42's registry, agent skills (`skill.md`, `reference/example.md`, `tools/`) and rules; `sent_type` is V12's `kind: jev` skill with the modules it imports (`jevlib.py`, `prompt_loader.py`, `event_modifiers.*`) |
+| `fs/skillparseumr/web-procedures/en/` | 〃: `skillsets/umr-tree`, with `sent_type` from `umr-en-v11/versions/V12` | **the English procedure**, composed the same way (decision-orchestration has no English agent version) |
+| `fs/skillparseumr/web-procedures/tools/` | 〃: `skillsets/tools` | `get_example`, `propbank_lookup`: the general tools, found next to the procedures as `experiment/rsi-zh2/skills/tools` is found next to its versions |
 | `fs/skillparseumr/src/` | 〃 | `registry.py` (REGISTRY.md parser and expressions), the UMR input / output handlers (the output handler writes the `.umr` file and its alignment) |
-| `fs/skillparseumr/skillsets/tools/propbank.py` | 〃 | the shared PropBank lookup |
+| `fs/skillparseumr/skillsets/tools/propbank.py` | 〃 | the PropBank lookup `jevlib.py` loads |
 | `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV), English PropBank arg descriptions, and the PropBank frames: each folder of one XML file per lemma (24,521 Chinese, 5,618 English) merged into one JSON file, `chinese-propbank.json` and `english-propbank/propbank-amr-frames-xml-2018-01-25.json` |
 
-Who answers the closed questions is set per skill (`js/skillparse/models.js`, the browser's
-version of `src/jev.py`): `sent_type` and `discourse` ask Jev through OpenRouter
-(`typesafe/jev-1.13`); `predicate`, `np_phrase`, `special_entity` and `document` ask Haiku
-(`anthropic/claude-haiku-5.5`) directly, the same questions written out as `src/jev.py` writes them
-for a language model. There is no cascade. The Skills pane switches a skill between the two.
+The composition is the only change to the procedures: `registry.yaml` gets `kind: jev` on `sent_type`
+and a header saying where everything came from. Each skill then runs as `src/skill_callable.py` runs
+it (`js/skillparse/models.js`, `data/skillparse/bridge/sp_bridge.py`):
 
-One copied file is changed, and only to read the merged PropBank file (`overrides/`, copied over
-the original by the sync script): `skillsets/tools/propbank.py`. Its answers are identical to the
-original for every one of the 24,521 Chinese lemmas.
+- `kind: jev` (`sent_type`): its closed questions go to Jev through OpenRouter (`typesafe/jev-1.13`).
+- `kind: agent` (every other model skill): `skill.md` filled in and split at `## Input` behind the
+  "# Output Format" line, the system prompt of `scripts/run_experiment.py`, the tools found as
+  `skill_callable._load` finds them (the skill's `tools/`, its skillset's, the folder's next to it),
+  sent to Haiku (`anthropic/claude-haiku-5.5`); the answer comes back through the `final_result`
+  output tool and is checked against `emit`, with one retry (`agent.run`'s `retries=1`).
+- `kind: rule`: Python, no model.
+
+Every copied `propbank.py` that reads the Chinese frame files is patched by the sync script to read
+the merged file instead; the answers are identical to the original for every one of the 24,521
+Chinese lemmas. (`get_example` imports `pydantic_ai.RunContext` for its type; the browser has no
+pydantic-ai, so the bridge supplies a `RunContext` that carries `deps`, as the Runner passes them.)
 
 The reflection code (`rsi-batch/`) is not copied: the page's own reflection is per step and
 human-driven (see `js/skillparse/reflect.js`).
