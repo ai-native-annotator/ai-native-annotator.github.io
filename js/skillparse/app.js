@@ -9,7 +9,7 @@
  */
 
 import { bootPython, onProgress } from './py.js';
-import { S, SKILLSETS, loadDocs, render, setManualAnswerer, status, stop } from './core.js';
+import { S, SKILLSETS, loadDocs, render, setManualAnswerer, status, stop, runDocument } from './core.js';
 import { openSettings, openImport, exportAs, answerByHand, fillSelectors, reopen } from './dialogs.js';
 import { closeModal, toast } from './ui.js';
 import { applyStatic, getLang, setLang, t } from './i18n.js';
@@ -25,6 +25,8 @@ function wire() {
   document.getElementById('btn-settings').addEventListener('click', openSettings);
   document.getElementById('btn-import').addEventListener('click', openImport);
   document.getElementById('btn-stop').addEventListener('click', stop);
+  document.getElementById('btn-run-doc').addEventListener('click', () => runDocument().catch(fail));
+  document.getElementById('btn-export-umr').addEventListener('click', () => exportAs('umr').catch(fail));
   const menu = document.getElementById('menu-export');
   document.getElementById('btn-export').addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
   document.addEventListener('click', () => { menu.hidden = true; });
@@ -49,7 +51,11 @@ function wire() {
     const skillset = lang && meta.lang !== lang ? (SKILLSETS.find((s) => s.lang === lang) || meta).id : S.skillset;
     reopen(skillset, e.target.value).catch(fail);
   });
-  document.addEventListener('docs-changed', (e) => reopen(S.skillset, e.detail).catch(fail));
+  document.addEventListener('docs-changed', (e) => {
+    const lang = S.docs.find((d) => d.id === e.detail)?.lang;
+    const skillset = (SKILLSETS.find((s) => s.lang === lang) || SKILLSETS.find((s) => s.id === S.skillset)).id;
+    reopen(skillset, e.detail).catch(fail);
+  });
 }
 
 function fail(err) {

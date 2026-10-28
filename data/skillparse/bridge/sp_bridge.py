@@ -207,6 +207,33 @@ def umr_from_text(text, lang=None):
     return "\n\n".join(blocks) + "\n", lang
 
 
+def doc_lang(umr_text):
+    """zh when the sentences (Words: lines, else the whole text) have Chinese characters."""
+    words = "".join(re.findall(r"^Words:(.*)$", umr_text, re.M)) or umr_text
+    return "zh" if re.search(r"[一-鿿]", words) else "en"
+
+
+def strip_umr(text):
+    """A .umr file's sentences, with every annotation dropped: one header-only block per
+    `# :: sntN` (its Words: line kept as it is, so the words stay cut as in the file; a block
+    without one takes the text after `# :: sntN`, split on whitespace)."""
+    blocks = []
+    for chunk in re.split(r"^#{20,}\s*$", text.replace("\r", ""), flags=re.M):
+        m = re.search(r"^#\s*::\s*snt(\d+)[ \t]*(.*)$", chunk, re.M)
+        if not m:
+            continue
+        w = re.search(r"^Words:[ \t]*(.*)$", chunk, re.M)
+        words = (w.group(1) if w else m.group(2)).split()
+        if not words:
+            continue
+        n = len(blocks) + 1
+        blocks.append("\n".join([RULE80, "# :: snt%d" % n,
+                                 "Index: " + " ".join(str(k + 1) for k in range(len(words))),
+                                 "Words: " + " ".join(words), "", "# sentence level graph:", "",
+                                 "# alignment:", "", "# document level annotation:", ""]))
+    return "\n\n".join(blocks) + "\n" if blocks else ""
+
+
 # ------------------------------------------------------------------ the registry engine
 
 class RegistryEngine:
@@ -943,24 +970,47 @@ class Session:
         out = []
         for f in sorted(os.listdir(DOCS)):
             if f.endswith(".umr"):
-                text = open(os.path.join(DOCS, f), encoding="utf-8").read()
+                with open(os.path.join(DOCS, f), encoding="utf-8") as fh:
+                    text = fh.read()
                 out.append({"id": f[:-4], "sentences": len(re.findall(r"#\s*::\s*snt\d+", text)),
-                            "lang": "zh" if f.startswith("chinese") else "en"})
+                            "lang": doc_lang(text)})
         return out
 
-    def import_text(self, name, text, lang=None):
+    def import_doc(self, name, text, fmt="txt-lines", lang=None):
+        """A document from a file, as a header-only .umr under /sp/docs.
+
+        fmt "txt-lines": one sentence per line (as every file under olddata/ is written);
+            "txt-split": running text, cut into sentences by the input handler's split_sentences;
+            "umr":       a .umr file to annotate again: only its sentences are kept (each block's
+                         Words: line, else the text after `# :: sntN`); its annotation is dropped.
+        """
+        import input_handler.umrinputhandler as U
         name = re.sub(r"[^\w.-]+", "_", name or "imported")[:60] or "imported"
-        if not re.search(r"#\s*::\s*snt\d+", text):
-            text, lang = umr_from_text(text, lang)
-        path = os.path.join(DOCS, name + ".umr")
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(text)
-        return {"id": name}
+        if fmt == "umr":
+            out = strip_umr(text)
+            if not out:
+                raise StepError("no sentences found: a .umr file has `# :: snt1` lines (and Words: lines)")
+        else:
+            if fmt == "txt-split":
+                lang = lang or U.guess_lang(text)
+                sents = []
+                for line in text.splitlines():
+                    line = U.clean(line)
+                    if line:
+                        sents += U.split_sentences(line, lang)
+                text = "\n".join(sents)
+            out, lang = umr_from_text(text, lang)
+        if not re.search(r"#\s*::\s*snt\d+", out):
+            raise StepError("the document has no sentences")
+        with open(os.path.join(DOCS, name + ".umr"), "w", encoding="utf-8") as f:
+            f.write(out)
+        return {"id": name, "sentences": len(re.findall(r"#\s*::\s*snt\d+", out)), "lang": doc_lang(out)}
 
     def open(self, skillset, doc):
         s = SKILLSETS[skillset]
         doc_path = os.path.join(DOCS, doc + ".umr")
-        lang = "zh" if re.search(r"[一-鿿]", open(doc_path, encoding="utf-8").read()) else "en"
+        with open(doc_path, encoding="utf-8") as fh:
+            lang = doc_lang(fh.read())
         # the input handler reads the .umr's Words: lines when there is no .txt
         self.engine = RegistryEngine(skillset, s["path"], os.path.join(DOCS, doc + ".txt"), lang)
         return self.engine.describe()

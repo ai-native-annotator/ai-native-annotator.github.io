@@ -63,24 +63,44 @@ export function openImport() {
   const name = h('input', { type: 'text', value: 'my-document' });
   const area = h('textarea', { rows: 10, style: 'font-family:var(--sans)' });
   const file = h('input', { type: 'file', accept: '.txt,.umr,text/plain' });
+  const formats = [['txt-lines', t('fmtLines')], ['txt-split', t('fmtSplit')], ['umr', t('fmtUmr')]];
+  const radios = formats.map(([v, label], k) => {
+    const r = h('input', { type: 'radio', name: 'import-format', value: v, checked: k === 0 });
+    return [v, r, h('label', { class: 'row' }, r, h('span', { text: label }))];
+  });
+  const pick = (v) => radios.forEach(([x, r]) => { r.checked = x === v; });
+  const chosen = () => radios.find(([, r]) => r.checked)[0];
+  const err = h('div', { class: 'err' });
   file.addEventListener('change', async () => {
     const f = file.files[0];
     if (!f) return;
     area.value = await f.text();
     name.value = f.name.replace(/\.(txt|umr)$/i, '');
+    // a .umr file, or text with `# :: snt` blocks, is re-annotated from its sentences
+    if (/\.umr$/i.test(f.name) || /^#\s*::\s*snt\d+/m.test(area.value)) pick('umr');
+    else if (chosen() === 'umr') pick('txt-lines');
   });
   const body = h('div', { style: 'display:grid;gap:8px' },
     h('div', { class: 'note', text: t('importDesc') }), file,
+    h('fieldset', { class: 'card', style: 'display:grid;gap:4px' }, h('legend', { text: t('importFormat') }), radios.map((x) => x[2])),
     h('label', { text: t('paste') }), area,
     h('label', { class: 'row' }, h('span', { text: t('docName') }), name),
+    err,
     h('div', {}, h('button', { class: 'btn primary', text: t('importGo'), onclick: async () => {
       const text = area.value.trim();
       if (!text) return;
-      if (/[一-鿿]/.test(text)) await warm();
-      const res = await py('import_text', { name: name.value.trim(), text });
+      err.textContent = '';
+      if (/[\u4e00-\u9fff]/.test(text)) await warm();
+      let res;
+      try {
+        res = await py('import_doc', { name: name.value.trim(), text, fmt: chosen() });
+      } catch (e) {
+        err.textContent = e.message;
+        return;
+      }
       await loadDocs();
       closeModal();
-      toast(t('imported', { id: res.id }));
+      toast(t('imported', { id: res.id, n: res.sentences }));
       document.dispatchEvent(new CustomEvent('docs-changed', { detail: res.id }));
     } })));
   openModal(t('importTitle'), body, { wide: false });

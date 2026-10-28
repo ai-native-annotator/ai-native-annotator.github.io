@@ -1,6 +1,11 @@
 /** Interface strings, Chinese and English. t(key, {var}) fills {var}. */
 
 const ZH = {
+  runDoc: '自动标注全文', exportUmrShort: '导出 .umr',
+  docProgress: '自动标注：{wave} {done}/{n} 项 · {steps} 步 · {errors} 处出错',
+  docDone: '全文标注完成：{steps} 步，{errors} 处出错，用时 {s} 秒。可以导出 .umr 了。',
+  importFormat: '导入格式', fmtLines: '文本 .txt：每行一句', fmtSplit: '文本 .txt：自动分句',
+  fmtUmr: 'UMR 文件 .umr：抽出原文重新标注（忽略原来的标注）',
   via: { openrouter: '用 OpenRouter key', anthropic: '用 Anthropic key（直连）', openai: '用 OpenAI key' }, whichKey: '走哪个 key',
   roleNames: { haiku: 'Haiku：运行每个 agent skill（它的 skill.md）', reflect: '反思（找 skill 的问题、提修改）' },
   tabGraph: '图', tabUmr: 'UMR 文本', fragment: '这一步写出的图片段（虚线框 = 交给下一步的占位）：',
@@ -44,8 +49,8 @@ const ZH = {
   history: '这一步的记录', openFile: '打开 {f}',
   editorTitle: '编辑 {f}', save: '保存（新版本）', revert: '回到原始版本', versions: '版本（{n}）', original: '原始',
   savedVersion: '已保存。下一次运行这一步就用新版本。', syntax: '保存了，但 Python 有问题：{p}', diffWithPrev: '和上一版的差别',
-  importTitle: '导入文档', importDesc: '每行一句的文本（.txt）或 .umr 文件。中文会用 jieba 分词。', paste: '或者粘贴文本：',
-  importGo: '导入', docName: '文档名', imported: '已导入 {id}',
+  importTitle: '导入文档', importDesc: '选文件或粘贴文本，再选导入格式。中文会用 jieba 分词；对齐按单字编号。', paste: '或者粘贴文本：',
+  importGo: '导入', docName: '文档名', imported: '已导入 {id}（{n} 句）',
   settingsTitle: '设置', keys: 'API key（只存在这个浏览器）', roles: '模型', provider: '服务', model: '模型名',
   jevBackend: 'sent_type 的封闭问题由谁回答', jevManual: '我自己回答',
   jevUrl: 'Jev 地址', jevModel: 'Jev 模型', jevKey: 'Jev key', concurrency: '同时运行的步数', saveSettings: '保存',
@@ -55,6 +60,11 @@ const ZH = {
 };
 
 const EN = {
+  runDoc: 'Annotate the whole document', exportUmrShort: 'Export .umr',
+  docProgress: 'Annotating: {wave} {done}/{n} items · {steps} steps · {errors} errors',
+  docDone: 'Document annotated: {steps} steps, {errors} errors, {s} s. Ready to export .umr.',
+  importFormat: 'Import as', fmtLines: 'Text .txt: one sentence per line', fmtSplit: 'Text .txt: split into sentences',
+  fmtUmr: 'UMR file .umr: take its text and annotate again (its annotation is ignored)',
   via: { openrouter: 'OpenRouter key', anthropic: 'Anthropic key (direct)', openai: 'OpenAI key' }, whichKey: 'Which key',
   roleNames: { haiku: 'Haiku: runs every agent skill (its skill.md)', reflect: 'Reflection (finds skill problems, proposes edits)' },
   tabGraph: 'Graph', tabUmr: 'UMR text', fragment: 'The graph fragment this step wrote (dashed = placeholders handed to the next steps):',
@@ -98,8 +108,8 @@ const EN = {
   history: 'History of this step', openFile: 'Open {f}',
   editorTitle: 'Edit {f}', save: 'Save (new version)', revert: 'Back to the original', versions: 'Versions ({n})', original: 'original',
   savedVersion: 'Saved. The next run of this step uses it.', syntax: 'Saved, but the Python has a problem: {p}', diffWithPrev: 'Change from the previous version',
-  importTitle: 'Import a document', importDesc: 'Text with one sentence per line (.txt), or a .umr file. Chinese is cut into words with jieba.', paste: 'Or paste text:',
-  importGo: 'Import', docName: 'Name', imported: 'Imported {id}',
+  importTitle: 'Import a document', importDesc: 'Pick a file or paste text, then choose how to read it. Chinese is cut into words with jieba; alignments count characters.', paste: 'Or paste text:',
+  importGo: 'Import', docName: 'Name', imported: 'Imported {id} ({n} sentences)',
   settingsTitle: 'Settings', keys: 'API keys (kept in this browser only)', roles: 'Models', provider: 'Provider', model: 'Model',
   jevBackend: "Who answers sent_type's closed questions", jevManual: 'I answer them myself',
   jevUrl: 'Jev URL', jevModel: 'Jev model', jevKey: 'Jev key', concurrency: 'Steps run at once', saveSettings: 'Save',

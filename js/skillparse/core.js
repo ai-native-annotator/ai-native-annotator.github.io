@@ -177,6 +177,21 @@ function emitSchema(emit) {
   return { type: 'object', properties: props, required: Object.keys(props) };
 }
 
+// every model call (a Jev round, a Haiku call) takes a slot: at most `concurrency` at once,
+// however many items and steps are running
+let slotsBusy = 0;
+const slotQueue = [];
+async function withSlot(fn) {
+  if (slotsBusy >= Math.max(1, settings().concurrency)) await new Promise((r) => slotQueue.push(r));
+  slotsBusy++;
+  try {
+    return await fn();
+  } finally {
+    slotsBusy--;
+    slotQueue.shift()?.();
+  }
+}
+
 /** Run one node to the end. Returns the bridge's final result. */
 export async function drive(w, i, nid, signal) {
   let r = await py('step', { w, i, nid });
@@ -186,14 +201,14 @@ export async function drive(w, i, nid, signal) {
       if (r.need === 'jev') {
         const n = Object.keys(r.questions || {}).length;
         status(t('running', { what: `${nid} ${r.skill} · Jev · ${t('round', { n: r.round })} · ${t('questions', { n })}` }));
-        const answers = await jev(r.state, r.questions, { onManual: manualAnswerer, signal });
+        const answers = await withSlot(() => jev(r.state, r.questions, { onManual: manualAnswerer, signal }));
         r = await py('answer', { w, i, nid, answers });
       } else if (r.need === 'llm') {
         status(t('running', { what: `${nid} ${r.skill} · ${settings().roles.haiku.model}${r.retry ? ' · retry' : ''}` }));
-        const out = await llm({
+        const out = await withSlot(() => llm({
           role: 'haiku', system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
           schema: emitSchema(r.emit), signal, callTool: (name, args) => py('tool', { w, i, nid, name, args }),
-        });
+        }));
         r = await py('complete', { w, i, nid, output: out });
       } else {
         throw new Error(`unknown need ${r.need}`);
@@ -214,12 +229,14 @@ async function guarded(fn) {
   S.cancel = false;
   controller = controller || new AbortController();
   document.getElementById('btn-stop').hidden = false;
+  document.getElementById('btn-run-doc').disabled = true;
   try {
     return await fn(controller.signal);
   } finally {
     S.running--;
     if (!S.running) {
       document.getElementById('btn-stop').hidden = true;
+      document.getElementById('btn-run-doc').disabled = false;
       controller = null;
       // buttons disabled while running come back; a run that ended with nothing selected
       // selects the item's first step, so the output and AI panes have something to show
@@ -254,18 +271,19 @@ export async function runNode(nid = S.node) {
 }
 
 /** Run every pending node of one item, several at a time. */
-async function runEpisodeInner(w, i, signal, { onlyNext = false } = {}) {
+async function runEpisodeInner(w, i, signal, { onlyNext = false, keepGoing = false } = {}) {
   const limit = Math.max(1, settings().concurrency);
   let done = 0;
   let failed = null;
+  let errors = 0;
   const inflight = new Map();         // node id -> its promise
   for (;;) {
     if (S.cancel || failed) break;
     const pending = (await py('pending', { w, i })).filter((id) => !inflight.has(id));
     if (!pending.length && !inflight.size) break;
     for (const id of pending.slice(0, Math.max(0, limit - inflight.size))) {
-      inflight.set(id, drive(w, i, id, signal).then(() => { done++; })
-        .catch((err) => { failed = failed || err; })
+      inflight.set(id, drive(w, i, id, signal).then((r) => { done++; if (r?.status === 'error') errors++; })
+        .catch((err) => { errors++; if (!keepGoing || S.cancel) failed = failed || err; })
         .finally(() => inflight.delete(id)));
     }
     if (inflight.size) await Promise.race(inflight.values());
@@ -274,7 +292,53 @@ async function runEpisodeInner(w, i, signal, { onlyNext = false } = {}) {
   }
   await Promise.allSettled(inflight.values());
   if (failed) throw failed;
-  return done;
+  return keepGoing ? { done, errors } : done;
+}
+
+/**
+ * Annotate the whole document: every wave in order, every item of a wave (up to the wave's
+ * `parallel` at once, as the Runner runs episodes), every step. A step that fails is left in
+ * error and the rest go on. Items already done are kept, with any corrections in them; an item
+ * not started, in error, or out of date (something it reads has changed) is started again.
+ */
+export async function runDocument() {
+  return guarded(async (signal) => {
+    let steps = 0;
+    let errors = 0;
+    const t0 = Date.now();
+    try {
+      for (const wave of S.desc.waves) {
+        if (S.cancel) break;
+        const items = await py('items', { w: wave.name });
+        let next = 0;
+        let done = 0;
+        const worker = async () => {
+          while (next < items.length && !S.cancel) {
+            const i = items[next++].index;
+            const ep = await py('episode', { w: wave.name, i });
+            if (!ep.started || ep.stale || ep.error) await py('start', { w: wave.name, i });
+            const now = await py('episode', { w: wave.name, i });
+            if (now.error) { errors++; continue; }
+            const r = await runEpisodeInner(wave.name, i, signal, { keepGoing: true });
+            steps += r.done;
+            errors += r.errors;
+            done++;
+            status(t('docProgress', { wave: wave.name, done, n: items.length, steps, errors }));
+            if (wave.name === S.wave) refresh({ detail: false });
+          }
+        };
+        const width = Math.max(1, Math.min(wave.parallel || 1, items.length));
+        await Promise.all(Array.from({ length: width }, worker));
+      }
+      status(S.cancel ? t('stopped') : t('docDone', { steps, errors, s: Math.round((Date.now() - t0) / 1000) }));
+    } catch (err) {
+      status(`${t('error')}: ${err.message}`);
+    } finally {
+      changed();
+      await refresh();
+    }
+    return { steps, errors };
+  });
 }
 
 export async function runItem(i = S.item, opts = {}) {

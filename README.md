@@ -100,6 +100,12 @@ Jev goes through OpenRouter; Haiku through the OpenRouter key or straight to the
 | **Generated** | top: the sentence's graph, drawn (click a box to reach the step that wrote it), and the selected step's output, input, questions and answers; bottom: the steps, click to run |
 | **AI**        | reflection on the selected step                                                                                                                                               |
 
+**Import, annotate, export.** Import takes a `.txt` (one sentence per line, or split into
+sentences) or a `.umr` file to annotate again: only its sentences are kept, its annotation is
+dropped. **Annotate the whole document** runs every wave over every sentence in one go (a step that
+fails is left in error and the rest go on), and **Export .umr** writes the file, alignments
+counted in characters for Chinese and filled in where the output left `0-0`.
+
 Every step can be corrected, and a correction is a skill change in one of three ways: **(1)** edit
 the skill file yourself; **(2)** correct the step's output — the AI compares it with the machine's
 and proposes the skill edit that would have produced it; **(3)** say what is wrong and let the AI
@@ -228,6 +234,8 @@ Runner（`src/runner.py`、`src/skill_callable.py`）在浏览器里跑一个 re
 排：左边是上下文（选 wave 1/2/3、选每个 wave 的 for_each 项、调上下文窗口：一句话还是前五句），然后是
 skill 栏，中间上面是生成内容（画出来的图；点图里的框跳到写它的那一步）、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；
 (2) 改生成内容，AI 自动找 skill 的问题；(3) 告诉 AI 哪里错了，由机器改。导出 `.umr` 时自动补齐 alignment。
+导入可选格式：`.txt`（每行一句，或自动分句），或 `.umr` 文件重新标注（只抽出原文，忽略原来的标注）。
+工具栏的「自动标注全文」一键跑完所有 wave、所有句子（出错的步骤留着，其余继续），「导出 .umr」直接产出文件。
 
 **Key 存在哪**：只存本机 `localStorage`，live 模式下浏览器直连厂商 API，不经过本项目的任何服务器
 （本项目也没有服务器）。Google Drive 需要你自己的 OAuth Client ID，GitHub 需要你自己的 PAT。
