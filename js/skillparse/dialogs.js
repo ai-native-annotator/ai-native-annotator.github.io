@@ -4,6 +4,7 @@ import { h, openModal, closeModal, toast, download, pretty } from './ui.js';
 import { S, SKILLSETS, assembled, loadDocs, open } from './core.js';
 import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, MODEL_DEFAULTS, shapeAnswers } from './models.js';
 import { bundle } from './store.js';
+import { putImport, dropWork, workKey } from './save.js';
 import { py } from './py.js';
 import { t } from './i18n.js';
 
@@ -98,6 +99,9 @@ export function openImport() {
         err.textContent = e.message;
         return;
       }
+      await putImport({ name: res.id, text, fmt: chosen() });
+      // work kept for an earlier document of this name is not work on this one
+      await Promise.all(SKILLSETS.map((s) => dropWork(workKey(s.id, res.id))));
       await loadDocs();
       closeModal();
       toast(t('imported', { id: res.id, n: res.sentences }));
@@ -152,6 +156,23 @@ export function answerByHand(state, questions) {
       rows,
       h('div', {}, h('button', { class: 'btn primary', text: t('manualGo'), onclick: () => { done = true; closeModal(); resolve(shapeAnswers(questions, picks)); } })));
     openModal(t('manualTitle', { n: rows.length }), body, { close: () => { if (!done) reject(new Error(t('stopped'))); } });
+  });
+}
+
+/** Go on from the work kept in this browser for the document being opened, or start over? */
+export function askRestore(kept) {
+  return new Promise((resolve) => {
+    let answered = false;
+    const answer = (what) => { answered = true; closeModal(); resolve(what); };
+    const when = new Date(kept.at).toLocaleString();
+    const body = h('div', { style: 'display:grid;gap:10px' },
+      h('div', { text: t('restoreAsk', { when, steps: kept.steps, confirmed: kept.confirmed }) }),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn primary restore-yes', text: t('restoreYes'), onclick: () => answer('restore') }),
+        h('button', { class: 'btn restore-no', text: t('restoreNo'), onclick: () => answer('discard') })));
+    // closing the dialog opens the document fresh but does not throw the kept work away (the
+    // first change made after that replaces it)
+    openModal(t('restoreTitle'), body, { wide: false, close: () => { if (!answered) resolve('keep'); } });
   });
 }
 

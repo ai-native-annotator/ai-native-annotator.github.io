@@ -9,8 +9,10 @@
  */
 
 import { bootPython, onProgress } from './py.js';
-import { S, SKILLSETS, loadDocs, render, setManualAnswerer, status, stop, runNextAll } from './core.js';
-import { openSettings, openImport, exportAs, answerByHand, fillSelectors, reopen } from './dialogs.js';
+import { S, SKILLSETS, loadDocs, render, setManualAnswerer, setRestoreAsker, status, stop, runNextAll, saveNow } from './core.js';
+import { openSettings, openImport, exportAs, answerByHand, askRestore, fillSelectors, reopen } from './dialogs.js';
+import { allImports, lastOpen } from './save.js';
+import { py } from './py.js';
 import { closeModal, toast } from './ui.js';
 import { applyStatic, getLang, setLang, t } from './i18n.js';
 import './pane-context.js';
@@ -70,14 +72,24 @@ async function boot() {
   applyStatic();
   wire();
   setManualAnswerer(answerByHand);
+  setRestoreAsker(askRestore);
+  // keep the work when the page is left or hidden (a pending save would otherwise be lost)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+  window.addEventListener('pagehide', () => saveNow());
   status(t('booting'));
   onProgress((text) => status(text));
   const info = await bootPython();
   console.info('SkillParse Python ready', info);
+  // the documents imported in this browser: the page's Python starts with only the samples
+  for (const rec of await allImports()) {
+    await py('import_doc', { name: rec.name, text: rec.text, fmt: rec.fmt }).catch((err) => console.warn('re-import', rec.name, err));
+  }
   await loadDocs();
   const params = new URLSearchParams(location.search);
-  const skillset = SKILLSETS.some((s) => s.id === params.get('skills')) ? params.get('skills') : SKILLSETS[0].id;
-  const want = params.get('doc');
+  const last = lastOpen();
+  const skillset = SKILLSETS.some((s) => s.id === params.get('skills')) ? params.get('skills')
+    : SKILLSETS.some((s) => s.id === last?.skillset) && !params.get('doc') ? last.skillset : SKILLSETS[0].id;
+  const want = params.get('doc') || last?.doc;
   const lang = SKILLSETS.find((s) => s.id === skillset).lang;
   const doc = (S.docs.find((d) => d.id === want) || S.docs.find((d) => d.lang === lang) || S.docs[0]).id;
   await reopen(skillset, doc);

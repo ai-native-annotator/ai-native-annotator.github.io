@@ -182,6 +182,14 @@ const statusIs = (page, re, timeout = 180000) =>
     && /载入了已有标注/.test(document.getElementById('status').textContent), null, { timeout: 60000 });
   check('a file aligned by characters is loaded as it is', /按字对齐，照原样载入/.test(await page.textContent('#status')), await page.textContent('#status'));
 
+  // the imported documents are kept in this browser too
+  await page.reload();
+  await page.waitForFunction(() => /就绪|恢复|暂存|载入/.test(document.getElementById('status').textContent)
+    || !!document.querySelector('#modal .restore-yes'), null, { timeout: 180000 });
+  const docsAfter = await page.$$eval('#doc option', (e) => e.map((x) => x.value));
+  check('imported documents are still there after a reload', ['hawksbill', 'hawksbill-gold', 'hawksbill-char', 't-txt-lines', 't-txt-split']
+    .every((d) => docsAfter.includes(d)), docsAfter.join(', '));
+
   check('no page errors', errs.length === 0, errs.slice(0, 5).join('\n      '));
   await browser.close();
   console.log(`\n${pass} passed, ${fail} failed`);

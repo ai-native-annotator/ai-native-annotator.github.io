@@ -897,6 +897,81 @@ class RegistryEngine:
                 "episodes": {w: {str(i): {k: v for k, v in ep.items() if k != "missing"}
                                  for i, ep in eps.items()} for w, eps in self.eps.items()}}
 
+    def snapshot(self):
+        """The work so far, to keep and restore: every wave's episodes (their steps with outputs,
+        confirmations, hints, Jev rounds, prompts, tool calls) and the window settings. Kept small:
+        an episode's first step has the wave's init input, made again on restore (a document
+        step's is whole trees), and a long text that recurs (a skill.md prompt, a question) is
+        written once, in `texts`."""
+        texts, seen = [], {}
+
+        def pack(x):
+            if isinstance(x, str) and len(x) >= 300:
+                if x not in seen:
+                    seen[x] = len(texts)
+                    texts.append(x)
+                return {"$t": seen[x]}
+            if isinstance(x, dict):
+                return {k: pack(v) for k, v in x.items()}
+            if isinstance(x, list):
+                return [pack(v) for v in x]
+            return x
+
+        eps = {}
+        for w, by_i in self.eps.items():
+            eps[w] = {}
+            for i, ep in by_i.items():
+                ep = jsonable(ep)
+                for n in ep["nodes"].values():
+                    if n["parent"] is None:
+                        n["input"] = None
+                eps[w][str(i)] = pack(ep)
+        return {"version": 2, "skillset": self.sid, "doc": self.doc.doc_id,
+                "windows": [[w, v, r] for (w, v), r in self.windows.items()], "texts": texts, "eps": eps}
+
+    def restore(self, state):
+        """Put a snapshot back. A step that was running when it was taken is pending again (the
+        model's answer never came); each episode's context and first input are made again from
+        the restored work, earlier waves first."""
+        texts = state.get("texts") or []
+
+        def unpack(x):
+            if isinstance(x, dict):
+                if set(x) == {"$t"}:
+                    return texts[x["$t"]]
+                return {k: unpack(v) for k, v in x.items()}
+            if isinstance(x, list):
+                return [unpack(v) for v in x]
+            return x
+
+        self.windows = {(w, v): [int(r[0]), int(r[1])] for w, v, r in state.get("windows") or []}
+        self.gens.clear()
+        self.eps = {w: {} for w in self.order}
+        for w, eps in (state.get("eps") or {}).items():
+            if w not in self.eps:
+                continue
+            for i, ep in eps.items():
+                ep = unpack(ep)
+                for n in ep.get("nodes", {}).values():
+                    if n.get("status") == "running":
+                        n["status"] = "pending"
+                ep["missing"] = [tuple(x) for x in ep.get("missing") or []]
+                self.eps[w][int(i)] = ep
+        for w in self.order:
+            for i, ep in self.eps[w].items():
+                if ep.get("error"):
+                    continue
+                try:
+                    ctx, inp = self._context(w, i)
+                except Exception as e:
+                    ep["error"] = "could not be restored (%s: %s); restart it" % (type(e).__name__, e)
+                    continue
+                ep["context"] = ctx
+                for n in ep["nodes"].values():
+                    if n["parent"] is None and n["input"] is None:
+                        n["input"] = jsonable(inp)
+        return self.describe()
+
     def reload(self):
         """After a skill file changed: forget loaded modules (jevlib included); started
         episodes keep their outputs until they are re-run."""

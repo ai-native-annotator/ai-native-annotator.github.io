@@ -17,6 +17,7 @@ import { py } from './py.js';
 import { jev, llm, settings } from './models.js';
 import { edited } from './store.js';
 import { toast } from './ui.js';
+import { workKey, getWork, putWork, dropWork, lastOpen } from './save.js';
 import { t } from './i18n.js';
 
 export const SKILLSETS = [
@@ -47,6 +48,67 @@ export function changed() {
   S.umrStale = true;
   S.graphStamp++;
   S.graphs.clear();
+  scheduleSave();
+}
+
+// ------------------------------------------------------------------ keeping the work (save.js)
+
+let restoreAsker = null;
+/** fn(kept record) -> Promise<'restore' | 'discard' | 'keep'>: what to do with the work kept in this browser. */
+export function setRestoreAsker(fn) { restoreAsker = fn; }
+
+let dirty = false;
+let savePaused = true;          // while a document opens, until the person has chosen
+let saveTimer = null;
+let saving = null;
+
+function savedMark(text) {
+  const el = document.getElementById('saved');
+  if (el) el.textContent = text;
+}
+
+function scheduleSave() {
+  if (savePaused || !S.desc) return;
+  dirty = true;
+  savedMark('');                // shown again once this change is kept
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveNow(), 1500);
+}
+
+/**
+ * Keep the open document's work in this browser: the bridge's snapshot of every step. Waits
+ * while steps run (a snapshot then would hold up the Python they run in).
+ */
+export async function saveNow() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (!dirty || savePaused || !S.desc) return saving;
+  if (S.running || saving) {
+    saveTimer = setTimeout(() => saveNow(), 1500);
+    return saving;
+  }
+  dirty = false;
+  const key = workKey(S.skillset, S.doc);
+  const meta = { skillset: S.skillset, doc: S.doc, wave: S.wave, item: S.item };
+  saving = (async () => {
+    try {
+      const state = await py('snapshot');
+      const nodes = Object.values(state.eps).flatMap((by) => Object.values(by)).flatMap((ep) => Object.values(ep.nodes));
+      if (!nodes.length) {
+        await dropWork(key);
+        return;
+      }
+      await putWork(key, { ...meta, at: new Date().toISOString(), state,
+        steps: nodes.filter((n) => n.status === 'ok').length, confirmed: nodes.filter((n) => n.confirmed).length });
+      if (!dirty) savedMark(t('savedAt', { time: new Date().toLocaleTimeString().slice(0, 5) }));
+    } catch (err) {
+      dirty = true;
+      console.warn('skillparse: could not keep the work', err);
+    } finally {
+      saving = null;
+    }
+  })();
+  return saving;
 }
 
 /** Sentence i's assembled graph (bridge.graph), cached until the results change. */
@@ -87,10 +149,16 @@ export async function loadDocs() {
 }
 
 export async function open(skillset, doc) {
+  if (dirty) await saveNow();           // the document being left
+  await saving;
+  savePaused = true;
+  dirty = false;
+  savedMark('');
   S.skillset = skillset;
   S.doc = doc;
   status(t('opening', { skillset, doc }));
   S.desc = await py('open', { skillset, doc });
+  const loaded = S.desc.loaded;
   // this browser's edited versions of the skill files
   const files = edited(skillset);
   const problems = [];
@@ -102,18 +170,36 @@ export async function open(skillset, doc) {
   if (Object.keys(files).length) S.desc = await py('describe');
   S.wave = S.desc.waves[0].name;
   S.item = 0;
+  // the work kept in this browser for this document and procedure
+  const key = workKey(skillset, doc);
+  const kept = await getWork(key);
+  let restored = false;
+  if (kept?.state && restoreAsker) {
+    const what = await restoreAsker(kept);
+    if (what === 'restore') {
+      status(t('restoring'));
+      S.desc = await py('restore', { state: kept.state });
+      if (S.desc.waves.some((w) => w.name === kept.wave)) S.wave = kept.wave;
+      S.item = kept.item || 0;
+      restored = true;
+    } else if (what === 'discard') {
+      await dropWork(key);
+    }
+  }
   S.node = null;
   S.detail = null;
   changed();
   await refresh();
-  const loaded = S.desc.loaded;
-  if (loaded) {
+  lastOpen({ skillset, doc });
+  savePaused = false;
+  if (restored) problems.unshift(t('restored', { steps: kept.steps, confirmed: kept.confirmed }));
+  if (loaded && !restored) {
     const more = loaded.problems.length + loaded.more_problems;
     problems.unshift(t('loadedReport', { n: loaded.sentences, steps: loaded.steps, how: t(`loadedHow.${loaded.alignment}`) })
       + (more ? ` ${t('loadedProblems', { n: more, list: loaded.problems.slice(0, 3).join('; ') })}` : ''));
   }
   status(problems.length ? problems.join('; ') : t('ready'));
-  if (loaded) toast(problems[0], 9000);
+  if (loaded || restored) toast(problems[0], 9000);
 }
 
 export async function refresh({ detail = true } = {}) {

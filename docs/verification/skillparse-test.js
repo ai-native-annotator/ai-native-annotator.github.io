@@ -228,6 +228,18 @@ async function stepThrough(page, max = 80) {
   const done = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('and the steps finish', done.length >= 3 && done.every((x) => x === '✓'), done.join(''));
 
+  // the work is kept in this browser: after a reload the page offers to go on from it
+  await page.waitForFunction(() => /已暂存/.test(document.getElementById('saved').textContent), null, { timeout: 30000 });
+  const kept = await page.$$eval('.tree li', (els) => els.map((e) => `${e.querySelector('.sk').textContent}${e.querySelector('.st').textContent}`));
+  await page.reload();
+  await page.waitForSelector('#modal .restore-yes', { timeout: 180000 });
+  check('after a reload the page offers to go on from the kept work', /暂存的进度/.test(await page.textContent('#modal')));
+  await page.click('#modal .restore-yes');
+  await statusIs(page, /已恢复上次的进度/);
+  const back = await page.$$eval('.tree li', (els) => els.map((e) => `${e.querySelector('.sk').textContent}${e.querySelector('.st').textContent}`));
+  check('the same document opens with every step as it was', (await page.$eval('#doc', (e) => e.value)) === 'english_umr-0008'
+    && back.join(' ') === kept.join(' '), `${kept.join(' ')} -> ${back.join(' ')}`);
+
   check('no page errors', errs.length === 0, errs.slice(0, 5).join('\n      '));
   await browser.close();
   console.log(`\n${pass} passed, ${fail} failed`);

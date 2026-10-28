@@ -114,6 +114,11 @@ shown as Penman, relations and concepts only, with `<node: …>` for a part a la
 `<outside: …>` for a participant written outside the piece. **Export .umr** writes the file,
 alignments counted in characters for Chinese and filled in where the output left `0-0`.
 
+Progress is kept in the browser (IndexedDB) after every change: each step with its output,
+confirmation, hint and model record, and the documents imported. Opening a document with kept work
+asks whether to go on from it. Nothing is uploaded; another browser or cleared site data starts
+empty. The Python runs in the page too (Pyodide, in a Web Worker); there is no server.
+
 Every step can be corrected, and a correction is a skill change in one of three ways: **(1)** edit
 the skill file yourself; **(2)** correct the step's output — the AI compares it with the machine's
 and proposes the skill edit that would have produced it; **(3)** say what is wrong and let the AI
@@ -248,7 +253,9 @@ skill 栏，中间上面是生成内容（画出来的图；点图里的框跳�
 sent_type 则放进 Jev 看到的 state，以后重跑这一步也带着）；直接修改。之后这一句才能跑下一步，没有「运行到底」；
 「所有句子：下一步」让这个 wave 的每一句各跑一步（句子之间同时跑），还没确认的句子不动。每一步的输出用
 Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<node: …>`，片段外的参与者写成 `<outside: …>`。
-「导出 .umr」直接产出文件。
+「导出 .umr」直接产出文件。标注进度每改一次就自动暂存在这个浏览器里（IndexedDB，不上传）：每一步的输出、确认、
+提示、模型记录，以及导入的文档；再打开同一篇文档时会问要不要接着上次继续。Python 也在网页里运行（Pyodide），
+没有服务器。
 
 **Key 存在哪**：只存本机 `localStorage`，live 模式下浏览器直连厂商 API，不经过本项目的任何服务器
 （本项目也没有服务器）。Google Drive 需要你自己的 OAuth Client ID，GitHub 需要你自己的 PAT。
