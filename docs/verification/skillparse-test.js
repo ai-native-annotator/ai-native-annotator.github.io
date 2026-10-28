@@ -44,16 +44,17 @@ const settled = (page) => page.waitForFunction(() => (document.body.dataset.runn
 
 /** Run the selected item one step at a time, confirming each step: what a person does. */
 async function stepThrough(page, max = 80) {
-  const start = await page.$('#run-bar .run-first, #run-bar .run-next:not([disabled])');
-  if (start) {
-    await start.click();
+  // locators, not handles: the bar is drawn again after every click
+  const start = page.locator('#run-bar .run-first, #run-bar .run-next:not([disabled])');
+  if (await start.count()) {
+    await start.first().click();
     await settled(page);
   }
   let n = 1;
   for (; n < max; n++) {
-    const b = await page.$('#run-bar .confirm-next:not([disabled])');
-    if (!b) break;
-    await b.click();
+    const b = page.locator('#run-bar .confirm-next:not([disabled])');
+    if (!(await b.count())) break;
+    await b.first().click();
     await settled(page);
   }
   return n;
@@ -138,12 +139,42 @@ async function stepThrough(page, max = 80) {
   const hl = await page.$$eval('#output .graph-svg .g-node.hl', (e) => e.map((x) => x.getAttribute('data-var')));
   check('clicking a box selects the step that wrote it', hl.includes(v) && !!(await page.$('.tree li[aria-selected="true"]')), `${v} -> ${hl.join(',')}`);
 
-  await page.click('.tree li:has(.sk:text-is("predicate"))');
+  // a finished step: correct, re-run with a hint, or edit directly
+  await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
+  await page.click('.tab:text-is("输出")');
+  const answers = await page.$$eval('#output .review-card button', (e) => e.map((x) => x.textContent));
+  check('a finished step offers: correct, re-run with a hint, edit directly', answers.includes('💬 加提示重跑') && answers.includes('✎ 直接修改'), answers.join(' | '));
+  const nInputs = calls.inputs.length;
+  await page.click('#output .hint-btn');
+  await page.fill('#output .hint-area', '应该是 and，不是 none');
+  await page.click('#output .hint-go');
+  await settled(page);
+  const sent = calls.inputs.slice(nInputs);
+  check('the hint is written after the input and the step runs again', sent.length > 0 && sent.every((u) => /## Input[\s\S]*\n\nhuman提示：应该是 and，不是 none\n?$/.test(u)), JSON.stringify(sent[0]?.slice(-80)));
+  await page.click('.tab:text-is("提示词")');
+  check('the prompt tab shows the hint', (await page.textContent('#output')).includes('human提示：应该是 and，不是 none'));
+  await page.click('.tab:text-is("输出")');
+  check('the re-run step waits for confirmation again, with its hint shown', !!(await page.$('#output .confirm-card'))
+    && (await page.textContent('#output .hint-now')).includes('应该是 and'));
+  await page.click('#output .review-card button:text-is("✓ 正确，确认")');
+  await settled(page);
+  const nJev = calls.jevStates.length;
+  await page.click('.tree li:has(.sk:text-is("sent_type")) >> nth=0');
+  await page.click('.tab:text-is("输出")');
+  await page.click('#output .hint-btn');
+  await page.fill('#output .hint-area', '这是一个从句');
+  await page.click('#output .hint-go');
+  await settled(page);
+  check("sent_type's hint goes into the state Jev sees", calls.jevStates.length > nJev
+    && calls.jevStates.slice(nJev).every((st) => st['human提示'] === '这是一个从句'), JSON.stringify(calls.jevStates[nJev]).slice(0, 120));
+  await stepThrough(page);
+
+  await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
   await page.click('.tab:text-is("输出")');
   check("a step's output is shown as Penman", /^\(\w+ \/ test-01\n {4}:modal-strength full-affirmative\)$/.test(await page.textContent('#output pre.penman')),
     await page.textContent('#output pre.penman'));
   check("a step's graph fragment is drawn with its output", !!(await page.$('#output .graph-svg')));
-  await page.click('button:text-is("修改输出")');
+  await page.click('#output .edit-btn');
   const ta = await page.$('#output textarea');
   await ta.fill((await ta.inputValue()).replace(/"aspect": "[^"]+"/, '"aspect": "state"'));
   await page.click('button:text-is("保存修改（作为人工结果）")');

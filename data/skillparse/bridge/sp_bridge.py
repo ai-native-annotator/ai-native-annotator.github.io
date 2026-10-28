@@ -50,6 +50,9 @@ SYSTEM = ("You are an expert annotator of Uniform Meaning Representation (UMR), 
 SHARED_MODULES = ("jevlib", "prompt_loader", "event_modifiers")
 TOOL_PREFIXES = ("skill_rules.", "skill_tools.", "skillset_tools.", "shared_tools")
 RULE80 = "#" * 80
+# a person's hint for re-running a step: written after the skill's input (agent skills), or put in
+# the state Jev sees (sent_type)
+HINT_LABEL = {"zh": "human提示：", "en": "Human hint: "}
 
 
 # ------------------------------------------------------------------ setup
@@ -461,7 +464,7 @@ class RegistryEngine:
                             "edge": jsonable(edge), "depth": depth, "status": "pending", "output": None,
                             "stored": {}, "error": None, "rounds": [], "prompt": None, "human": False,
                             "children": [], "dropped": [], "rules": [], "machine_output": None,
-                            "confirmed": False}
+                            "confirmed": False, "hint": ""}
         return None
 
     def _ep(self, w, i):
@@ -487,10 +490,17 @@ class RegistryEngine:
             self.modules[key] = _load_module(path, "skill_rules.%s" % skill.name)
         return self.modules[key]
 
-    def step(self, w, i, nid):
-        """Start running a pending node. Returns what the page must do next:
-        {"done": node} | {"need": "jev", ...} | {"need": "llm", ...}."""
+    def _hint_label(self):
+        return HINT_LABEL.get(self.doc.lang, HINT_LABEL["en"])
+
+    def step(self, w, i, nid, hint=None):
+        """Start running a pending node (or run a finished one again). Returns what the page must
+        do next: {"done": node} | {"need": "jev", ...} | {"need": "llm", ...}. A hint (a person's
+        note on what the step got wrong) is kept on the node and goes into every later run of it;
+        an empty hint removes it."""
         ep, node = self._node(w, i, nid)
+        if hint is not None:
+            node["hint"] = str(hint).strip()
         if node["status"] == "pending":
             busy = self.running(w, i)
             if busy:
@@ -531,6 +541,8 @@ class RegistryEngine:
                 instructions, user = head + md.format(**values), ""
             else:
                 instructions, user = head + md[:cut].format(**values), md[cut:].format(**values)
+            if node.get("hint"):
+                user = user.rstrip("\n") + "\n\n" + self._hint_label() + node["hint"] + "\n"
             node["prompt"] = {"system": SYSTEM, "instructions": instructions, "input": user}
             node["tool_calls"] = []
             node["retried"] = False
@@ -539,8 +551,11 @@ class RegistryEngine:
             return self._fail(w, ep, node, e)
 
     def _ask(self, w, i, node, req):
-        node["rounds"].append({"state": jsonable(req.get("state")), "questions": jsonable(req.get("questions")),
-                               "answers": None})
+        state = jsonable(req.get("state"))
+        if node.get("hint"):
+            key = self._hint_label().rstrip("： :")
+            state = {**state, key: node["hint"]} if isinstance(state, dict) else {"state": state, key: node["hint"]}
+        node["rounds"].append({"state": state, "questions": jsonable(req.get("questions")), "answers": None})
         return {"need": "jev", "node": node["id"], "skill": node["skill"], "round": len(node["rounds"]),
                 "state": node["rounds"][-1]["state"], "questions": node["rounds"][-1]["questions"]}
 
@@ -783,7 +798,7 @@ class RegistryEngine:
                           "depth": n["depth"], "status": n["status"], "human": n["human"],
                           "parent": n["parent"], "text": n["input"].get("text") if isinstance(n["input"], dict) else None,
                           "summary": self._summary(n), "waiting": (w, int(i), n["id"]) in self.gens,
-                          "error": n["error"], "confirmed": bool(n.get("confirmed"))})
+                          "error": n["error"], "confirmed": bool(n.get("confirmed")), "hint": n.get("hint") or ""})
         return {"wave": w, "index": int(i), "label": label, "started": True, "error": ep["error"],
                 "stale": ep.get("stale", False), "context": jsonable(ep["context"]), "nodes": nodes,
                 "needs": [list(x) for x in ep.get("missing", [])], "count": len(items),

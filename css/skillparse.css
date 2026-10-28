@@ -140,6 +140,11 @@ details > summary { cursor: pointer; color: var(--muted); }
 .bar { display: inline-block; height: 6px; background: var(--accent); border-radius: 3px; vertical-align: middle; margin-right: 4px; }
 .await-tag { color: var(--accent); font-size: 11px; border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; }
 .ok-tag { color: var(--success); font-size: 11px; border: 1px solid var(--success); border-radius: 4px; padding: 0 4px; }
+.review-card { display: grid; gap: 6px; }
+.hint-box { display: grid; gap: 6px; }
+.hint-area { width: 100%; font-family: var(--sans); }
+.hint-now { color: var(--hi); }
+.hint-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .confirm-card { border-color: var(--accent); background: var(--accent-soft); display: grid; gap: 6px; }
 .tree .play.confirm { color: var(--accent); border-color: var(--accent); }
 pre.penman { white-space: pre; font-size: 12.5px; line-height: 1.55; }

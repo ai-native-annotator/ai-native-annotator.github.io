@@ -102,9 +102,11 @@ Jev goes through OpenRouter; Haiku through the OpenRouter key or straight to the
 
 **Import, annotate, export.** Import takes a `.txt` (one sentence per line, or split into
 sentences) or a `.umr` file to annotate again: only its sentences are kept, its annotation is
-dropped. Annotation goes one step at a time: a finished step waits until the person confirms it
-(or corrects it or re-runs it), and only then can its sentence run the next step; nothing runs a
-sentence to the end by itself. **All sentences: next step** runs the next step of every sentence of
+dropped. Annotation goes one step at a time. A finished step gets one of three answers: **correct**
+(confirm it), **re-run with a hint** (the hint is written after the step's input as
+`human提示：…`, or put in the state Jev sees for sent_type, and stays with the step), or **edit
+directly**. Only then can its sentence run the next step; nothing runs a sentence to the end by
+itself. **All sentences: next step** runs the next step of every sentence of
 the wave side by side, leaving alone any sentence whose step is not confirmed. A step's output is
 shown as Penman, relations and concepts only, with `<node: …>` for a part a later step builds and
 `<outside: …>` for a participant written outside the piece. **Export .umr** writes the file,
@@ -239,7 +241,8 @@ Runner（`src/runner.py`、`src/skill_callable.py`）在浏览器里跑一个 re
 skill 栏，中间上面是生成内容（画出来的图；点图里的框跳到写它的那一步）、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；
 (2) 改生成内容，AI 自动找 skill 的问题；(3) 告诉 AI 哪里错了，由机器改。导出 `.umr` 时自动补齐 alignment。
 导入可选格式：`.txt`（每行一句，或自动分句），或 `.umr` 文件重新标注（只抽出原文，忽略原来的标注）。
-标注一步一步来：每一步跑完都要人确认（或修改、重跑）之后，这一句才能跑下一步，没有「运行到底」；
+标注一步一步来：每一步跑完有三个选择：正确（确认）；加提示重跑（在输入后面加上「human提示：…」，
+sent_type 则放进 Jev 看到的 state，以后重跑这一步也带着）；直接修改。之后这一句才能跑下一步，没有「运行到底」；
 「所有句子：下一步」让这个 wave 的每一句各跑一步（句子之间同时跑），还没确认的句子不动。每一步的输出用
 Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<node: …>`，片段外的参与者写成 `<outside: …>`。
 「导出 .umr」直接产出文件。

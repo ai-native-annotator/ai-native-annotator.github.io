@@ -11,12 +11,14 @@
  *   await ctx.route('https://openrouter.ai/api/v1/systemone', systemone);
  */
 module.exports = function mocks() {
-  const calls = { jev: 0, questions: 0, haiku: 0, reflect: 0, tools: {}, systems: new Set(), heads: 0, skills: new Set() };
+  const calls = { jev: 0, questions: 0, haiku: 0, reflect: 0, tools: {}, systems: new Set(), heads: 0, skills: new Set(),
+    jevStates: [], inputs: [] };
 
   /** Jev: the first option of every choice ("predicate" when it is one), "no" to every yes/no. */
   async function systemone(route) {
     const body = JSON.parse(route.request().postData());
     calls.jev++;
+    calls.jevStates.push(body.state);
     const answers = {};
     for (const [k, q] of Object.entries(body.questions)) {
       calls.questions++;
@@ -61,6 +63,7 @@ module.exports = function mocks() {
     }
     calls.haiku++;
     calls.systems.add(sys);
+    calls.inputs.push(body.messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n'));
     if (user.startsWith('# Output Format')) calls.heads++;
     const skill = /## Input/.test(user) ? 'agent' : '?';
     calls.skills.add(skill);

@@ -98,9 +98,10 @@ const statusIs = (page, re, timeout = 180000) =>
         await page.waitForFunction((x) => document.querySelector('#run-bar strong')?.textContent === `#${x}`, i + 1);
         await settled();
         for (let c = 0; c < 20; c++) {
-          const btn = await page.$('#run-bar .confirm-only:not([disabled])');
-          if (!btn) break;
-          await btn.click();
+          // a locator, not a handle: the bar is drawn again after every click
+          const btn = page.locator('#run-bar .confirm-only:not([disabled])');
+          if (!(await btn.count())) break;
+          await btn.first().click();
           await settled();
         }
       }

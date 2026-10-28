@@ -27,7 +27,7 @@ export const S = {
   skillset: null, doc: null, docs: [], desc: null,
   wave: null, item: 0, node: null,
   items: [], episode: null, detail: null,
-  tab: 'graph', editing: false,
+  tab: 'graph', editing: false, hinting: false,
   running: 0, cancel: false,
   umr: null, umrStale: true, graphStamp: 0, graphs: new Map(),
   ai: {},                 // node key -> {history: [], proposal, verify}
@@ -137,6 +137,7 @@ export async function selectItem(i) {
   S.item = i;
   S.node = null;
   S.editing = false;
+  S.hinting = false;
   S.episode = await py('episode', { w: S.wave, i });
   const root = S.episode.nodes[0];
   if (root) S.node = root.id;
@@ -146,6 +147,7 @@ export async function selectItem(i) {
 export async function selectNode(id) {
   S.node = id;
   S.editing = false;
+  S.hinting = false;
   S.detail = await py('node', { w: S.wave, i: S.item, nid: id });
   render();
 }
@@ -194,8 +196,8 @@ async function withSlot(fn) {
 }
 
 /** Run one node to the end. Returns the bridge's final result. */
-export async function drive(w, i, nid, signal) {
-  let r = await py('step', { w, i, nid });
+export async function drive(w, i, nid, signal, { hint } = {}) {
+  let r = await py('step', { w, i, nid, ...(hint === undefined ? {} : { hint }) });
   try {
     while (r.need) {
       if (S.cancel) throw new Error(t('stopped'));
@@ -260,10 +262,11 @@ export function stop() {
   status(t('stopped'));
 }
 
-export async function runNode(nid = S.node) {
+/** Run (or re-run) one step; `hint` is the person's note that goes in after its input. */
+export async function runNode(nid = S.node, { hint } = {}) {
   return guarded(async (signal) => {
     try {
-      const r = await drive(S.wave, S.item, nid, signal);
+      const r = await drive(S.wave, S.item, nid, signal, { hint });
       status(r.status === 'error' ? `${t('error')}: ${r.error}` : t('checkStep', { id: nid }));
       return r;
     } catch (err) {
@@ -378,6 +381,7 @@ export async function saveOutput(output) {
   const r = await py('set_output', { w: S.wave, i: S.item, nid: S.node, output });
   changed();
   S.editing = false;
+  S.hinting = false;
   await refresh();
   return r;
 }

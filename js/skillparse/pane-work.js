@@ -4,8 +4,9 @@
  * its own graph fragment drawn), input, Jev's questions and answers, prompt, and the sentence's
  * .umr text. The output is shown as Penman (relations and content) and as JSON; the JSON can be
  * edited: the edit is saved as the human result of the step and everything under it is redone
- * from it. A finished step waits for the person to confirm it (or correct it) before the item's
- * next step can run. Bottom: the item's steps as a tree; click to select, ▶ to run the next one.
+ * from it. A finished step waits for the person: it is correct (confirm), or it is re-run with a
+ * hint written after its input, or its output is edited directly; only then can the item's next
+ * step run. Bottom: the item's steps as a tree; click to select, ▶ to run the next one.
  */
 
 import { h, clear, pretty, toast, diffView } from './ui.js';
@@ -29,6 +30,54 @@ function tabsFor(d) {
   return out;
 }
 
+const hintLabel = () => (S.skillset?.endsWith('zh') ? 'human提示：' : 'Human hint: ');
+
+/** An empty output in the step's emit shape, to fill in by hand when the step has none. */
+function skeleton(emit = {}) {
+  return Object.fromEntries(Object.entries(emit).map(([k, ty]) => [k,
+    Array.isArray(ty) ? ty[0] : String(ty).startsWith('list') ? [] : ty === 'dict' ? {} : ty === 'str' ? '' : 0]));
+}
+
+/**
+ * What the person does with a finished step: it is correct (confirm), or re-run it with a hint
+ * written after its input, or write the output directly. A rule has no model to give a hint to.
+ */
+function reviewCard(d) {
+  const busy = S.running > 0;
+  const model = d.kind === 'jev' || d.kind === 'agent';
+  const unconfirmed = d.status === 'ok' && !d.confirmed;
+  let hintBox = null;
+  if (S.hinting && model) {
+    const area = h('textarea', { rows: 3, class: 'hint-area', placeholder: t('hintPlaceholder') });
+    area.value = d.hint || '';
+    hintBox = h('div', { class: 'hint-box' },
+      h('div', { class: 'note', text: t(d.kind === 'jev' ? 'hintWhereJev' : 'hintWhere', { label: hintLabel() }) }),
+      area,
+      h('div', { class: 'row' },
+        h('button', { class: 'btn primary hint-go', disabled: busy, text: t('hintGo'), onclick: () => {
+          const v = area.value.trim();
+          if (!v) { area.focus(); return; }
+          S.hinting = false;
+          runNode(d.id, { hint: v });
+        } }),
+        d.hint ? h('button', { class: 'btn', disabled: busy, text: t('hintClear'), onclick: () => { S.hinting = false; runNode(d.id, { hint: '' }); } }) : null,
+        h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.hinting = false; render(); } })));
+  }
+  return h('div', { class: `card review-card${unconfirmed ? ' confirm-card' : ''}` },
+    unconfirmed ? h('div', { class: 'note', text: t('awaitHelp') }) : d.status === 'error' ? h('div', { class: 'note warn', text: t('errorHelp') }) : null,
+    h('div', { class: 'row' },
+      unconfirmed ? [
+        h('button', { class: 'btn primary', text: t('confirmNext'), disabled: busy, onclick: () => confirmAndNext(d.id) }),
+        h('button', { class: 'btn', text: t('confirm'), disabled: busy, onclick: () => confirmNode(d.id) }),
+      ] : d.confirmed && !d.human ? h('span', { class: 'ok-tag', text: `✓ ${t('confirmedTag')}` }) : null,
+      model ? h('button', { class: 'btn hint-btn', 'aria-pressed': String(S.hinting), disabled: busy, text: t('hintRerun'),
+        onclick: () => { S.hinting = !S.hinting; S.editing = false; render(); } }) : null,
+      h('button', { class: 'btn edit-btn', disabled: busy, text: t('editDirect'), onclick: () => { S.editing = true; S.hinting = false; render(); } }),
+      h('button', { class: 'btn ghost', disabled: busy, text: t('rerun'), onclick: () => runNode(d.id) })),
+    hintBox,
+    d.hint && !hintBox ? h('div', { class: 'note hint-now', text: `${t('hintNow')} ${hintLabel()}${d.hint}` }) : null);
+}
+
 function outputTab(d) {
   if (d.status === 'pending' && !d.waiting) {
     const wait = S.episode?.awaiting || [];
@@ -38,7 +87,7 @@ function outputTab(d) {
   const text = d.output ? stable(d.output) : '';
   if (S.editing) {
     const area = h('textarea', { rows: 22, spellcheck: 'false' });
-    area.value = text;
+    area.value = text || stable(skeleton(d.emit));
     const err = h('div', { class: 'err' });
     return h('div', { style: 'display:grid;gap:6px' }, area,
       h('div', { class: 'row' },
@@ -52,17 +101,7 @@ function outputTab(d) {
         h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.editing = false; render(); } }), err));
   }
   const parts = [];
-  if (d.status === 'ok' && !d.confirmed) {
-    parts.push(h('div', { class: 'card confirm-card' },
-      h('div', { class: 'note', text: t('awaitHelp') }),
-      h('div', { class: 'row' },
-        h('button', { class: 'btn primary', text: t('confirmNext'), disabled: S.running > 0, onclick: () => confirmAndNext(d.id) }),
-        h('button', { class: 'btn', text: t('confirm'), disabled: S.running > 0, onclick: () => confirmNode(d.id) }))));
-  } else if (d.status === 'error') {
-    parts.push(h('div', { class: 'note warn', text: t('errorHelp') }));
-  } else if (d.confirmed && !d.human) {
-    parts.push(h('div', { class: 'row' }, h('span', { class: 'ok-tag', text: `✓ ${t('confirmedTag')}` })));
-  }
+  if (d.status === 'ok' || d.status === 'error') parts.push(reviewCard(d));
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
   if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
   if (d.human) {
@@ -82,9 +121,6 @@ function outputTab(d) {
   }
   if (d.children?.length) parts.push(h('div', { class: 'note', text: `${t('children')}: ${d.children.join(', ')}` }));
   if (d.dropped?.length) parts.push(h('details', {}, h('summary', { text: `${t('dropped')} (${d.dropped.length})` }), h('pre', { text: pretty(d.dropped) })));
-  parts.push(h('div', { class: 'row' },
-    d.output ? h('button', { class: 'btn', text: t('edit'), onclick: () => { S.editing = true; render(); } }) : null,
-    h('button', { class: 'btn', text: t('rerun'), disabled: S.running > 0, onclick: () => runNode(d.id) })));
   return h('div', { style: 'display:grid;gap:6px' }, parts);
 }
 
@@ -224,15 +260,16 @@ function drawTop() {
   title.textContent = d ? `#${S.item + 1} · ${d.id} · ${d.skill}` : `#${S.item + 1}`;
   const tabs = tabsFor(d);
   if (!tabs.includes(S.tab)) S.tab = tabs[0];
-  clear(tabsEl, tabs.map((k) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(S.tab === k), text: t(LABEL[k]), onclick: () => { S.tab = k; S.editing = false; render(); } })));
+  clear(tabsEl, tabs.map((k) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(S.tab === k), text: t(LABEL[k]), onclick: () => { S.tab = k; S.editing = false; S.hinting = false; render(); } })));
   if (S.tab === 'graph') { delete out.dataset.editing; graphTab(out, d); return; }
   shown = '';
   if (S.tab === 'umr') { delete out.dataset.editing; umrTab(out); return; }
   if (!d) { clear(out, h('div', { class: 'empty', text: t('noNode') })); return; }
   // a redraw while someone is typing a correction must not throw the typing away
   const key = `${S.item}|${d.id}`;
-  if (S.editing && S.tab === 'output' && out.dataset.editing === key) return;
-  if (S.editing && S.tab === 'output') out.dataset.editing = key;
+  const typing = (S.editing || S.hinting) && S.tab === 'output';
+  if (typing && out.dataset.editing === key) return;
+  if (typing) out.dataset.editing = key;
   else delete out.dataset.editing;
   const view = { output: outputTab, input: inputTab, jev: jevTab, prompt: promptTab, tools: toolsTab }[S.tab](d);
   clear(out, view);
@@ -249,14 +286,27 @@ function drawBottom() {
   // the step to confirm is always at hand here, whichever tab is open above
   const first = wait.length ? ep.nodes.find((n) => n.id === wait[0]) : null;
   const busy = S.running > 0;
+  // the other two answers to a finished step open in the output tab
+  const open = (id, mode) => async () => {
+    await selectNode(id);
+    S.tab = 'output';
+    S.editing = mode === 'edit';
+    S.hinting = mode === 'hint';
+    render();
+  };
+  const fix = (n) => [
+    n.kind !== 'rule' ? h('button', { class: 'btn sm hint-open', disabled: busy, text: t('hintRerun'), onclick: open(n.id, 'hint') }) : null,
+    h('button', { class: 'btn sm edit-open', disabled: busy, text: t('editDirect'), onclick: open(n.id, 'edit') }),
+  ];
   clear(bar,
     h('strong', { text: `#${S.item + 1}` }),
     !ep?.started ? h('button', { class: 'btn sm primary run-first', disabled: busy, text: t('runFirst'), onclick: () => runNext() })
       : first?.status === 'ok' ? [
         h('button', { class: 'btn sm primary confirm-next', disabled: busy, text: t('confirmNext'), onclick: () => confirmAndNext(first.id) }),
         h('button', { class: 'btn sm confirm-only', disabled: busy, text: t('confirm'), onclick: () => confirmNode(first.id) }),
+        fix(first),
         h('span', { class: 'note', text: `${t('awaitTag')}: ${first.id} ${first.skill}` }),
-      ] : first ? h('span', { class: 'note err', text: `${first.id} ${first.skill}: ${t('errorHelp')}` })
+      ] : first ? [fix(first), h('span', { class: 'note err', text: `${first.id} ${first.skill}: ${t('errorHelp')}` })]
         : h('button', { class: 'btn sm primary run-next', disabled: busy || !ep.nodes.some((n) => n.status === 'pending'), text: t('runNext'), onclick: () => runNext() }),
     ep?.started ? h('button', { class: 'btn sm', disabled: busy, text: t('restart'), onclick: () => startItem() }) : null,
     ep?.stale ? h('span', { class: 'note warn', text: t('stale') }) : null,
