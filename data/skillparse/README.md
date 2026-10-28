@@ -49,7 +49,10 @@ human-driven (see `js/skillparse/reflect.js`).
 - `docs/` — two sample documents from the experiment's test sets, sentences only (`# :: sntN`,
   `Index:`, `Words:`; no gold).
 - `vendor/` — jieba 0.42.1 (MIT; trimmed to the dictionary, `finalseg`, `posseg`) and penman
-  1.3.1 (MIT), unpacked into the Python path at boot.
+  1.3.1 (MIT), unpacked into the Python path at boot. jieba is used only by Chinese sent_type
+  (`jevlib` cuts the character tokens into words for Jev's questions); its dictionary is loaded
+  before the first step of a Chinese document, never for an English one. Import does not use it:
+  the input handler numbers Chinese one character per token.
 
 To refresh after the procedures change upstream:
 

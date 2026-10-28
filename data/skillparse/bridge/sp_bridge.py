@@ -195,20 +195,16 @@ def tool_spec(fn):
 # ------------------------------------------------------------------ documents
 
 def umr_from_text(text, lang=None):
-    """A plain text (one sentence per line) as a header-only .umr, so both engines read it
-    the way they read the gold files: Chinese words cut with jieba (as the gold's Words: lines
-    are cut into words), English on whitespace."""
+    """A plain text (one sentence per line) as a header-only .umr. The Words: lines hold the
+    input handler's own tokens (Chinese one character each, a run of Latin letters or digits
+    one token; English on whitespace): it reads them back to the same sentence and tokens."""
     import input_handler.umrinputhandler as U
     lines = [U.clean(l) for l in text.splitlines()]
     lines = [l for l in lines if l]
     lang = lang or U.guess_lang(text)
     blocks = []
     for n, line in enumerate(lines, 1):
-        if lang == "zh":
-            import jieba
-            words = [w for w in jieba.cut(line, HMM=False) if w.strip()]
-        else:
-            words = line.split()
+        words = U.tokenize(line, lang)
         blocks.append("\n".join([RULE80, "# :: snt%d" % n,
                                  "Index: " + " ".join(str(k + 1) for k in range(len(words))),
                                  "Words: " + " ".join(words), "", "# sentence level graph:", "",
@@ -1022,7 +1018,9 @@ class Session:
         return {"python": sys.version.split()[0]}
 
     def warm(self):
-        """Load jieba's dictionary and tagger (the Jev skills and Chinese import need them)."""
+        """Load jieba's dictionary and tagger. Only Chinese sent_type needs them (jevlib groups
+        the character tokens into words for Jev's questions); the page calls this before the
+        first step of a Chinese document, so an English one never loads them."""
         import logging
         import warnings
         warnings.filterwarnings("ignore", category=SyntaxWarning)     # jieba 0.42's regex strings

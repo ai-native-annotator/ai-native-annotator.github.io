@@ -1,7 +1,7 @@
 /** Settings, import, export, and answering Jev's questions by hand. */
 
 import { h, openModal, closeModal, toast, download } from './ui.js';
-import { S, SKILLSETS, assembled, loadDocs, open, warm } from './core.js';
+import { S, SKILLSETS, assembled, loadDocs, open } from './core.js';
 import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, MODEL_DEFAULTS, shapeAnswers } from './models.js';
 import { bundle } from './store.js';
 import { py } from './py.js';
@@ -90,7 +90,6 @@ export function openImport() {
       const text = area.value.trim();
       if (!text) return;
       err.textContent = '';
-      if (/[\u4e00-\u9fff]/.test(text)) await warm();
       let res;
       try {
         res = await py('import_doc', { name: name.value.trim(), text, fmt: chosen() });
