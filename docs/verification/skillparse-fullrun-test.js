@@ -1,11 +1,12 @@
 /**
- * index.html (SkillParse), the whole chain with no clicks inside it: import, annotate the whole
- * document, export the .umr file.
+ * index.html (SkillParse), the whole chain: import, annotate the whole document one step at a
+ * time (every sentence side by side, each step confirmed), export the .umr file.
  *
  *   1. Import a .umr file that already has an annotation: the import dialog picks "re-annotate"
  *      for a .umr, keeps only its sentences (the Words: lines) and drops the annotation.
- *   2. "Annotate the whole document" runs every wave (sentence, reentrancy, document) over every
- *      sentence; nothing else is clicked.
+ *   2. "All sentences: next step" runs one step of every sentence; a sentence whose step is not
+ *      confirmed does not go on. Confirming each step and clicking again, wave after wave
+ *      (sentence, reentrancy, document), annotates everything.
  *   3. "Export .umr" writes a file with every sentence's graph, alignment and document-level
  *      annotation, and none of the imported annotation.
  *   4. Plain text imports too, one sentence per line or split into sentences.
@@ -68,19 +69,50 @@ const statusIs = (page, re, timeout = 180000) =>
   const items = await page.$$eval('#context .items li .lbl', (e) => e.map((x) => x.textContent));
   check('only its sentences are kept', items.length === 3 && items[0] === '玳瑁是海龟科的', items.join(' | '));
 
-  // 2. annotate everything with one click
-  await page.click('#btn-run-doc');
-  await statusIs(page, /全文标注完成/);
-  const doneMsg = await page.textContent('#status');
-  check('one click annotates the whole document', /全文标注完成：\d+ 步，0 处出错/.test(doneMsg), doneMsg);
+  // 2. every sentence runs its next step side by side; each step is confirmed before its sentence goes on
+  const settled = () => page.waitForFunction(() => (document.body.dataset.running || '0') === '0', null, { timeout: 120000 });
+  const ranOf = (msg) => Number((/运行了 (\d+) 步/.exec(msg) || [])[1]);
   const waves = await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]));
+  let total = 0;
+  for (const [k, w] of waves.entries()) {
+    await page.click(`.wave-tab:has-text("${w}")`);
+    await page.waitForTimeout(300);
+    for (let round = 0; round < 60; round++) {
+      await page.click('#btn-next-all');
+      await settled();
+      const msg = await page.textContent('#status');
+      if (k === 0 && round === 0) {
+        const dots = await page.$$eval('#context .items li .dot', (e) => e.map((x) => x.className));
+        check('every sentence runs one step, side by side', ranOf(msg) === 3 && dots.every((c) => /\breview\b/.test(c)), `${msg} · ${dots.join(',')}`);
+        await page.click('#btn-next-all');
+        await settled();
+        const again = await page.textContent('#status');
+        check('no sentence goes on before its step is confirmed', ranOf(again) === 0 && /3 句等你确认/.test(again), again);
+      }
+      if (!ranOf(msg) && !/[1-9]\d* 句等你确认/.test(msg)) break;
+      total += ranOf(msg) || 0;
+      // the person checks each sentence and confirms its step
+      const n = await page.$$eval('#context .items li', (e) => e.length);
+      for (let i = 0; i < n; i++) {
+        await page.click(`#context .items li >> nth=${i}`);
+        await page.waitForFunction((x) => document.querySelector('#run-bar strong')?.textContent === `#${x}`, i + 1);
+        await settled();
+        for (let c = 0; c < 20; c++) {
+          const btn = await page.$('#run-bar .confirm-only:not([disabled])');
+          if (!btn) break;
+          await btn.click();
+          await settled();
+        }
+      }
+    }
+  }
   const allDone = [];
   for (const w of waves) {
     await page.click(`.wave-tab:has-text("${w}")`);
     await page.waitForTimeout(300);
     allDone.push(...(await page.$$eval('#context .items li .dot', (e) => e.map((x) => `${x.className}`))));
   }
-  check('every item of every wave is done', allDone.length === 9 && allDone.every((c) => /\bdone\b/.test(c)), allDone.join(','));
+  check('every item of every wave is done and confirmed', allDone.length === 9 && allDone.every((c) => /\bdone\b/.test(c)), `${total} steps · ${allDone.join(',')}`);
   check('sent_type went to Jev and the agent skills to Haiku', calls.jev > 0 && calls.haiku > 0, `${calls.jev} Jev, ${calls.haiku} Haiku`);
 
   // 3. export

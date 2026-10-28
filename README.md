@@ -93,18 +93,22 @@ with the skill's tools (`get_example`, `propbank_lookup`), as `src/skill_callabl
 Chinese prompts are decision-orchestration's `umr-zh-frag` R42, the English ones the `umr-tree` seed.
 Jev goes through OpenRouter; Haiku through the OpenRouter key or straight to the Anthropic API with an Anthropic key, as chosen in ⚙. The layout follows the registry:
 
-| Pane          | What it holds                                                                                                                                                                 |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Context**   | the waves (wave 1, 2, 3 …), each wave's `for_each` items to pick from, and its context windows: one sentence, the five before it, or any `range`                              |
-| **Skills**    | every skill, its kind (jev / rule), what the dispatcher starts after it, and its files (`.py`, `prompts.yaml`) to edit                                                        |
-| **Generated** | top: the sentence's graph, drawn (click a box to reach the step that wrote it), and the selected step's output, input, questions and answers; bottom: the steps, click to run |
-| **AI**        | reflection on the selected step                                                                                                                                               |
+| Pane          | What it holds                                                                                                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Context**   | the waves (wave 1, 2, 3 …), each wave's `for_each` items to pick from, and its context windows: one sentence, the five before it, or any `range`                                                   |
+| **Skills**    | every skill, its kind (jev / rule), what the dispatcher starts after it, and its files (`.py`, `prompts.yaml`) to edit                                                                             |
+| **Generated** | top: the sentence's graph, drawn (click a box to reach the step that wrote it), and the selected step's output (as Penman and JSON), input, questions and answers; bottom: the steps, click to run |
+| **AI**        | reflection on the selected step                                                                                                                                                                    |
 
 **Import, annotate, export.** Import takes a `.txt` (one sentence per line, or split into
 sentences) or a `.umr` file to annotate again: only its sentences are kept, its annotation is
-dropped. **Annotate the whole document** runs every wave over every sentence in one go (a step that
-fails is left in error and the rest go on), and **Export .umr** writes the file, alignments
-counted in characters for Chinese and filled in where the output left `0-0`.
+dropped. Annotation goes one step at a time: a finished step waits until the person confirms it
+(or corrects it or re-runs it), and only then can its sentence run the next step; nothing runs a
+sentence to the end by itself. **All sentences: next step** runs the next step of every sentence of
+the wave side by side, leaving alone any sentence whose step is not confirmed. A step's output is
+shown as Penman, relations and concepts only, with `<node: …>` for a part a later step builds and
+`<outside: …>` for a participant written outside the piece. **Export .umr** writes the file,
+alignments counted in characters for Chinese and filled in where the output left `0-0`.
 
 Every step can be corrected, and a correction is a skill change in one of three ways: **(1)** edit
 the skill file yourself; **(2)** correct the step's output — the AI compares it with the machine's
@@ -235,7 +239,10 @@ Runner（`src/runner.py`、`src/skill_callable.py`）在浏览器里跑一个 re
 skill 栏，中间上面是生成内容（画出来的图；点图里的框跳到写它的那一步）、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；
 (2) 改生成内容，AI 自动找 skill 的问题；(3) 告诉 AI 哪里错了，由机器改。导出 `.umr` 时自动补齐 alignment。
 导入可选格式：`.txt`（每行一句，或自动分句），或 `.umr` 文件重新标注（只抽出原文，忽略原来的标注）。
-工具栏的「自动标注全文」一键跑完所有 wave、所有句子（出错的步骤留着，其余继续），「导出 .umr」直接产出文件。
+标注一步一步来：每一步跑完都要人确认（或修改、重跑）之后，这一句才能跑下一步，没有「运行到底」；
+「所有句子：下一步」让这个 wave 的每一句各跑一步（句子之间同时跑），还没确认的句子不动。每一步的输出用
+Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<node: …>`，片段外的参与者写成 `<outside: …>`。
+「导出 .umr」直接产出文件。
 
 **Key 存在哪**：只存本机 `localStorage`，live 模式下浏览器直连厂商 API，不经过本项目的任何服务器
 （本项目也没有服务器）。Google Drive 需要你自己的 OAuth Client ID，GitHub 需要你自己的 PAT。

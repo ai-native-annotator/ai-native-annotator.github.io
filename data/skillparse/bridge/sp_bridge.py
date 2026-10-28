@@ -6,7 +6,9 @@ modular-parsing) source as it is on disk, copied by scripts/sync_skillparse.py; 
 propbank.py is swapped for one that reads the merged PropBank file. This file is the only new
 Python. It does what src/runner.py does, split so the page drives it:
 
-  - a node is made but not run until someone clicks it (or presses "run all");
+  - a node is made but not run until someone clicks it, and a finished step must be confirmed
+    (or corrected) before the next step of its episode can start: an episode never runs on by
+    itself, though different items can each run their next step at the same time;
   - a kind: jev node hands the page its closed questions (Jev or Haiku answers them, by skill)
     and is finished when the page sends the answers back;
   - any node's output can be replaced by a person, and everything below it is redone;
@@ -65,6 +67,10 @@ def jsonable(x):
     if hasattr(x, "to_dict"):
         return jsonable(x.to_dict())
     return str(x)
+
+
+def _unconfirmed(n):
+    return n["status"] in ("ok", "error") and not n.get("confirmed")
 
 
 def node_key(node_id):
@@ -325,7 +331,7 @@ class RegistryEngine:
         ep = self.eps[w].get(i)
         if not ep or ep["error"]:
             return None
-        if any(n["status"] in ("pending",) for n in ep["nodes"].values()):
+        if any(n["status"] in ("pending", "running") or _unconfirmed(n) for n in ep["nodes"].values()):
             return None
         nodes = sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"]))
         return {"nodes": [self._node_dict(n) for n in nodes]}
@@ -406,8 +412,9 @@ class RegistryEngine:
             st = "new"
             if ep:
                 sts = [n["status"] for n in ep["nodes"].values()]
-                st = ("error" if ep["error"] else "pending" if "pending" in sts else
-                      "error" if "error" in sts else "done")
+                st = ("error" if ep["error"] or "error" in sts else
+                      "review" if any(_unconfirmed(n) for n in ep["nodes"].values()) else
+                      "pending" if "pending" in sts or "running" in sts else "done")
                 if ep.get("stale"):
                     st += "+stale"
             out.append({"index": i, "label": label, "status": st,
@@ -453,7 +460,8 @@ class RegistryEngine:
         ep["nodes"][nid] = {"id": nid, "skill": skill, "input": jsonable(inp), "parent": parent["id"] if parent else None,
                             "edge": jsonable(edge), "depth": depth, "status": "pending", "output": None,
                             "stored": {}, "error": None, "rounds": [], "prompt": None, "human": False,
-                            "children": [], "dropped": [], "rules": [], "machine_output": None}
+                            "children": [], "dropped": [], "rules": [], "machine_output": None,
+                            "confirmed": False}
         return None
 
     def _ep(self, w, i):
@@ -483,12 +491,20 @@ class RegistryEngine:
         """Start running a pending node. Returns what the page must do next:
         {"done": node} | {"need": "jev", ...} | {"need": "llm", ...}."""
         ep, node = self._node(w, i, nid)
-        if node["status"] != "pending":
+        if node["status"] == "pending":
+            busy = self.running(w, i)
+            if busy:
+                raise StepError("step %s is still running" % ", ".join(busy))
+            wait = self.awaiting(w, i)
+            if wait:
+                raise StepError("confirm step %s first" % ", ".join(wait))
+        else:
             self.reset(w, i, nid)
         skill = self.reg.skills[node["skill"]]
         inputs = self._inputs(ep, node)
         node["rounds"] = []
         node["error"] = None
+        node["status"] = "running"     # until _finish or _fail: no other step of the episode starts
         try:
             if skill.kind == "rule":
                 out = self._skill_module(skill).run(**inputs)
@@ -639,6 +655,7 @@ class RegistryEngine:
             node["machine_output"] = out
         node["output"] = out
         node["human"] = human
+        node["confirmed"] = human      # a person's output is confirmed by being written
         node["stored"] = {k: out[k] for k in skill.store}
         names = {**ep["context"], **node["input"], self.reg.emit_name(node["skill"]): out}
         children = []
@@ -683,7 +700,8 @@ class RegistryEngine:
             del ep["nodes"][k]
         self._drop_gens(w, i, nid)
         node.update(status="pending", output=None, stored={}, error=None, rounds=[], prompt=None, human=False,
-                    children=[], dropped=[], rules=[], tool_calls=[], retried=False, problems=[])
+                    children=[], dropped=[], rules=[], tool_calls=[], retried=False, problems=[],
+                    confirmed=False)
         self._mark_stale(w, int(i))
         return self.episode(w, i)
 
@@ -704,6 +722,38 @@ class RegistryEngine:
             for k, ep in self.eps[o].items():
                 if k >= i:
                     ep["stale"] = True
+
+    def confirm(self, w, i, nid):
+        """A person says the node's output is right: the episode's next step may run."""
+        ep, node = self._node(w, i, nid)
+        if node["status"] != "ok":
+            raise StepError("step %s has no output to confirm" % nid)
+        node["confirmed"] = True
+        return self.episode(w, i)
+
+    def awaiting(self, w, i):
+        """Finished steps of the episode that nobody has confirmed (an error counts: it must be
+        re-run or corrected)."""
+        ep = self.eps[w].get(int(i))
+        if not ep:
+            return []
+        return [n["id"] for n in sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"])) if _unconfirmed(n)]
+
+    def running(self, w, i):
+        ep = self.eps[w].get(int(i))
+        return [n["id"] for n in ep["nodes"].values() if n["status"] == "running"] if ep else []
+
+    def next_step(self, w, i):
+        """What runs next in the episode: {"node": id}, {"running": [ids]}, {"awaiting": [ids]} or
+        {"done": True}."""
+        busy = self.running(w, i)
+        if busy:
+            return {"running": busy}
+        wait = self.awaiting(w, i)
+        if wait:
+            return {"awaiting": wait}
+        nid = self.next_pending(w, i)
+        return {"node": nid} if nid else {"done": True}
 
     def pending(self, w, i):
         """Pending nodes not already waiting for an answer, breadth first."""
@@ -733,10 +783,11 @@ class RegistryEngine:
                           "depth": n["depth"], "status": n["status"], "human": n["human"],
                           "parent": n["parent"], "text": n["input"].get("text") if isinstance(n["input"], dict) else None,
                           "summary": self._summary(n), "waiting": (w, int(i), n["id"]) in self.gens,
-                          "error": n["error"]})
+                          "error": n["error"], "confirmed": bool(n.get("confirmed"))})
         return {"wave": w, "index": int(i), "label": label, "started": True, "error": ep["error"],
                 "stale": ep.get("stale", False), "context": jsonable(ep["context"]), "nodes": nodes,
-                "needs": [list(x) for x in ep.get("missing", [])], "count": len(items)}
+                "needs": [list(x) for x in ep.get("missing", [])], "count": len(items),
+                "awaiting": self.awaiting(w, i)}
 
     @staticmethod
     def _summary(n):

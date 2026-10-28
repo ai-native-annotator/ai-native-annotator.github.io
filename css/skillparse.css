@@ -105,7 +105,7 @@ textarea { width: 100%; font-family: var(--mono); font-size: 12px; line-height: 
 .items .n { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 1.6em; }
 .items .lbl { flex: 1; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); flex: none; margin-top: 5px; }
-.dot.done { background: var(--success); } .dot.pending { background: var(--hi); } .dot.error { background: var(--danger); }
+.dot.done { background: var(--success); } .dot.review { background: var(--accent); } .dot.pending { background: var(--hi); } .dot.error { background: var(--danger); }
 .dot.stale { box-shadow: 0 0 0 2px var(--hi-soft); outline: 1px dashed var(--hi); }
 .ctx-val { max-height: 160px; overflow: auto; background: var(--panel-2); border-radius: var(--radius-sm); padding: 4px 6px; margin-top: 2px; }
 details > summary { cursor: pointer; color: var(--muted); }
@@ -138,6 +138,11 @@ details > summary { cursor: pointer; color: var(--muted); }
 .qa .q { font-size: 12px; }
 .qa .a { font-family: var(--mono); font-size: 11.5px; }
 .bar { display: inline-block; height: 6px; background: var(--accent); border-radius: 3px; vertical-align: middle; margin-right: 4px; }
+.await-tag { color: var(--accent); font-size: 11px; border: 1px solid var(--accent); border-radius: 4px; padding: 0 4px; }
+.ok-tag { color: var(--success); font-size: 11px; border: 1px solid var(--success); border-radius: 4px; padding: 0 4px; }
+.confirm-card { border-color: var(--accent); background: var(--accent-soft); display: grid; gap: 6px; }
+.tree .play.confirm { color: var(--accent); border-color: var(--accent); }
+pre.penman { white-space: pre; font-size: 12.5px; line-height: 1.55; }
 .human-tag { color: var(--hi); font-size: 11px; border: 1px solid var(--hi); border-radius: 4px; padding: 0 4px; }
 .diff { font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; word-break: break-word; }
 .diff .del { background: var(--danger-soft); color: var(--danger); display: block; }
@@ -159,7 +164,7 @@ details > summary { cursor: pointer; color: var(--muted); }
 .tree .txt { color: var(--ink); overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
 .tree .play { border: 1px solid var(--line); background: var(--panel); border-radius: 4px; font-size: 10.5px; padding: 0 5px; cursor: pointer; }
 .st { width: 14px; text-align: center; flex: none; }
-.st.ok { color: var(--success); } .st.error { color: var(--danger); } .st.pending { color: var(--faint); } .st.running { color: var(--hi); } .st.skipped { color: var(--faint); }
+.st.ok { color: var(--success); } .st.review { color: var(--accent); } .st.error { color: var(--danger); } .st.pending { color: var(--faint); } .st.running { color: var(--hi); } .st.skipped { color: var(--faint); }
 
 /* AI pane */
 .modes { display: grid; gap: 6px; margin-bottom: 10px; }

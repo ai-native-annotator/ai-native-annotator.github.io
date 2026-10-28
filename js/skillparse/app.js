@@ -1,6 +1,6 @@
 /**
  * index.html: SkillParseUMR's decision-orchestration procedures (Jev + Haiku), run one step at a
- * time in the browser.
+ * time in the browser; each step is confirmed by the person before its sentence runs the next.
  *
  *   py-worker.js  Pyodide with the SkillParseUMR sources (data/skillparse/) and bridge/sp_bridge.py
  *   core.js       state, running steps (Jev rounds, LLM calls with tools), corrections
@@ -9,7 +9,7 @@
  */
 
 import { bootPython, onProgress } from './py.js';
-import { S, SKILLSETS, loadDocs, render, setManualAnswerer, status, stop, runDocument } from './core.js';
+import { S, SKILLSETS, loadDocs, render, setManualAnswerer, status, stop, runNextAll } from './core.js';
 import { openSettings, openImport, exportAs, answerByHand, fillSelectors, reopen } from './dialogs.js';
 import { closeModal, toast } from './ui.js';
 import { applyStatic, getLang, setLang, t } from './i18n.js';
@@ -25,7 +25,7 @@ function wire() {
   document.getElementById('btn-settings').addEventListener('click', openSettings);
   document.getElementById('btn-import').addEventListener('click', openImport);
   document.getElementById('btn-stop').addEventListener('click', stop);
-  document.getElementById('btn-run-doc').addEventListener('click', () => runDocument().catch(fail));
+  document.getElementById('btn-next-all').addEventListener('click', () => runNextAll().catch(fail));
   document.getElementById('btn-export-umr').addEventListener('click', () => exportAs('umr').catch(fail));
   const menu = document.getElementById('menu-export');
   document.getElementById('btn-export').addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });

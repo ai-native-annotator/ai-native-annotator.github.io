@@ -5,7 +5,7 @@
  */
 
 import { h, clear, pretty } from './ui.js';
-import { S, onRender, selectWave, selectItem, setWindow, waveDesc, runItems, runNeeds, startItem } from './core.js';
+import { S, onRender, selectWave, selectItem, setWindow, waveDesc, runNextAll, startItem } from './core.js';
 import { t } from './i18n.js';
 
 const root = () => document.getElementById('context');
@@ -78,14 +78,16 @@ function draw() {
   const ep = S.episode;
   const needs = ep?.needs?.length ? h('div', { class: 'card' },
     h('div', { class: 'warn', text: t('needs', { list: ep.needs.map(([w, i]) => `${w} #${i + 1}`).join(', ') }) }),
-    h('div', { class: 'row' }, h('button', { class: 'btn sm primary', text: t('runNeeds'), disabled: S.running > 0, onclick: () => runNeeds(ep.needs) }),
+    h('div', { class: 'row' },
+      h('button', { class: 'btn sm primary', text: `${t('goNeeds')}: ${ep.needs[0][0]} #${ep.needs[0][1] + 1}`,
+        onclick: async () => { await selectWave(ep.needs[0][0]); await selectItem(ep.needs[0][1]); } }),
       h('button', { class: 'btn sm', text: t('restart'), onclick: () => startItem() }))) : null;
 
   clear(el, tabs, spec,
     h('div', { class: 'row', style: 'margin:6px 0' },
       h('strong', { class: 'grow', text: t('items', { n: S.items.length }) }),
-      h('button', { class: 'btn sm', disabled: S.running > 0, text: t('runWave', { n: S.items.length }),
-        onclick: () => runItems(S.items.map((it) => it.index)) })),
+      h('button', { class: 'btn sm', disabled: S.running > 0, text: t('nextAll'), title: t('nextAllTitle'),
+        onclick: () => runNextAll() })),
     list,
     needs,
     h('div', { class: 'card', style: 'margin-top:8px' }, h('h4', { text: `${t('episodeCtx')} · #${S.item + 1}` }), contextView(ep)));

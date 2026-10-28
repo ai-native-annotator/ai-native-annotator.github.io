@@ -10,9 +10,11 @@
  *
  *   1. Python boots and the Chinese procedure opens; the Skills pane says Jev for sent_type and
  *      Haiku for the agent skills.
- *   2. Running sentence 1 makes a tree of steps; only sent_type's rounds go to Jev; the agent
- *      skills get the system prompt and their skill.md (split at "## Input"), call get_example
- *      for real, and answer through final_result.
+ *   2. Sentence 1 runs one step at a time: a finished step waits to be confirmed, and nothing
+ *      (not even "all sentences: next step") runs the sentence on until it is. Confirming step by
+ *      step makes a tree of steps; only sent_type's rounds go to Jev; the agent skills get the
+ *      system prompt and their skill.md (split at "## Input"), call get_example for real, and
+ *      answer through final_result. A step's output is shown as Penman.
  *   3. The sentence's graph is drawn, and clicking a box selects the step that wrote it.
  *   4. A person corrects one step's output: it is kept as the human result and the steps under it
  *      are redone.
@@ -38,6 +40,24 @@ const { calls, anth, systemone, chat, anthropic } = require('./_skillparse-mocks
 
 const statusIs = (page, re, timeout = 120000) =>
   page.waitForFunction((src) => new RegExp(src).test(document.getElementById('status').textContent), re.source, { timeout });
+const settled = (page) => page.waitForFunction(() => (document.body.dataset.running || '0') === '0', null, { timeout: 120000 });
+
+/** Run the selected item one step at a time, confirming each step: what a person does. */
+async function stepThrough(page, max = 80) {
+  const start = await page.$('#run-bar .run-first, #run-bar .run-next:not([disabled])');
+  if (start) {
+    await start.click();
+    await settled(page);
+  }
+  let n = 1;
+  for (; n < max; n++) {
+    const b = await page.$('#run-bar .confirm-next:not([disabled])');
+    if (!b) break;
+    await b.click();
+    await settled(page);
+  }
+  return n;
+}
 
 (async () => {
   const proxy = process.env.HTTPS_PROXY ? [`--proxy-server=${process.env.HTTPS_PROXY}`, '--proxy-bypass-list=localhost;127.0.0.1'] : [];
@@ -78,11 +98,21 @@ const statusIs = (page, re, timeout = 120000) =>
     && !md.raw && !areaShown && src.startsWith('# Skill'), JSON.stringify(md));
   await page.click('#modal-close');
 
-  await page.click('button:text-is("运行这一项")');
-  await statusIs(page, /完成|出错/);
+  check('there is no "run to the end"', !(await page.$('button:text-is("运行到底")')) && !(await page.$('#btn-run-doc')));
+  await page.click('#run-bar .run-first');
+  await settled(page);
+  const one = await page.$$eval('.tree li', (els) => els.map((e) => e.querySelector('.st').textContent));
+  check('one step runs, then waits to be confirmed', one[0] === '◆' && one.slice(1).every((x) => x === '○')
+    && !(await page.$('#run-bar .run-next')) && !!(await page.$('#output .confirm-card')), one.join(''));
+  await page.click('#btn-next-all');
+  await settled(page);
+  const again = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
+  check('"all sentences: next step" leaves a sentence alone until its step is confirmed', again.join('') === one.join('')
+    && /1 句等你确认/.test(await page.textContent('#status')), await page.textContent('#status'));
+  const ran = await stepThrough(page) + 1;
   const steps = await page.$$eval('.tree li', (els) => els.map((e) => [e.querySelector('.sk').textContent, e.querySelector('.st').textContent]));
-  check('running sentence 1 makes a tree of steps', steps.length >= 3, steps.map((x) => x[0]).join(' '));
-  check('every step finished', steps.every((x) => x[1] === '✓'), steps.map((x) => x[1]).join(''));
+  check('confirming step by step makes a tree of steps', steps.length >= 3 && ran >= steps.length, `${ran} runs: ${steps.map((x) => x[0]).join(' ')}`);
+  check('every step finished and was confirmed', steps.every((x) => x[1] === '✓'), steps.map((x) => x[1]).join(''));
   check('sent_type asked Jev', calls.jev > 0, `${calls.jev} requests, ${calls.questions} questions`);
   check('the agent skills went to Haiku with the system prompt and their skill.md', calls.haiku > 0 && calls.heads > 0
     && [...calls.systems].every((x) => x.startsWith('You are an expert annotator of Uniform Meaning Representation')), `${calls.haiku} calls`);
@@ -110,6 +140,8 @@ const statusIs = (page, re, timeout = 120000) =>
 
   await page.click('.tree li:has(.sk:text-is("predicate"))');
   await page.click('.tab:text-is("输出")');
+  check("a step's output is shown as Penman", /^\(\w+ \/ test-01\n {4}:modal-strength full-affirmative\)$/.test(await page.textContent('#output pre.penman')),
+    await page.textContent('#output pre.penman'));
   check("a step's graph fragment is drawn with its output", !!(await page.$('#output .graph-svg')));
   await page.click('button:text-is("修改输出")');
   const ta = await page.$('#output textarea');
@@ -142,8 +174,7 @@ const statusIs = (page, re, timeout = 120000) =>
   await page.selectOption('#doc', 'english_umr-0008');
   await statusIs(page, /就绪/);
   check('the English document opens with the English procedure', (await page.$eval('#skillset', (e) => e.value)) === 'web-en');
-  await page.click('button:text-is("运行这一项")');
-  await statusIs(page, /完成|出错/);
+  await stepThrough(page);
   const en = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('the English procedure runs', en.length >= 3 && en.every((s) => s === '✓'), en.join(''));
 
@@ -157,12 +188,8 @@ const statusIs = (page, re, timeout = 120000) =>
   await page.click('#modal button:text-is("保存")');
   const before = calls.haiku;
   await page.click('button:text-is("↻ 重新开始")');
-  await page.click('button:text-is("运行到底")');
-  // the status line still says the last run's "完成": wait for the steps themselves
-  await page.waitForFunction(() => {
-    const st = [...document.querySelectorAll('.tree li .st')].map((e) => e.textContent);
-    return st.length >= 3 && st.every((x) => x === '✓' || x === '✕');
-  }, null, { timeout: 120000 }).catch(() => {});
+  await page.waitForFunction(() => document.querySelectorAll('.tree li').length === 1 && !!document.querySelector('#run-bar .run-next'));
+  await stepThrough(page);
   check('Haiku then goes through the Anthropic API, not OpenRouter', anth.calls > 0 && calls.haiku === before
     && [...anth.models].every((m) => m === 'claude-haiku-5-5'), `${anth.calls} Anthropic calls, models ${[...anth.models]}`);
   const done = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));

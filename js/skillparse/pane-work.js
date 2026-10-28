@@ -2,13 +2,15 @@
  * Middle pane. Top: the sentence's graph as it stands (drawn, with the selected step's part
  * marked; click a box to go to the step that made it), and the selected step: its output (with
  * its own graph fragment drawn), input, Jev's questions and answers, prompt, and the sentence's
- * .umr text. The output can be edited: the edit is saved as the human result of the step and
- * everything under it is redone from it. Bottom: the item's steps as a tree; click to select,
- * ▶ to run.
+ * .umr text. The output is shown as Penman (relations and content) and as JSON; the JSON can be
+ * edited: the edit is saved as the human result of the step and everything under it is redone
+ * from it. A finished step waits for the person to confirm it (or correct it) before the item's
+ * next step can run. Bottom: the item's steps as a tree; click to select, ▶ to run the next one.
  */
 
 import { h, clear, pretty, toast, diffView } from './ui.js';
-import { S, onRender, render, selectNode, selectWave, selectItem, runNode, runItem, resetNode, saveOutput, startItem, sentenceGraph } from './core.js';
+import { S, onRender, render, selectNode, selectWave, selectItem, runNode, runNext, resetNode, saveOutput, startItem, sentenceGraph, confirmNode, confirmAndNext } from './core.js';
+import { outputPenman } from './penman-view.js';
 import { drawGraph, fragmentGraph } from './graph-view.js';
 import { lineDiff, hunks, stable } from './diff.js';
 import { renderMarkdown } from './md.js';
@@ -29,8 +31,9 @@ function tabsFor(d) {
 
 function outputTab(d) {
   if (d.status === 'pending' && !d.waiting) {
-    return h('div', {}, h('div', { class: 'empty', text: '—' }),
-      h('button', { class: 'btn primary', text: t('run'), disabled: S.running > 0, onclick: () => runNode(d.id) }));
+    const wait = S.episode?.awaiting || [];
+    return h('div', {}, h('div', { class: 'empty', text: wait.length ? t('confirmFirst', { list: wait.join(', ') }) : '—' }),
+      h('button', { class: 'btn primary', text: t('run'), disabled: S.running > 0 || wait.length > 0, onclick: () => runNode(d.id) }));
   }
   const text = d.output ? stable(d.output) : '';
   if (S.editing) {
@@ -49,18 +52,31 @@ function outputTab(d) {
         h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.editing = false; render(); } }), err));
   }
   const parts = [];
+  if (d.status === 'ok' && !d.confirmed) {
+    parts.push(h('div', { class: 'card confirm-card' },
+      h('div', { class: 'note', text: t('awaitHelp') }),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn primary', text: t('confirmNext'), disabled: S.running > 0, onclick: () => confirmAndNext(d.id) }),
+        h('button', { class: 'btn', text: t('confirm'), disabled: S.running > 0, onclick: () => confirmNode(d.id) }))));
+  } else if (d.status === 'error') {
+    parts.push(h('div', { class: 'note warn', text: t('errorHelp') }));
+  } else if (d.confirmed && !d.human) {
+    parts.push(h('div', { class: 'row' }, h('span', { class: 'ok-tag', text: `✓ ${t('confirmedTag')}` })));
+  }
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
   if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
   if (d.human) {
     parts.push(h('div', { class: 'row' }, h('span', { class: 'human-tag', text: t('humanTag') }),
       h('span', { class: 'note', text: t('human') })));
   }
+  const pm = outputPenman(d.skill, d.output, d.input);
+  if (pm) parts.push(h('div', { class: 'note', text: t('penmanTitle') }), h('pre', { class: 'block penman', text: pm }));
   const frag = fragmentGraph(d.output);
   if (frag) {
-    parts.push(h('div', { class: 'note', text: t('fragment') }),
-      h('div', { class: 'graph-wrap' }, drawGraph(frag.graph, { dashed: frag.dashed })));
+    parts.push(h('details', {}, h('summary', { text: t('fragment') }),
+      h('div', { class: 'graph-wrap' }, drawGraph(frag.graph, { dashed: frag.dashed }))));
   }
-  parts.push(h('pre', { class: 'block', text: text || '—' }));
+  parts.push(h('details', { open: !pm }, h('summary', { text: t('jsonTitle') }), h('pre', { class: 'block', text: text || '—' })));
   if (d.human && d.machine_output) {
     parts.push(h('details', {}, h('summary', { text: t('machine') }), diffView(hunks(lineDiff(stable(d.machine_output), text), 2))));
   }
@@ -222,35 +238,44 @@ function drawTop() {
   clear(out, view);
 }
 
-const STATUS = { ok: '✓', error: '✕', pending: '○', skipped: '–', blocked: '!' };
+const STATUS = { ok: '✓', review: '◆', running: '◐', error: '✕', pending: '○', skipped: '–', blocked: '!' };
 
 function drawBottom() {
   const bar = document.getElementById('run-bar');
   const tree = document.getElementById('tree');
   if (!S.desc) { clear(bar); clear(tree); return; }
   const ep = S.episode;
+  const wait = ep?.awaiting || [];
+  // the step to confirm is always at hand here, whichever tab is open above
+  const first = wait.length ? ep.nodes.find((n) => n.id === wait[0]) : null;
+  const busy = S.running > 0;
   clear(bar,
     h('strong', { text: `#${S.item + 1}` }),
-    !ep?.started ? h('button', { class: 'btn sm primary', disabled: S.running > 0, text: t('runEp'), onclick: () => runItem() }) : [
-      h('button', { class: 'btn sm', disabled: S.running > 0, text: t('runNext'), onclick: () => runItem(S.item, { onlyNext: true }) }),
-      h('button', { class: 'btn sm primary', disabled: S.running > 0, text: t('runAll'), onclick: () => runItem() }),
-      h('button', { class: 'btn sm', disabled: S.running > 0, text: t('restart'), onclick: () => startItem() }),
-    ],
+    !ep?.started ? h('button', { class: 'btn sm primary run-first', disabled: busy, text: t('runFirst'), onclick: () => runNext() })
+      : first?.status === 'ok' ? [
+        h('button', { class: 'btn sm primary confirm-next', disabled: busy, text: t('confirmNext'), onclick: () => confirmAndNext(first.id) }),
+        h('button', { class: 'btn sm confirm-only', disabled: busy, text: t('confirm'), onclick: () => confirmNode(first.id) }),
+        h('span', { class: 'note', text: `${t('awaitTag')}: ${first.id} ${first.skill}` }),
+      ] : first ? h('span', { class: 'note err', text: `${first.id} ${first.skill}: ${t('errorHelp')}` })
+        : h('button', { class: 'btn sm primary run-next', disabled: busy || !ep.nodes.some((n) => n.status === 'pending'), text: t('runNext'), onclick: () => runNext() }),
+    ep?.started ? h('button', { class: 'btn sm', disabled: busy, text: t('restart'), onclick: () => startItem() }) : null,
     ep?.stale ? h('span', { class: 'note warn', text: t('stale') }) : null,
     ep?.error ? h('span', { class: 'note err', text: ep.error }) : null);
   if (!ep?.started) { clear(tree, h('div', { class: 'empty', text: t('notStarted') })); return; }
   clear(tree, h('ul', { class: 'tree' }, ep.nodes.map((n) => {
-    const st = n.waiting ? 'running' : n.status;
+    const st = n.waiting ? 'running' : n.status === 'ok' && !n.confirmed ? 'review' : n.status;
     return h('li', { 'aria-selected': String(n.id === S.node), style: `padding-left:${6 + Math.min(n.depth, 14) * 14}px`, onclick: () => selectNode(n.id), title: n.error || '' },
       h('span', { class: `st ${st}`, text: n.waiting ? '◐' : STATUS[st] || '?' }),
       n.edge ? h('span', { class: 'edge', text: `:${n.edge}` }) : null,
       h('span', { class: 'sk', text: n.skill }),
       n.human ? h('span', { class: 'human-tag', text: t('humanTag') }) : null,
+      st === 'review' ? h('span', { class: 'await-tag', text: t('awaitTag') }) : null,
       n.text ? h('span', { class: 'txt', text: n.text }) : null,
       n.summary ? h('span', { class: 'sum', text: `→ ${n.summary}` }) : null,
       h('span', { class: 'grow' }),
       h('span', { class: 'id', text: n.id.length > 12 ? `…${n.id.slice(-10)}` : n.id }),
-      n.status === 'pending' && !n.waiting ? h('button', { class: 'play', disabled: S.running > 0, text: '▶', title: t('run'), onclick: (e) => { e.stopPropagation(); selectNode(n.id).then(() => runNode(n.id)); } }) : null,
+      st === 'review' ? h('button', { class: 'play confirm', disabled: S.running > 0, text: '✓', title: t('confirm'), onclick: (e) => { e.stopPropagation(); selectNode(n.id).then(() => confirmNode(n.id)); } }) : null,
+      n.status === 'pending' && !n.waiting && !wait.length ? h('button', { class: 'play', disabled: S.running > 0, text: '▶', title: t('run'), onclick: (e) => { e.stopPropagation(); selectNode(n.id).then(() => runNode(n.id)); } }) : null,
       n.status !== 'pending' ? h('button', { class: 'play', disabled: S.running > 0, text: '↺', title: t('rerun'), onclick: (e) => { e.stopPropagation(); resetNode(n.id); } }) : null);
   })));
 }

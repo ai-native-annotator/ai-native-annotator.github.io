@@ -8,8 +8,9 @@
  *   {need: "llm", instructions, input, tools, emit}   (kind: agent: the skill.md prompt)
  *                                     -> models.llm() (Haiku; tool calls run in the bridge)
  *                                         -> bridge.complete()  (one retry if the answer is invalid)
- * until it is done. Nodes of one item run several at a time (Settings: steps at once); items
- * run one after another, because later items may read earlier ones.
+ * until it is done. A step runs only when every finished step of its item has been confirmed
+ * (or corrected) by the person: an item never runs on by itself. Different items can each run
+ * their next step at the same time (runNextAll).
  */
 
 import { py } from './py.js';
@@ -224,19 +225,25 @@ export async function drive(w, i, nid, signal) {
 
 let controller = null;
 
+/** S.running, mirrored on <body data-running> so a test can wait for the page to settle. */
+function busy(delta) {
+  S.running += delta;
+  document.body.dataset.running = String(S.running);
+}
+
 async function guarded(fn) {
-  S.running++;
+  busy(1);
   S.cancel = false;
   controller = controller || new AbortController();
   document.getElementById('btn-stop').hidden = false;
-  document.getElementById('btn-run-doc').disabled = true;
+  document.getElementById('btn-next-all').disabled = true;
   try {
     return await fn(controller.signal);
   } finally {
-    S.running--;
+    busy(-1);
     if (!S.running) {
       document.getElementById('btn-stop').hidden = true;
-      document.getElementById('btn-run-doc').disabled = false;
+      document.getElementById('btn-next-all').disabled = false;
       controller = null;
       // buttons disabled while running come back; a run that ended with nothing selected
       // selects the item's first step, so the output and AI panes have something to show
@@ -257,7 +264,7 @@ export async function runNode(nid = S.node) {
   return guarded(async (signal) => {
     try {
       const r = await drive(S.wave, S.item, nid, signal);
-      status(r.status === 'error' ? `${t('error')}: ${r.error}` : t('doneRun', { n: 1 }));
+      status(r.status === 'error' ? `${t('error')}: ${r.error}` : t('checkStep', { id: nid }));
       return r;
     } catch (err) {
       status(`${t('error')}: ${err.message}`);
@@ -270,151 +277,99 @@ export async function runNode(nid = S.node) {
   });
 }
 
-/** Run every pending node of one item, several at a time. */
-async function runEpisodeInner(w, i, signal, { onlyNext = false, keepGoing = false } = {}) {
-  const limit = Math.max(1, settings().concurrency);
-  let done = 0;
-  let failed = null;
-  let errors = 0;
-  const inflight = new Map();         // node id -> its promise
-  for (;;) {
-    if (S.cancel || failed) break;
-    const pending = (await py('pending', { w, i })).filter((id) => !inflight.has(id));
-    if (!pending.length && !inflight.size) break;
-    for (const id of pending.slice(0, Math.max(0, limit - inflight.size))) {
-      inflight.set(id, drive(w, i, id, signal).then((r) => { done++; if (r?.status === 'error') errors++; })
-        .catch((err) => { errors++; if (!keepGoing || S.cancel) failed = failed || err; })
-        .finally(() => inflight.delete(id)));
+/**
+ * Run the next step of item i of the current wave, if its finished steps are all confirmed:
+ * starts the item when it has not been started. Returns {ran: id} | {awaiting: [ids]} |
+ * {done: true} | {needs: [...]} | {error}.
+ */
+async function nextStep(w, i, signal) {
+  let ep = await py('episode', { w, i });
+  // an item that was waiting for earlier waves is made again once they are there
+  if (!ep.started || (ep.error && ep.needs?.length)) ep = await py('start', { w, i });
+  if (ep.error) return ep.needs?.length ? { needs: ep.needs } : { error: ep.error };
+  const nx = await py('next_step', { w, i });
+  if (!nx.node) return nx;
+  const r = await drive(w, i, nx.node, signal);
+  return { ran: nx.node, status: r.status, error: r.error };
+}
+
+/** One step of the selected item; the step that ran is selected, for the person to check. */
+export async function runNext(i = S.item) {
+  return guarded(async (signal) => {
+    try {
+      const r = await nextStep(S.wave, i, signal);
+      if (r.awaiting) status(t('confirmFirst', { list: r.awaiting.join(', ') }));
+      else if (r.running) status(t('running', { what: r.running.join(', ') }));
+      else if (r.done) status(t('itemDone'));
+      else if (r.needs) status(t('needs', { list: r.needs.map(([w, k]) => `${w} #${k + 1}`).join(', ') }));
+      else if (r.error && !r.ran) status(r.error);
+      else status(r.status === 'error' ? `${t('error')}: ${r.error}` : t('checkStep', { id: r.ran }));
+      await refresh({ detail: false });
+      if (r.ran && i === S.item) {
+        if (S.tab === 'graph') S.tab = 'output';
+        await selectNode(r.ran);
+      }
+    } catch (err) {
+      status(`${t('error')}: ${err.message}`);
+      await refresh();
     }
-    if (inflight.size) await Promise.race(inflight.values());
-    if (w === S.wave && i === S.item) refresh({ detail: false });
-    if (onlyNext && done) break;
-  }
-  await Promise.allSettled(inflight.values());
-  if (failed) throw failed;
-  return keepGoing ? { done, errors } : done;
+  });
 }
 
 /**
- * Annotate the whole document: every wave in order, every item of a wave (up to the wave's
- * `parallel` at once, as the Runner runs episodes), every step. A step that fails is left in
- * error and the rest go on. Items already done are kept, with any corrections in them; an item
- * not started, in error, or out of date (something it reads has changed) is started again.
+ * Every item of the wave runs its next step, several items at a time (the wave's `parallel`);
+ * an item whose last step is not confirmed yet, or that is finished, is left alone.
  */
-export async function runDocument() {
+export async function runNextAll(w = S.wave) {
   return guarded(async (signal) => {
-    let steps = 0;
-    let errors = 0;
-    const t0 = Date.now();
-    try {
-      for (const wave of S.desc.waves) {
-        if (S.cancel) break;
-        const items = await py('items', { w: wave.name });
-        let next = 0;
-        let done = 0;
-        const worker = async () => {
-          while (next < items.length && !S.cancel) {
-            const i = items[next++].index;
-            const ep = await py('episode', { w: wave.name, i });
-            if (!ep.started || ep.stale || ep.error) await py('start', { w: wave.name, i });
-            const now = await py('episode', { w: wave.name, i });
-            if (now.error) { errors++; continue; }
-            const r = await runEpisodeInner(wave.name, i, signal, { keepGoing: true });
-            steps += r.done;
-            errors += r.errors;
-            done++;
-            status(t('docProgress', { wave: wave.name, done, n: items.length, steps, errors }));
-            if (wave.name === S.wave) refresh({ detail: false });
-          }
-        };
-        const width = Math.max(1, Math.min(wave.parallel || 1, items.length));
-        await Promise.all(Array.from({ length: width }, worker));
+    const items = await py('items', { w });
+    const tally = { ran: 0, errors: 0, awaiting: 0, done: 0, blocked: 0 };
+    let next = 0;
+    const worker = async () => {
+      while (next < items.length && !S.cancel) {
+        const i = items[next++].index;
+        try {
+          const r = await nextStep(w, i, signal);
+          if (r.ran) { tally.ran++; if (r.status === 'error') tally.errors++; } else if (r.awaiting) tally.awaiting++;
+          else if (r.done) tally.done++;
+          else tally.blocked++;
+        } catch {
+          tally.ran++;
+          tally.errors++;
+        }
+        if (w === S.wave) refresh({ detail: false });
       }
-      status(S.cancel ? t('stopped') : t('docDone', { steps, errors, s: Math.round((Date.now() - t0) / 1000) }));
-    } catch (err) {
-      status(`${t('error')}: ${err.message}`);
-    } finally {
-      changed();
-      await refresh();
-    }
-    return { steps, errors };
+    };
+    const width = Math.max(1, Math.min(waveDesc(w)?.parallel || 1, items.length));
+    await Promise.all(Array.from({ length: width }, worker));
+    status(S.cancel ? t('stopped') : t('allNextDone', tally));
+    await refresh();
+    return tally;
   });
 }
 
-export async function runItem(i = S.item, opts = {}) {
-  return guarded(async (signal) => {
-    try {
-      const ep = await py('episode', { w: S.wave, i });
-      if (!ep.started) await py('start', { w: S.wave, i });
-      const now = await py('episode', { w: S.wave, i });
-      if (now.error) {
-        status(now.error);
-        return;
-      }
-      const n = await runEpisodeInner(S.wave, i, signal, opts);
-      status(t('doneRun', { n }));
-    } catch (err) {
-      status(`${t('error')}: ${err.message}`);
-    } finally {
-      await refresh();
-    }
-  });
-}
-
-export async function runItems(list) {
-  return guarded(async (signal) => {
-    let n = 0;
-    try {
-      for (const i of list) {
-        if (S.cancel) break;
-        const ep = await py('episode', { w: S.wave, i });
-        if (!ep.started || ep.stale || ep.error) await py('start', { w: S.wave, i });
-        const now = await py('episode', { w: S.wave, i });
-        if (now.error) throw new Error(`#${i + 1}: ${now.error}`);
-        n += await runEpisodeInner(S.wave, i, signal);
-        await refresh({ detail: false });
-      }
-      status(t('doneRun', { n }));
-    } catch (err) {
-      status(`${t('error')}: ${err.message}`);
-    } finally {
-      await refresh();
-    }
-  });
-}
-
-/** Everything `list` needs, what that needs in turn, then `list` itself: in an order that can run. */
-async function plan(list, out = [], seen = new Set()) {
-  for (const [w, i] of list) {
-    const key = `${w}|${i}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    await plan(await py('needs', { w, i }), out, seen);
-    out.push([w, i]);
+/** The selected step's output is right. */
+export async function confirmNode(nid = S.node) {
+  busy(1);
+  try {
+    await py('confirm', { w: S.wave, i: S.item, nid });
+    changed();
+    await refresh();
+  } finally {
+    busy(-1);
   }
-  return out;
 }
 
-/** Run the items an item needs (and what they need), then restart the item itself. */
-export async function runNeeds(needs) {
-  return guarded(async (signal) => {
-    let n = 0;
-    try {
-      for (const [w, i] of await plan(needs)) {
-        if (S.cancel) break;
-        await py('start', { w, i });
-        const ep = await py('episode', { w, i });
-        if (ep.error) throw new Error(`${w} #${i + 1}: ${ep.error}`);
-        n += await runEpisodeInner(w, i, signal);
-      }
-      await py('start', { w: S.wave, i: S.item });
-      status(t('doneRun', { n }));
-    } catch (err) {
-      status(`${t('error')}: ${err.message}`);
-    } finally {
-      await refresh();
-    }
-  });
+export async function confirmAndNext(nid = S.node) {
+  busy(1);
+  render();
+  try {
+    await py('confirm', { w: S.wave, i: S.item, nid });
+    changed();
+  } finally {
+    busy(-1);
+  }
+  await runNext();
 }
 
 // ------------------------------------------------------------------ corrections
