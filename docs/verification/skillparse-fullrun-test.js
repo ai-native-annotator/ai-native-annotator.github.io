@@ -6,7 +6,7 @@
  *      for a .umr, keeps only its sentences (the Words: lines) and drops the annotation.
  *   2. "All sentences: next step" runs one step of every sentence; a sentence whose step is not
  *      confirmed does not go on. Confirming each step and clicking again, wave after wave
- *      (sentence, reentrancy, document), annotates everything.
+ *      (sentence, then document), annotates everything.
  *   3. "Export .umr" writes a file with every sentence's graph, alignment and document-level
  *      annotation, and none of the imported annotation.
  *   4. Plain text imports too, one sentence per line or split into sentences.
@@ -117,7 +117,7 @@ const statusIs = (page, re, timeout = 180000) =>
     await page.waitForTimeout(300);
     allDone.push(...(await page.$$eval('#context .items li .dot', (e) => e.map((x) => `${x.className}`))));
   }
-  check('every item of every wave is done and confirmed', allDone.length === 9 && allDone.every((c) => /\bdone\b/.test(c)), `${total} steps · ${allDone.join(',')}`);
+  check('every item of every wave is done and confirmed', allDone.length === 6 && allDone.every((c) => /\bdone\b/.test(c)), `${total} steps · ${allDone.join(',')}`);
   check('sent_type went to Jev and the agent skills to Haiku', calls.jev > 0 && calls.haiku > 0, `${calls.jev} Jev, ${calls.haiku} Haiku`);
 
   // 3. export

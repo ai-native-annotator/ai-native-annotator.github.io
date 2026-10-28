@@ -7,8 +7,9 @@ reached through a sent_type step whose output is the node's kind, then the step 
 placeholder (`open`) per child, and each placeholder is again a sent_type step. A node with no
 children is a sent_type `stop` leaf. Every step's input is what a run would have given it: the
 text and span of its part of the sentence, so re-running any of them asks its skill again.
-A second mention of a node (a re-entrancy) is an `outside` participant whose antecedent step is
-merged into the node by the reentrancy step; the document-level relations become the document
+A second mention of a node (a re-entrancy) is an `outside` participant whose antecedent step has
+the span of the node's own step, so that the merge by span made when the .umr is written (there is
+no reentrancy wave) joins it to that node; the document-level relations become the document
 step's output. All of these are written as a person's results (confirmed).
 
 Alignments: the page numbers Chinese one character per token. A file whose Words: are words
@@ -292,14 +293,15 @@ class Loader:
         for nd in out["graph"]["nodes"][1:]:
             self.where_inner[nd["var"]] = cid
         kids = {k.var: k for k in opened}
-        refs = list(out_vars)
+        refs = list(enumerate(out_vars))
         for c in node["children"]:
             child = self.ep["nodes"][c]
             if child["skill"] == "sent_type" and child["edge"] in kids:
                 self.fill(c, kids.pop(child["edge"]))
             elif child["skill"] == "antecedent" and refs:
+                k, var = refs.pop(0)
                 self.put(c, {"span": child["input"].get("span") or part["span"]})
-                self.antecedents.append((c, refs.pop(0)))
+                self.antecedents.append((c, var, cid, k))
         for v in kids:
             self.problems.append("snt%d %s: no step for the placeholder %s" % (self.i + 1, cid, v))
 
@@ -330,19 +332,37 @@ class Loader:
         self.e.start(self.w, i)
         self.ep = self.e.eps[self.w][i]
         self.fill("0", top)
-        merges = []
-        for ant, var in self.antecedents:
-            if var in self.where:
-                merges.append({"node": ant, "into": self.where[var]})
-            else:
+        # each antecedent takes the span (and text) of the step of the node it stands for, in its
+        # parent's `outside` item too, so that the merge by span finds that node
+        want = {}
+        for ant, var, parent, k in self.antecedents:
+            if var not in self.where:
                 self.problems.append("snt%d: the re-entrancy %s points inside a fixed structure; it is "
                                      "left out" % (i + 1, var))
+                continue
+            target = self.ep["nodes"][self.where[var]]["input"]
+            piece = {"text": target.get("text", ""), "span": list(target["span"])}
+            node = self.ep["nodes"][ant]
+            node["input"] = dict(node["input"], **piece)
+            node["output"] = node["stored"] = {"span": piece["span"]}
+            node["into"] = self.where[var]      # the node the file points at (RegistryEngine.merges)
+            owner = self.ep["nodes"][parent]
+            item = dict(owner["output"]["outside"][k], **piece)
+            owner["output"]["outside"][k] = item
+            if "outside" in owner["stored"]:
+                owner["stored"]["outside"] = owner["output"]["outside"]
+            want[ant] = self.where[var]
+        got = {m["node"]: m["into"] for m in self.e.merges(i)}
+        for ant, into in want.items():
+            if got.get(ant) != into:
+                self.problems.append("snt%d: the re-entrancy %s is joined by span to %s, not %s"
+                                     % (i + 1, ant, got.get(ant), into))
         refs = {}
         for var, nid in self.where.items():
             refs[var] = "%d:%s/%s" % (sent.index, nid, var)
         for var, nid in self.where_inner.items():
             refs.setdefault(var, "%d:%s/%s" % (sent.index, nid, var))
-        return merges, refs
+        return refs
 
     @staticmethod
     def doc_rel(text):
@@ -375,19 +395,10 @@ class Loader:
                 hows.add(self.how)
                 if got:
                     per[i] = got
-            if "reentrancy" in e.waves:
-                for i in range(n):
-                    e.start("reentrancy", i)
-                    ep = e.eps["reentrancy"][i]
-                    if ep["error"] or not ep["nodes"]:
-                        self.problems.append("snt%d reentrancy: %s" % (i + 1, ep["error"] or "no step"))
-                        continue
-                    self.w, self.i, self.ep = "reentrancy", i, ep
-                    self.put("0", {"merges": per.get(i, ([], {}))[0]})
             if "document" in e.waves:
                 refs = {}
                 for i in range(n):
-                    refs.update(per.get(i, ([], {}))[1])
+                    refs.update(per.get(i) or {})
                 for i in range(n):
                     e.start("document", i)
                     ep = e.eps["document"][i]

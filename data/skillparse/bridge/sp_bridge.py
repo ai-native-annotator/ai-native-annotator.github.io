@@ -716,7 +716,7 @@ class RegistryEngine:
         self._drop_gens(w, i, nid)
         node.update(status="pending", output=None, stored={}, error=None, rounds=[], prompt=None, human=False,
                     children=[], dropped=[], rules=[], tool_calls=[], retried=False, problems=[],
-                    confirmed=False, loaded=False)
+                    confirmed=False, loaded=False, into=None)
         self._mark_stale(w, int(i))
         return self.episode(w, i)
 
@@ -817,8 +817,6 @@ class RegistryEngine:
         g = o.get("graph")
         if isinstance(g, dict) and g.get("nodes"):
             return " ".join(str(x.get("concept")) for x in g["nodes"][:4])
-        if "merges" in o:
-            return "%d merges" % len(o["merges"])
         if "relations" in o:
             return "%d relations" % len(o["relations"])
         if "span" in o:
@@ -842,9 +840,42 @@ class RegistryEngine:
 
     # -- output
 
+    def merges(self, i):
+        """Which nodes of sentence i's tree are one. There is no reentrancy wave: this is done when
+        the .umr is written, by span, with the procedure's reentrancy/reentrancy.py (two nodes of
+        the same type and span; an antecedent and the node with its span, or its head's).
+        Steps loaded from a file (umr_load) are a person's graph, already merged: two of them are
+        never merged by span, and a loaded antecedent goes to the node the file points at."""
+        tree = self._partial_tree("sentence", i)
+        ep = self.eps["sentence"].get(i)
+        path = os.path.join(os.path.dirname(self.path), "reentrancy", "reentrancy.py")
+        if not tree or not ep or not os.path.exists(path):
+            return []
+        key = (path, os.stat(path).st_mtime_ns)
+        if key not in self.modules:
+            self.modules[key] = _load_module(path, "skill_rules.reentrancy")
+        try:
+            found = self.modules[key].run(tree=tree)["merges"]
+        except Exception:
+            found = []
+        nodes = ep["nodes"]
+        loaded = lambda nid: bool(nodes.get(nid, {}).get("loaded"))   # noqa: E731
+        pointed = {nid: n["into"] for nid, n in nodes.items() if n.get("into") and n["status"] == "ok"}
+        out = [m for m in found if m["node"] not in pointed and not (loaded(m["node"]) and loaded(m["into"]))]
+        return out + [{"node": nid, "into": into} for nid, into in sorted(pointed.items()) if into in nodes]
+
+    def _worktree_out(self):
+        """The worktree the output handler reads: the waves as they are, and the merges by span
+        where its reentrancy wave would be."""
+        wt = {w: [self._partial_tree(w, i) for i in range(len(self.doc.sents))] for w in self.order}
+        if "reentrancy" not in self.waves:
+            wt["reentrancy"] = [{"nodes": [{"id": "0", "merges": self.merges(i)}]} if t else None
+                                for i, t in enumerate(wt.get("sentence") or [])]
+        return wt
+
     def render(self, auto_align=True):
         from output_handler.umroutputhandler import UMROutputHandler, provenance
-        wt = {w: [self._partial_tree(w, i) for i in range(len(self.doc.sents))] for w in self.order}
+        wt = self._worktree_out()
         text = UMROutputHandler().render(self.doc, wt)
         added = []
         if auto_align:

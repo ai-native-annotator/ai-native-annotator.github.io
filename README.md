@@ -95,7 +95,7 @@ Jev goes through OpenRouter; Haiku through the OpenRouter key or straight to the
 
 | Pane          | What it holds                                                                                                                                                                                      |
 | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Context**   | the waves (wave 1, 2, 3 …), each wave's `for_each` items to pick from, and its context windows: one sentence, the five before it, or any `range`                                                   |
+| **Context**   | the two waves (sentence, document), each wave's `for_each` items to pick from, and its context windows: one sentence, the five before it, or any `range`                                           |
 | **Skills**    | every skill, its kind (jev / rule), what the dispatcher starts after it, and its files (`.py`, `prompts.yaml`) to edit                                                                             |
 | **Generated** | top: the sentence's graph, drawn (click a box to reach the step that wrote it), and the selected step's output (as Penman and JSON), input, questions and answers; bottom: the steps, click to run |
 | **AI**        | reflection on the selected step                                                                                                                                                                    |
@@ -109,7 +109,9 @@ a file aligned by characters is loaded as it is. Annotation goes one step at a t
 `human提示：…`, or put in the state Jev sees for sent_type, and stays with the step), or **edit
 directly**. Only then can its sentence run the next step; nothing runs a sentence to the end by
 itself. **All sentences: next step** runs the next step of every sentence of
-the wave side by side, leaving alone any sentence whose step is not confirmed. A step's output is
+the wave side by side, leaving alone any sentence whose step is not confirmed. There are two waves,
+sentence and document: re-entrancy has no wave of its own, its nodes are merged by span when the
+`.umr` is written. A step's output is
 shown as Penman, relations and concepts only, with `<node: …>` for a part a later step builds and
 `<outside: …>` for a participant written outside the piece. **Export .umr** writes the file,
 alignments counted in characters for Chinese and filled in where the output left `0-0`.
@@ -244,14 +246,15 @@ Runner（`src/runner.py`、`src/skill_callable.py`）在浏览器里跑一个 re
 （discourse、predicate、np_phrase、special_entity、document）都是 `kind: agent`：skill.md 就是提示词，
 直接交给 Haiku，带 skill 的工具（get_example、propbank_lookup）。中文提示词是决策编排的 umr-zh-frag R42，
 英文是 umr-tree 种子。界面按 registry
-排：左边是上下文（选 wave 1/2/3、选每个 wave 的 for_each 项、调上下文窗口：一句话还是前五句），然后是
+排：左边是上下文（选 wave：sentence 或 document；选每个 wave 的 for_each 项、调上下文窗口：一句话还是前五句），然后是
 skill 栏，中间上面是生成内容（画出来的图；点图里的框跳到写它的那一步）、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；
 (2) 改生成内容，AI 自动找 skill 的问题；(3) 告诉 AI 哪里错了，由机器改。导出 `.umr` 时自动补齐 alignment。
 导入可选格式：`.txt`（每行一句，或自动分句）；`.umr` 文件重新标注（只抽出原文，忽略原来的标注）；或载入
 `.umr` 文件已有的标注：拆成流程本来会走的步骤，每一步都能重跑；按词对齐的转成按字对齐，按字对齐的照原样载入。
 标注一步一步来：每一步跑完有三个选择：正确（确认）；加提示重跑（在输入后面加上「human提示：…」，
 sent_type 则放进 Jev 看到的 state，以后重跑这一步也带着）；直接修改。之后这一句才能跑下一步，没有「运行到底」；
-「所有句子：下一步」让这个 wave 的每一句各跑一步（句子之间同时跑），还没确认的句子不动。每一步的输出用
+「所有句子：下一步」让这个 wave 的每一句各跑一步（句子之间同时跑），还没确认的句子不动。只有两波：sentence 和
+document；重入没有单独的一波，写 .umr 时按 span 自动合并。每一步的输出用
 Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<node: …>`，片段外的参与者写成 `<outside: …>`。
 「导出 .umr」直接产出文件。标注进度每改一次就自动暂存在这个浏览器里（IndexedDB，不上传）：每一步的输出、确认、
 提示、模型记录，以及导入的文档；再打开同一篇文档时会问要不要接着上次继续。Python 也在网页里运行（Pyodide），

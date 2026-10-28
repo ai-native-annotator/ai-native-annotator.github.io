@@ -51,6 +51,31 @@ PROCEDURES = {
 JEV_SKILL = "sent_type"
 # skills the web procedures leave out (their registry entries and dispatcher rules too)
 DROP_SKILLS = ["coverage"]
+# the reentrancy wave is left out too: the page merges by span when it writes the .umr, with the
+# same rule (reentrancy/reentrancy.py stays, as a file the page loads, not a skill)
+REENTRANCY_WAVE = [
+    ("""# 三波，按顺序跑：
+#   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
+#   reentrancy  每句一个 episode，规则（不调模型）：把这句树里同类型、同 span 的节点合并，
+#               并把 antecedent 并到同 span（或中心词同 span）的节点上
+#   document    每句一个 episode，看补过重入的这句和它前五句，产出这句的文档级图""",
+     """# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时按 span 合并：同类型、同 span 的节点，
+# 和并到同 span（或中心词同 span）节点上的 antecedent，规则是 reentrancy/reentrancy.py）：
+#   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
+#   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图"""),
+    ("        trees:                          # 和 sents 一一对应，reentrancy 补过的树\n          window: worktree.reentrancy",
+     "        trees:                          # 和 sents 一一对应，sentence 这一波的树\n          window: worktree.sentence"),
+    ("（规则，交给 reentrancy 合并）", "（规则，写 .umr 时按 span 合并）"),
+    ("由 reentrancy 并到", "写 .umr 时并到"),
+    ("由 reentrancy 合并", "写 .umr 时按 span 合并"),
+    ("  # ---- 整篇的两波 ----", "  # ---- 整篇的一波 ----"),
+    ("  # antecedent / reentrancy / document：没有后续", "  # antecedent / document：没有后续"),
+]
+# what the document skill is told about its trees, which are now the sentence wave's
+DOCUMENT_TREES = ("""Each tree is the output of the
+reentrancy step; the sentence's own tree is under `nodes[0].input.tree.nodes`.""",
+                  """Each tree is the
+sentence's tree of steps (web: no reentrancy step), its nodes under `nodes`.""")
 JEV_MODULES = ["jevlib.py", "prompt_loader.py", "event_modifiers.py", "event_modifiers.yaml"]
 SHARED_TOOLS = ["skillsets/tools/example.py", "skillsets/tools/propbank.py"]
 MP_FILES = [
@@ -146,11 +171,20 @@ def compose(sp, lang):
     for name in DROP_SKILLS:
         text = drop_skill(text, name)
         shutil.rmtree(os.path.join(dst, name))
+    text = drop_reentrancy_wave(text)
+    doc_md = os.path.join(dst, "document", "skill.md")
+    with open(doc_md, encoding="utf-8") as f:
+        md = f.read()
+    if md.count(DOCUMENT_TREES[0]) != 1:
+        raise SystemExit("%s: cannot say what its trees are" % doc_md)
+    with open(doc_md, "w", encoding="utf-8") as f:
+        f.write(md.replace(*DOCUMENT_TREES))
     patch_jevlib(os.path.join(dst, "jevlib.py"))
     header = ("# web-procedures/%s, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:\n"
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"
               "# Every other model skill is kind: agent: its skill.md, answered by Haiku.\n"
-              "# Left out on the web: %s. jevlib.py cuts a Chinese piece only at punctuation (no jieba).\n"
+              "# Left out on the web: %s, and the reentrancy wave (merged by span when the .umr is written).\n"
+              "# jevlib.py cuts a Chinese piece only at punctuation (no jieba).\n"
               % (lang, agent, JEV_SKILL, jev, ", ".join(JEV_MODULES), ", ".join(DROP_SKILLS)))
     with open(reg, "w", encoding="utf-8") as f:
         f.write(header + text)
@@ -170,6 +204,21 @@ def drop_skill(text, name):
     text, n_own = re.subn(r"  %s:\n(?:    [^\n]*\n)+\n" % name, "", text)
     if n_skill != 1 or n_own > 1 or re.search(r"\b%s\b" % re.escape(name), text):
         raise SystemExit("cannot drop %s from the registry" % name)
+    return text
+
+
+def drop_reentrancy_wave(text):
+    """The registry with two waves: no reentrancy wave or skill (see REENTRANCY_WAVE)."""
+    for old, new in REENTRANCY_WAVE:
+        if old not in text:
+            raise SystemExit("registry: cannot find %r" % old[:60])
+        text = text.replace(old, new)
+    text, n_wave = re.subn(r"  - name: reentrancy\n.*?(?=  - name: document\n)", "", text, flags=re.S)
+    text, n_skill = re.subn(r"  reentrancy:[^\n]*\n    path: reentrancy\n(?:    [^\n]*\n)*\n", "", text)
+    rest = [line for line in text.split("\n") if "reentrancy" in line and "reentrancy/reentrancy.py" not in line
+            and "no reentrancy" not in line and "reentrancy wave" not in line and "没有 reentrancy" not in line]
+    if n_wave != 1 or n_skill != 1 or rest:
+        raise SystemExit("registry: cannot drop the reentrancy wave: %s" % rest)
     return text
 
 

@@ -12,9 +12,13 @@ written into the browser's Python (Pyodide) file system under `/sp/`:
 | `fs/skillparseumr/skillsets/tools/propbank.py` | 〃 | the PropBank lookup `jevlib.py` loads |
 | `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV), English PropBank arg descriptions, and the PropBank frames: each folder of one XML file per lemma (24,521 Chinese, 5,618 English) merged into one JSON file, `chinese-propbank.json` and `english-propbank/propbank-amr-frames-xml-2018-01-25.json` |
 
-The composition makes three changes to the procedures: `registry.yaml` gets `kind: jev` on
+The composition makes these changes to the procedures: `registry.yaml` gets `kind: jev` on
 `sent_type` and a header saying where everything came from; the `coverage` rule is left out (its
-registry entry and the dispatcher rules that ran it); and `jevlib.py` does not use jieba. sent_type
+registry entry and the dispatcher rules that ran it); the reentrancy wave is left out, so there are
+two waves (sentence, document), and the document wave reads the sentence wave's trees (its
+`skill.md` says so); and `jevlib.py` does not use jieba. Re-entrancy is merged when the `.umr` is
+written, by span, with `reentrancy/reentrancy.py` (kept as a file the page loads; see
+`RegistryEngine.merges`); steps loaded from a file keep the merges the file has. sent_type
 needs no words, so a Chinese piece is cut only at punctuation (a run of characters between
 punctuation marks is one word) and English keeps its tokens. Each skill then runs as `src/skill_callable.py` runs
 it (`js/skillparse/models.js`, `data/skillparse/bridge/sp_bridge.py`):

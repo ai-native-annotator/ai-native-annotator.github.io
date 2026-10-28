@@ -7,8 +7,8 @@ sentences before it, each with the tree its sentence graph was built from.
 
 The input is under **Input** at the end: the language; the sentences (each
 has `index`, its sentence number, and `text`), the last one being the current
-sentence; and the trees, in the same order. Each tree is the output of the
-reentrancy step; the sentence's own tree is under `nodes[0].input.tree.nodes`.
+sentence; and the trees, in the same order. Each tree is the
+sentence's tree of steps (web: no reentrancy step), its nodes under `nodes`.
 A node is `{{"id", "skill", "input": {{"text", "span"}}, "parent", "edge", "graph", ...}}`;
 `graph` is the node's fragment (its first node is the node's own concept). A
 node from `predicate` is an **event**; nodes from `np_phrase`,

@@ -1,20 +1,20 @@
 # web-procedures/zh, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:
 # experiment/decision-orchestration/umr-zh-frag/versions/R42, with sent_type from experiment/decision-orchestration/umr-zh-v11/versions/V12 (kind: jev, and jevlib.py, prompt_loader.py, event_modifiers.py, event_modifiers.yaml it imports).
 # Every other model skill is kind: agent: its skill.md, answered by Haiku.
-# Left out on the web: coverage. jevlib.py cuts a Chinese piece only at punctuation (no jieba).
+# Left out on the web: coverage, and the reentrancy wave (merged by span when the .umr is written).
+# jevlib.py cuts a Chinese piece only at punctuation (no jieba).
 # umr-tree skillset. 语法说明见 skillsets/REGISTRY.md。
 #
-# 三波，按顺序跑：
+# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时按 span 合并：同类型、同 span 的节点，
+# 和并到同 span（或中心词同 span）节点上的 antecedent，规则是 reentrancy/reentrancy.py）：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
-#   reentrancy  每句一个 episode，规则（不调模型）：把这句树里同类型、同 span 的节点合并，
-#               并把 antecedent 并到同 span（或中心词同 span）的节点上
-#   document    每句一个 episode，看补过重入的这句和它前五句，产出这句的文档级图
+#   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图
 #
 # sentence 这一波里的流向（见文件末尾 dispatcher）：
 #   sent_type ─┬─ discourse ──┬─ 有关系：每块 → sent_type
 #              │              └─ 没关系：整段 → predicate
 #              ├─ predicate ──┬─ 每个 open（占位） → sent_type
-#              │              └─ 每个从句外的参与者 → antecedent（规则，交给 reentrancy 合并）
+#              │              └─ 每个从句外的参与者 → antecedent（规则，写 .umr 时按 span 合并）
 #              ├─ np_phrase ──┬─ 每个 open → sent_type
 #              │              └─ 每个短语外的参与者 → antecedent（如 其同类 的 其）
 #              ├─ special_entity ─┬─ 每个 open → sent_type（一般没有）
@@ -50,19 +50,6 @@ waves:
         text: sentence.text             # 根节点处理整句
         span: sentence.span
 
-  - name: reentrancy
-    start: reentrancy
-    init_input:
-      for_each:                         # 每句一个 episode；两个列表按位置配对
-        sentence: annotation.sents
-        tree: worktree.sentence         # 上一波这一句的树
-      context:
-        sent: sentence.text
-        token_sent: sentence.numbered_tokens   # [[1, "Edmund"], [2, "Pope"], ...]
-        lang: annotation.lang
-      input:
-        tree: tree
-
   - name: document
     start: document
     parallel: 20                        # 只读前面几波的结果，各句可以同时跑
@@ -75,8 +62,8 @@ waves:
         sents:                          # 前五句 + 这一句，这一句在最后；开头几句不足五句就少几项
           window: annotation.sents
           range: [-5, 1]
-        trees:                          # 和 sents 一一对应，reentrancy 补过的树
-          window: worktree.reentrancy
+        trees:                          # 和 sents 一一对应，sentence 这一波的树
+          window: worktree.sentence
           range: [-5, 1]
 
 
@@ -134,7 +121,7 @@ skills:
       polarity: [positive, negative]
     store: [graph, open, alignment, frame, aspect, modstr, polarity]   # 后三个写成谓词的属性
 
-  antecedent:                   # 规则：只记下 span，由 reentrancy 并到同 span（或中心词同 span）的节点上
+  antecedent:                   # 规则：只记下 span，写 .umr 时并到同 span（或中心词同 span）的节点上
     path: antecedent
     kind: rule
     input:
@@ -168,16 +155,7 @@ skills:
       alignment: list[int]
     store: [graph, open, outside, alignment]
 
-  # ---- 整篇的两波 ----
-
-  reentrancy:                   # 规则：跑 reentrancy/reentrancy.py 的 run()，不调模型
-    path: reentrancy
-    kind: rule
-    input:
-      tree: dict                # 这一句的树
-    emit:
-      merges: list[dict]        # 每个 {node, into}：两个节点 span 相同，node 并进 into
-    store: [merges]
+  # ---- 整篇的一波 ----
 
   document:                     # TODO: 时间、模态、共指，一个 skill 还是拆开
     path: document
@@ -227,7 +205,7 @@ dispatcher:
       run: sent_type
       input: {text: hole.text, span: hole.span}
       edge: hole.var
-    # 从句之外的参与者不再展开，只留一个 antecedent，由 reentrancy 合并
+    # 从句之外的参与者不再展开，只留一个 antecedent，写 .umr 时按 span 合并
     - each: {other: predicate_emit.outside}
       run: antecedent
       input: {text: other.text, span: other.span}
@@ -238,7 +216,7 @@ dispatcher:
       run: sent_type
       input: {text: hole.text, span: hole.span}
       edge: hole.var
-    # 短语外面的参与者：和 predicate 一样只留一个 antecedent，由 reentrancy 合并；
+    # 短语外面的参与者：和 predicate 一样只留一个 antecedent，写 .umr 时按 span 合并；
     # edge 是 outside 的变量（不是角色），合并后 output handler 用它填这个变量
     - each: {other: np_phrase_emit.outside}
       run: antecedent
@@ -255,4 +233,4 @@ dispatcher:
       input: {text: other.text, span: other.span}
       edge: other.var
 
-  # antecedent / reentrancy / document：没有后续
+  # antecedent / document：没有后续

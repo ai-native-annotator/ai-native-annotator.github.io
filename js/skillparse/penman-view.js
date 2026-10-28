@@ -84,9 +84,6 @@ export function outputPenman(skill, o, input = {}) {
     }).filter(Boolean);
     return parts.length ? `(sentence\n${parts.join('\n')})` : '(sentence)';
   }
-  if ('merges' in o && Array.isArray(o.merges)) {
-    return o.merges.length ? o.merges.map((m) => `# ${m.node} = ${m.into}`).join('\n') : '# —';
-  }
   if ('relation' in o && Array.isArray(o.parts)) {
     if (o.relation === 'none') return `${node(input.text)}\n# none: predicate takes the whole piece`;
     const kids = o.parts.map((x) => `${PAD}${role(x.role)} ${node(x.text)}`);
