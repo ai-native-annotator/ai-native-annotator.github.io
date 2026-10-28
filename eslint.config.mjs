@@ -27,6 +27,16 @@ export default [
     },
   },
   {
+    // The block above replaces the recommended rules with its own `rules`, so
+    // no-undef and the rest are off for js/; the SkillParse page gets them back
+    // (an undefined name in its settings dialog once reached the deployed site).
+    files: ['js/skillparse/**/*.js'],
+    rules: {
+      ...js.configs.recommended.rules,
+      'no-unused-vars': 'off',
+    },
+  },
+  {
     files: ['docs/verification/**/*.js'],
     ...js.configs.recommended,
     languageOptions: {

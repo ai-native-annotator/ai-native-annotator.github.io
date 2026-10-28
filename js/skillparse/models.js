@@ -23,6 +23,12 @@ export const ROLES = {
 
 export const PROVIDERS = ['openrouter', 'anthropic', 'openai'];
 
+/** The model name each provider knows a role's model by (OpenRouter and Anthropic name Haiku differently). */
+export const MODEL_DEFAULTS = {
+  haiku: { openrouter: 'anthropic/claude-haiku-5.5', anthropic: 'claude-haiku-5-5', openai: '' },
+  reflect: { openrouter: 'anthropic/claude-sonnet-5.5', anthropic: 'claude-sonnet-5-5', openai: '' },
+};
+
 const DEFAULTS = {
   roles: {
     haiku: { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' },

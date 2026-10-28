@@ -91,7 +91,7 @@ decision-orchestration V12); every other model skill (`discourse`, `predicate`, 
 `special_entity`, `document`) is `kind: agent`: its `skill.md` is the prompt and **Haiku** answers,
 with the skill's tools (`get_example`, `propbank_lookup`), as `src/skill_callable.py` does. The
 Chinese prompts are decision-orchestration's `umr-zh-frag` R42, the English ones the `umr-tree` seed.
-Both models go through OpenRouter, so one OpenRouter key runs it. The layout follows the registry:
+Jev goes through OpenRouter; Haiku through the OpenRouter key or straight to the Anthropic API with an Anthropic key, as chosen in ⚙. The layout follows the registry:
 
 | Pane          | What it holds                                                                                                                                                                 |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

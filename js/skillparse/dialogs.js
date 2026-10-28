@@ -2,7 +2,7 @@
 
 import { h, openModal, closeModal, toast, download } from './ui.js';
 import { S, SKILLSETS, assembled, loadDocs, open, warm } from './core.js';
-import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, shapeAnswers } from './models.js';
+import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, MODEL_DEFAULTS, shapeAnswers } from './models.js';
 import { bundle } from './store.js';
 import { py } from './py.js';
 import { t } from './i18n.js';
@@ -14,15 +14,19 @@ export function openSettings() {
     const inp = h('input', { type: 'password', value: k[p] || '', placeholder: { openrouter: 'sk-or-…', anthropic: 'sk-ant-…', openai: 'sk-…' }[p], autocomplete: 'off' });
     return [p, inp];
   });
+  // which key each model role uses; the model name follows the provider unless it was typed in
   const roleInputs = Object.keys(ROLES).map((r) => {
-    const prov = h('select', {}, PROVIDERS.map((p) => h('option', { value: p, text: p, selected: cfg.roles[r].provider === p })));
-    const model = h('input', { type: 'text', value: cfg.roles[r].model });
+    const prov = h('select', { 'aria-label': t(`roleNames.${r}`) },
+      PROVIDERS.map((p) => h('option', { value: p, text: t(`via.${p}`), selected: cfg.roles[r].provider === p })));
+    const model = h('input', { type: 'text', value: cfg.roles[r].model, 'aria-label': t('model') });
+    prov.addEventListener('change', () => {
+      const known = Object.values(MODEL_DEFAULTS[r] || {});
+      if (!model.value.trim() || known.includes(model.value.trim())) model.value = MODEL_DEFAULTS[r]?.[prov.value] || '';
+    });
     return [r, prov, model];
   });
   const backend = h('select', {},
-    [['route', t('byRoute')], ['jev', t('allJev')], ['haiku', t('allHaiku')], ['manual', t('jevManual')]].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.backend === v })));
-  const routeInputs = Object.keys(DEFAULT_ROUTE).map((skill) => [skill, h('select', {},
-    [['jev', 'Jev'], ['haiku', 'Haiku']].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.route[skill] === v })))]);
+    [['jev', 'Jev'], ['manual', t('jevManual')]].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.backend === v })));
   const url = h('input', { type: 'text', value: cfg.jev.url });
   const jmodel = h('input', { type: 'text', value: cfg.jev.model });
   const jkey = h('input', { type: 'password', value: cfg.jev.key || '', autocomplete: 'off', placeholder: t('jevKeyHint') });
@@ -32,7 +36,9 @@ export function openSettings() {
     h('h4', { text: t('keys') }),
     h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' }, keyInputs.map(([p, inp]) => [h('label', { text: p }), inp])),
     h('h4', { text: t('roles') }),
-    h('div', { class: 'form-grid' }, roleInputs.map(([r, prov, model]) => [h('label', { text: t(`roleNames.${r}`) }), prov, model])),
+    h('div', { class: 'form-grid' },
+      h('span'), h('span', { class: 'note', text: t('whichKey') }), h('span', { class: 'note', text: t('model') }),
+      roleInputs.map(([r, prov, model]) => [h('label', { text: t(`roleNames.${r}`) }), prov, model])),
     h('h4', { text: t('jevBackend') }),
     h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' },
       h('label', { text: t('jevBackend') }), backend,
@@ -40,7 +46,6 @@ export function openSettings() {
       h('label', { text: t('jevModel') }), jmodel,
       h('label', { text: t('jevKey') }), jkey,
       h('label', { text: t('concurrency') }), conc),
-
     h('div', { class: 'row' }, h('button', { class: 'btn primary', text: t('saveSettings'), onclick: () => {
       keyInputs.forEach(([p, inp]) => saveKey(p, inp.value));
       saveSettings({

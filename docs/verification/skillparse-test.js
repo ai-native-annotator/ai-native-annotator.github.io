@@ -100,6 +100,19 @@ async function chat(route) {
   return reply(route, 'final_result', emitFor(body.tools.find((t) => t.function.name === 'final_result').function.parameters));
 }
 
+/** Haiku through the Anthropic API (the Messages API's tool_use blocks). */
+const anth = { calls: 0, models: new Set() };
+async function anthropic(route) {
+  const body = JSON.parse(route.request().postData());
+  anth.calls++;
+  anth.models.add(body.model);
+  const names = body.tools.map((x) => x.name);
+  const used = body.messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === 'tool_result'));
+  const use = (name, input) => route.fulfill({ json: { content: [{ type: 'tool_use', id: `t${Math.random()}`, name, input }], stop_reason: 'tool_use' } });
+  if (!used && names.includes('get_example')) return use('get_example', {});
+  return use('final_result', emitFor(body.tools.find((x) => x.name === 'final_result').input_schema));
+}
+
 const statusIs = (page, re, timeout = 120000) =>
   page.waitForFunction((src) => new RegExp(src).test(document.getElementById('status').textContent), re.source, { timeout });
 
@@ -109,6 +122,7 @@ const statusIs = (page, re, timeout = 120000) =>
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, acceptDownloads: true, locale: 'zh-CN' });
   await ctx.route('https://openrouter.ai/api/v1/systemone', systemone);
   await ctx.route('https://openrouter.ai/api/v1/chat/completions', chat);
+  await ctx.route('https://api.anthropic.com/**', anthropic);
   await ctx.addInitScript(() => {
     localStorage.setItem('annotator_secrets', JSON.stringify({ apiKeys: { openrouter: 'test-key' } }));
     localStorage.setItem('skillparse_lang', 'zh');
@@ -197,6 +211,27 @@ const statusIs = (page, re, timeout = 120000) =>
   await statusIs(page, /完成|出错/);
   const en = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('the English procedure runs', en.length >= 3 && en.every((s) => s === '✓'), en.join(''));
+
+  // Settings: Haiku through the Anthropic key instead of OpenRouter
+  await page.click('#btn-settings');
+  const sel = await page.$('#modal select[aria-label^="Haiku"]');
+  await sel.selectOption('anthropic');
+  const haikuModel = await page.$eval('#modal select[aria-label^="Haiku"] + input', (e) => e.value);
+  check('choosing the Anthropic key switches the model name', haikuModel === 'claude-haiku-5-5', haikuModel);
+  await page.fill('#modal input[placeholder="sk-ant-…"]', 'test-anthropic-key');
+  await page.click('#modal button:text-is("保存")');
+  const before = calls.haiku;
+  await page.click('button:text-is("↻ 重新开始")');
+  await page.click('button:text-is("运行到底")');
+  // the status line still says the last run's "完成": wait for the steps themselves
+  await page.waitForFunction(() => {
+    const st = [...document.querySelectorAll('.tree li .st')].map((e) => e.textContent);
+    return st.length >= 3 && st.every((x) => x === '✓' || x === '✕');
+  }, null, { timeout: 120000 }).catch(() => {});
+  check('Haiku then goes through the Anthropic API, not OpenRouter', anth.calls > 0 && calls.haiku === before
+    && [...anth.models].every((m) => m === 'claude-haiku-5-5'), `${anth.calls} Anthropic calls, models ${[...anth.models]}`);
+  const done = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
+  check('and the steps finish', done.length >= 3 && done.every((x) => x === '✓'), done.join(''));
 
   check('no page errors', errs.length === 0, errs.slice(0, 5).join('\n      '));
   await browser.close();

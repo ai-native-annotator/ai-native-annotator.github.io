@@ -20,14 +20,25 @@ it (`js/skillparse/models.js`, `data/skillparse/bridge/sp_bridge.py`):
 - `kind: agent` (every other model skill): `skill.md` filled in and split at `## Input` behind the
   "# Output Format" line, the system prompt of `scripts/run_experiment.py`, the tools found as
   `skill_callable._load` finds them (the skill's `tools/`, its skillset's, the folder's next to it),
-  sent to Haiku (`anthropic/claude-haiku-5.5`); the answer comes back through the `final_result`
-  output tool and is checked against `emit`, with one retry (`agent.run`'s `retries=1`).
+  sent to Haiku; the answer comes back through the `final_result` output tool and is checked
+  against `emit`, with one retry (`agent.run`'s `retries=1`). Haiku goes through the OpenRouter key
+  (`anthropic/claude-haiku-5.5`) or straight to the Anthropic API with an Anthropic key
+  (`claude-haiku-5-5`), as chosen in ⚙.
 - `kind: rule`: Python, no model.
 
 Every copied `propbank.py` that reads the Chinese frame files is patched by the sync script to read
 the merged file instead; the answers are identical to the original for every one of the 24,521
-Chinese lemmas. (`get_example` imports `pydantic_ai.RunContext` for its type; the browser has no
-pydantic-ai, so the bridge supplies a `RunContext` that carries `deps`, as the Runner passes them.)
+Chinese lemmas.
+
+pydantic-ai does not run in the browser, and nothing here needs it. Upstream, `src/agent.py` uses it
+for two things: the loop that sends the prompt, runs the tool calls the model asks for and takes the
+answer from the `final_result` output tool; and validating that answer against `emit`. The browser
+does the first in `js/skillparse/models.js` (the same loop over the Anthropic Messages API or an
+OpenAI-style chat API; the tools themselves run in Python in the bridge) and the second in the bridge
+(`_check_emit`: every `emit` field present, enum values from the list, lists and objects where
+declared). The one import of pydantic-ai left in the copied code is `get_example`'s type annotation
+(`ctx: RunContext[dict]` in `skillsets/tools/example.py`); the bridge registers a small
+`pydantic_ai` module whose `RunContext` only carries `deps`, which is all the tool reads.
 
 The reflection code (`rsi-batch/`) is not copied: the page's own reflection is per step and
 human-driven (see `js/skillparse/reflect.js`).

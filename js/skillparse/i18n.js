@@ -1,6 +1,7 @@
 /** Interface strings, Chinese and English. t(key, {var}) fills {var}. */
 
 const ZH = {
+  via: { openrouter: '用 OpenRouter key', anthropic: '用 Anthropic key（直连）', openai: '用 OpenAI key' }, whichKey: '走哪个 key',
   roleNames: { haiku: 'Haiku：运行每个 agent skill（它的 skill.md）', reflect: '反思（找 skill 的问题、提修改）' },
   tabGraph: '图', tabUmr: 'UMR 文本', fragment: '这一步写出的图片段（虚线框 = 交给下一步的占位）：',
   graphOf: '第 {n} 句的图', graphHelp: '框 = 节点（概念 / 变量 · 对齐的字）；蓝框 = 当前这一步写的；橙色虚线 = 重入。点框跳到写它的那一步，悬停看对齐的字。',
@@ -54,6 +55,7 @@ const ZH = {
 };
 
 const EN = {
+  via: { openrouter: 'OpenRouter key', anthropic: 'Anthropic key (direct)', openai: 'OpenAI key' }, whichKey: 'Which key',
   roleNames: { haiku: 'Haiku: runs every agent skill (its skill.md)', reflect: 'Reflection (finds skill problems, proposes edits)' },
   tabGraph: 'Graph', tabUmr: 'UMR text', fragment: 'The graph fragment this step wrote (dashed = placeholders handed to the next steps):',
   graphOf: 'Sentence {n} graph', graphHelp: 'Box = node (concept / variable · aligned words); blue = written by the selected step; orange dashed = re-entrancy. Click a box to go to the step that wrote it; hover to see its words.',
