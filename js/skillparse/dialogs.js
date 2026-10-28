@@ -1,6 +1,6 @@
 /** Settings, import, export, and answering Jev's questions by hand. */
 
-import { h, openModal, closeModal, toast, download } from './ui.js';
+import { h, openModal, closeModal, toast, download, pretty } from './ui.js';
 import { S, SKILLSETS, assembled, loadDocs, open } from './core.js';
 import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, MODEL_DEFAULTS, shapeAnswers } from './models.js';
 import { bundle } from './store.js';
@@ -147,7 +147,7 @@ export function answerByHand(state, questions) {
     });
     let done = false;
     const body = h('div', { style: 'display:grid;gap:6px' },
-      h('details', {}, h('summary', { text: 'state' }), h('pre', { class: 'block', text: JSON.stringify(state, null, 1) })),
+      h('details', {}, h('summary', { text: 'state' }), h('pre', { class: 'block', text: pretty(state) })),
       rows,
       h('div', {}, h('button', { class: 'btn primary', text: t('manualGo'), onclick: () => { done = true; closeModal(); resolve(shapeAnswers(questions, picks)); } })));
     openModal(t('manualTitle', { n: rows.length }), body, { close: () => { if (!done) reject(new Error(t('stopped'))); } });

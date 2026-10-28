@@ -1,5 +1,7 @@
 /** Small DOM helpers. Text always goes in as text, never as HTML. */
 
+import { jsonText } from './diff.js';
+
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -60,7 +62,7 @@ export function download(name, text, type = 'text/plain;charset=utf-8') {
 }
 
 export function pretty(v) {
-  return typeof v === 'string' ? v : JSON.stringify(v, null, 1);
+  return typeof v === 'string' ? v : jsonText(v);
 }
 
 /** A diff rendered as lines (see diff.js). */

@@ -50,5 +50,23 @@ export function hunks(diff, context = 2) {
 export function stable(value) {
   const sort = (v) => (Array.isArray(v) ? v.map(sort)
     : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sort(v[k])])) : v);
-  return JSON.stringify(sort(value), null, 1);
+  return jsonText(sort(value));
+}
+
+const entries = (o) => Object.entries(o).filter(([, x]) => x !== undefined);
+
+/** One value on one line: `[1, 2]`, `{"var": "x", "span": [1, 1]}`. */
+function inline(v) {
+  if (Array.isArray(v)) return `[${v.map(inline).join(', ')}]`;
+  if (v && typeof v === 'object') return `{${entries(v).map(([k, x]) => `${JSON.stringify(k)}: ${inline(x)}`).join(', ')}}`;
+  return JSON.stringify(v) ?? 'null';
+}
+
+/** JSON for reading: an object one key per line, everything inside [] on one line. */
+export function jsonText(value, indent = '') {
+  if (Array.isArray(value) || !value || typeof value !== 'object') return inline(value);
+  const kv = entries(value);
+  if (!kv.length) return '{}';
+  const pad = `${indent}  `;
+  return `{\n${kv.map(([k, x]) => `${pad}${JSON.stringify(k)}: ${jsonText(x, pad)}`).join(',\n')}\n${indent}}`;
 }

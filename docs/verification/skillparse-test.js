@@ -90,6 +90,7 @@ async function stepThrough(page, max = 80) {
 
   // a skill.md opens rendered as Markdown; the edit tab is its source
   await page.click('#skills .skill:has(.name:text-is("predicate")) .file:text-is("skill.md")');
+  await page.waitForSelector('#modal .md');
   const md = await page.$eval('#modal .md', (e) => ({ h1: e.querySelector('h1')?.textContent, tables: e.querySelectorAll('table').length,
     slots: [...e.querySelectorAll('.md-slot')].map((x) => x.textContent), raw: /\*\*|^#/m.test(e.innerText) }));
   const areaShown = await page.isVisible('#modal textarea.code');
