@@ -3,24 +3,19 @@
 Jev only judges (noul / choice / score); it never writes a span or a concept.
 So everything a skill could answer is listed here first, from the tokens:
 
-  - words: the input is one token per Chinese character, so a sentence is cut
-    into words with jieba; a word is (first, last, text) in token numbers. A
+  - words: the input is one token per Chinese character, and (web: no jieba) a sentence
+    is cut only at punctuation; a word is (first, last, text) in token numbers. A
     "which word" question is a choice among the words of the piece.
   - phrases: a "which part of the clause is this word in" question per word,
     then runs of words with the same answer are the phrases (placeholders).
   - numbers, pronouns, function words: fixed lists, no question.
 """
 import functools
-import logging
 import os
 import re
 import importlib.util
 from dataclasses import dataclass
 
-import jieba
-import jieba.posseg
-
-jieba.setLogLevel(logging.WARNING)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = HERE
@@ -78,21 +73,17 @@ def words(token_sent, lang):
 def _words(tokens, lang):
     if lang != "zh":
         return tuple(Word(k, k, t) for k, t in tokens)
-    owner, chars = [], []           # char offset -> token number
-    for k, t in tokens:
-        chars.append(t)
-        owner += [k] * len(t)
+    # web: no jieba. sent_type needs no words, so a Chinese piece is cut only at punctuation: a
+    # run of tokens between punctuation marks is one word, each mark a word of its own
     out = []
-    at = 0
-    for piece in _split(jieba.cut("".join(chars), HMM=False)):
-        first, last = owner[at], owner[at + len(piece) - 1]
-        at += len(piece)
-        if out and first <= out[-1].last:           # a word ending inside a token: one word
-            prev = out.pop()
-            out.append(Word(prev.first, last, prev.text + piece))
+    for k, t in tokens:
+        if PUNCT.match(t) or not out or PUNCT.match(out[-1].text):
+            out.append(Word(k, k, t))
         else:
-            out.append(Word(first, last, piece))
-    return tuple(_glue_unknown(_glue_names(out)))
+            prev = out.pop()
+            gap = " " if re.match(r"[A-Za-z0-9]", t) and re.search(r"[A-Za-z0-9]$", prev.text) else ""
+            out.append(Word(prev.first, k, prev.text + gap + t))
+    return tuple(_glue_names(out))
 
 
 NAME_DOTS = set("·・．•‧")
@@ -142,27 +133,6 @@ def _translit(w):
     return bool(w.text) and w.text not in FUNCTION_ZH and all(c in TRANSLIT for c in w.text)
 
 
-def _glue_unknown(ws):
-    """A foreign name the dictionary does not know comes out of jieba in pieces
-    (single characters, or a character and a short word): neighbouring words
-    made only of transliteration characters, at least one of them a single
-    character and three characters or more in all, are one word."""
-    out, i = [], 0
-    while i < len(ws):
-        j = i
-        while j < len(ws) and _translit(ws[j]) and (j == i or ws[j].first == ws[j - 1].last + 1):
-            j += 1
-        run = ws[i:j]
-        txt = "".join(w.text for w in run)
-        if len(run) > 1 and len(txt) >= 3 and any(len(w.text) == 1 for w in run):
-            out.append(Word(run[0].first, run[-1].last, txt))
-            i = j
-        else:
-            out.append(ws[i])
-            i += 1
-    return out
-
-
 def _name_side(w):
     return not is_punct(w) and not re.search(r"\d", w.text) and w.text not in FUNCTION_ZH
 
@@ -175,48 +145,6 @@ SPLIT_KEEP = set("""
 此外 此时 此后 此前 此刻 此致 此间 此地 该当 该死 该着 未来 未必 未曾 最后 最近 最初 最终 最好 最为 甚至 甚么
 """.split())
 WHOLE_TAGS = ("i", "nr", "ns", "nt", "nz")
-
-
-def _split(pieces):
-    """Cut a jieba word where the gold has two concepts (see _parts)."""
-    jieba.dt.check_initialized()
-    tags = jieba.posseg.dt.word_tag_tab
-    freq = jieba.dt.FREQ
-    prev = ""
-    for w in pieces:
-        for p in _parts(w, prev, tags, freq):
-            yield p
-            prev = p
-
-
-def _parts(w, prev, tags, freq):
-    """The pieces of one jieba word, never cutting an idiom, a name or a word of
-    SPLIT_KEEP:
-      - a demonstrative fused with its noun (该国, 此人 -> 该 | 国, 此 | 人);
-      - right after a demonstrative or a number, a classifier fused with its
-        noun (这 | 本书 -> 这 | 本 | 书);
-      - a four-character verb + object or noun + verb phrase whose halves are
-        both common words (发生爆炸, 巡回演唱)."""
-    tag = tags.get(w, "n")
-    if w in ("这种", "那种"):
-        return [w[0], w[1]]       # demonstrative + classifier: gold writes :mod 这 and :unit 种
-    if len(w) >= 2 and w.endswith(PLURAL) and w not in PLURAL_KEEP and w != "人们" and w not in PRONOUNS["zh"] \
-            and not tag.startswith("r"):
-        return [w[:-1], PLURAL]     # noun + plural suffix: the noun alone is the concept
-    if len(w) < 2 or w in SPLIT_KEEP or tag in WHOLE_TAGS:
-        return [w]
-    if len(w) >= 3 and w[0] == "总" and freq.get(w[1:], 0) > 1000 and tags.get(w[1:], "").startswith("n"):
-        return [w[0], w[1:]]        # a rank prefix on a common noun: gold writes noun :mod 总
-    head, rest = w[0], w[1:]
-    if head in DEMONSTRATIVE_HEADS and tag not in ("c", "d", "p", "t", "f", "v", "a") \
-            and rest not in FUNCTION_ZH and (len(rest) == 1 or tags.get(rest, "").startswith("n")):
-        return [head, rest]
-    if head in CLASSIFIERS and (prev in COUNTERS or number(prev) is not None) \
-            and freq.get(rest, 0) > 1000 and tags.get(rest, "").startswith("n"):
-        return [head, rest]
-    if len(w) == 4 and freq.get(w[:2], 0) > 1000 and freq.get(w[2:], 0) > 1000:
-        return [w[:2], w[2:]]
-    return [w]
 
 
 def inside(token_sent, span, lang):
@@ -327,8 +255,7 @@ def _stack_break(last, pending, lang):
         return True
     if pending or lang != "zh":
         return False
-    jieba.dt.check_initialized()
-    return last.text not in DEGREE and not jieba.posseg.dt.word_tag_tab.get(last.text, "").startswith("d")
+    return last.text not in DEGREE
 
 
 def runs(ws, labels, lang, bridge=(), stack=()):
@@ -505,43 +432,7 @@ def name_parts(piece, lang):
         if chunk in NAME_MARK_CHARS or chunk in NAME_DOT_CHARS or (dotted and not re.search(r"\d", chunk)):
             parts.append(chunk)
         else:
-            parts += _name_words(chunk)
+            parts.append(chunk)
     return parts
 
 
-def _name_words(chunk):
-    jieba.dt.check_initialized()
-    tags = jieba.posseg.dt.word_tag_tab
-    freq = jieba.dt.FREQ
-    ws = []
-    for w in jieba.cut(chunk):
-        w = w.strip()
-        if w and w not in "，,。；;、":
-            ws += _place_first(w, tags, freq)
-    out, k = [], 0
-    while k < len(ws):
-        if _lone(ws[k]) and not (k > 0 and _lone(ws[k - 1])) and k + 1 < len(ws) and len(ws[k + 1]) > 1 \
-                and re.fullmatch(r"[一-鿿]+", ws[k + 1]) and ws[k + 1] not in FUNCTION_ZH:
-            out.append(ws[k] + ws[k + 1])
-            k += 2
-        else:
-            out.append(ws[k])
-            k += 1
-    return out
-
-
-def _lone(w):
-    """A single Chinese character that is not a function word, pronoun, numeral
-    or modifier like 前: a piece of a name the segmenter did not know."""
-    return len(w) == 1 and "一" <= w <= "鿿" and w not in FUNCTION_ZH and w not in PRONOUNS["zh"] \
-        and w not in NOT_NAME_START and w not in DIGITS and w not in UNITS and w not in BIG
-
-
-def _place_first(w, tags, freq):
-    """A name word that starts with a place name (a country + a party, an
-    academy, a building) is two parts."""
-    if len(w) >= 4 and tags.get(w) in ("nt", "nz", "ns"):
-        for k in range(2, len(w) - 1):
-            if tags.get(w[:k]) == "ns" and freq.get(w[k:], 0) > 0:
-                return [w[:k], w[k:]]
-    return [w]

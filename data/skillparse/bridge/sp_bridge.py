@@ -814,8 +814,6 @@ class RegistryEngine:
             return " ".join(str(x.get("concept")) for x in g["nodes"][:4])
         if "merges" in o:
             return "%d merges" % len(o["merges"])
-        if "gaps" in o:
-            return "%d gaps" % len(o["gaps"])
         if "relations" in o:
             return "%d relations" % len(o["relations"])
         if "span" in o:
@@ -1016,19 +1014,6 @@ class Session:
 
     def boot(self):
         return {"python": sys.version.split()[0]}
-
-    def warm(self):
-        """Load jieba's dictionary and tagger. Only Chinese sent_type needs them (jevlib groups
-        the character tokens into words for Jev's questions); the page calls this before the
-        first step of a Chinese document, so an English one never loads them."""
-        import logging
-        import warnings
-        warnings.filterwarnings("ignore", category=SyntaxWarning)     # jieba 0.42's regex strings
-        import jieba
-        import jieba.posseg  # noqa: F401
-        jieba.setLogLevel(logging.WARNING)
-        jieba.initialize()
-        return True
 
     def docs(self):
         out = []

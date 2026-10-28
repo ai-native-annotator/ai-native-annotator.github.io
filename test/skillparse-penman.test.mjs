@@ -69,7 +69,7 @@ test('nested nodes, re-entrancy and quoted constants', () => {
   );
 });
 
-test('discourse, sent_type, coverage and document outputs', () => {
+test('discourse, sent_type and document outputs', () => {
   assert.equal(
     outputPenman('discourse', {
       relation: 'and',
@@ -83,10 +83,6 @@ test('discourse, sent_type, coverage and document outputs', () => {
   assert.equal(
     outputPenman('sent_type', { type: 'predicate', graph: {}, outside: [] }, { text: '他来了' }),
     '# predicate → <node: 他来了>',
-  );
-  assert.equal(
-    outputPenman('coverage', { gaps: [{ text: '也', role: 'mod' }] }),
-    ':mod <node: 也>',
   );
   assert.equal(
     outputPenman('document', {

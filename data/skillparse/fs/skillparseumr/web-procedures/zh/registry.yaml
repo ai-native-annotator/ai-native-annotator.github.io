@@ -1,6 +1,7 @@
 # web-procedures/zh, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:
 # experiment/decision-orchestration/umr-zh-frag/versions/R42, with sent_type from experiment/decision-orchestration/umr-zh-v11/versions/V12 (kind: jev, and jevlib.py, prompt_loader.py, event_modifiers.py, event_modifiers.yaml it imports).
 # Every other model skill is kind: agent: its skill.md, answered by Haiku.
+# Left out on the web: coverage. jevlib.py cuts a Chinese piece only at punctuation (no jieba).
 # umr-tree skillset. 语法说明见 skillsets/REGISTRY.md。
 #
 # 三波，按顺序跑：
@@ -13,11 +14,9 @@
 #   sent_type ─┬─ discourse ──┬─ 有关系：每块 → sent_type
 #              │              └─ 没关系：整段 → predicate
 #              ├─ predicate ──┬─ 每个 open（占位） → sent_type
-#              │              ├─ 每个从句外的参与者 → antecedent（规则，交给 reentrancy 合并）
-#              │              └─ coverage（规则）：没分出去的 token → sent_type
+#              │              └─ 每个从句外的参与者 → antecedent（规则，交给 reentrancy 合并）
 #              ├─ np_phrase ──┬─ 每个 open → sent_type
-#              │              ├─ 每个短语外的参与者 → antecedent（如 其同类 的 其）
-#              │              └─ coverage
+#              │              └─ 每个短语外的参与者 → antecedent（如 其同类 的 其）
 #              ├─ special_entity ─┬─ 每个 open → sent_type（一般没有）
 #              │                  └─ 每个外面的参与者 → antecedent（一般没有）
 #              └─ stop（叶子，自带一个小图）── 每个外面的参与者 → antecedent
@@ -169,20 +168,6 @@ skills:
       alignment: list[int]
     store: [graph, open, outside, alignment]
 
-  # 规则：这一块里没有分给任何占位、也不是谓词或中心词本身的实词，送回 sent_type。
-  coverage:
-    path: coverage
-    kind: rule
-    input:
-      span: list[int]
-      graph: dict
-      open: list[dict]
-      outside: list[dict]       # 其中的 at（代词本身的 span）也算覆盖
-      alignment: list[int]
-    emit:
-      gaps: list[dict]          # 每个 {text, span, role}，role 是 mod
-    store: [gaps]
-
   # ---- 整篇的两波 ----
 
   reentrancy:                   # 规则：跑 reentrancy/reentrancy.py 的 run()，不调模型
@@ -247,10 +232,6 @@ dispatcher:
       run: antecedent
       input: {text: other.text, span: other.span}
       edge: other.role
-    # 检查有没有漏掉的实词
-    - run: coverage
-      input: {span: span, graph: predicate_emit.graph, open: predicate_emit.open,
-              outside: predicate_emit.outside, alignment: predicate_emit.alignment}
 
   np_phrase:
     - each: {hole: np_phrase_emit.open}
@@ -263,9 +244,6 @@ dispatcher:
       run: antecedent
       input: {text: other.text, span: other.span}
       edge: other.var
-    - run: coverage
-      input: {span: span, graph: np_phrase_emit.graph, open: np_phrase_emit.open,
-              outside: np_phrase_emit.outside, alignment: np_phrase_emit.alignment}
 
   special_entity:
     - each: {hole: special_entity_emit.open}
@@ -276,12 +254,5 @@ dispatcher:
       run: antecedent
       input: {text: other.text, span: other.span}
       edge: other.var
-
-  coverage:
-    # 漏掉的部分重新判断类型，挂在上面最近的图片段的根上
-    - each: {gap: coverage_emit.gaps}
-      run: sent_type
-      input: {text: gap.text, span: gap.span}
-      edge: gap.role
 
   # antecedent / reentrancy / document：没有后续

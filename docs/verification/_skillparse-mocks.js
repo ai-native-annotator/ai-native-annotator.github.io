@@ -44,6 +44,12 @@ module.exports = function mocks() {
     if ('graph' in out) {
       out.graph = { nodes: [{ var: 'x', concept: 'test-01', span: [1, 1] }], edges: [], attrs: [] };
       if ('alignment' in out) out.alignment = [1, 1];
+      // predicate writes one placeholder, which sent_type then takes (and the dispatcher stops
+      // the second time round: same skill and input as an ancestor)
+      if ('frame' in out) {
+        out.graph.edges = [['x', 'ARG0', 'x1']];
+        out.open = [{ var: 'x1', text: 'placeholder', span: [2, 2] }];
+      }
     }
     return out;
   }

@@ -3,7 +3,7 @@
  * The Python side of index.html, in a Web Worker.
  *
  * Loads Pyodide, writes SkillParseUMR's files (data/skillparse/MANIFEST.json) into its
- * file system under /sp, unpacks the vendored jieba and penman, and answers
+ * file system under /sp, unpacks the vendored penman, and answers
  * {id, method, args} messages by calling sp_bridge.call(method, json). The skills run
  * here exactly as they run from the command line; nothing in the page evaluates them.
  *
@@ -40,7 +40,7 @@ async function boot(base) {
     py.FS.writeFile(dest, texts[k]);
   });
 
-  progress('unpacking jieba and penman …');
+  progress('unpacking penman …');
   py.FS.mkdirTree('/sp/vendor');
   for (const v of manifest.vendor) {
     const buf = await fetchOk(root + v, 'buffer');

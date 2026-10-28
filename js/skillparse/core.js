@@ -80,16 +80,6 @@ export function skillDesc(name) {
 
 // ------------------------------------------------------------------ opening
 
-// jieba's dictionary: only Chinese sent_type uses it (jevlib cuts the characters into words), so
-// it is loaded before the first step of a Chinese document, once, and never for English
-let warming = null;
-export function warm() {
-  if (!warming) {
-    status(t('warming'));
-    warming = py('warm').catch((err) => { warming = null; throw err; });
-  }
-  return warming;
-}
 
 export async function loadDocs() {
   S.docs = await py('docs');
@@ -199,7 +189,6 @@ async function withSlot(fn) {
 
 /** Run one node to the end. Returns the bridge's final result. */
 export async function drive(w, i, nid, signal, { hint } = {}) {
-  if (SKILLSETS.find((s) => s.id === S.skillset)?.lang === 'zh') await warm();
   let r = await py('step', { w, i, nid, ...(hint === undefined ? {} : { hint }) });
   try {
     while (r.need) {

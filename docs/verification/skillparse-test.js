@@ -78,7 +78,7 @@ async function stepThrough(page, max = 80) {
 
   await page.goto(`${BASE}/index.html`);
   await statusIs(page, /就绪/);
-  check('Python boots and the Chinese procedure opens', (await page.$$('.skill')).length >= 9
+  check('Python boots and the Chinese procedure opens', (await page.$$('.skill')).length === 8
     && (await page.$eval('#skillset', (e) => e.value)) === 'web-zh');
   check("the registry's three waves are shown", (await page.$$('.wave-tab')).length === 3);
   check('for_each items are picked one at a time (no checkboxes)', (await page.$$('#context .items input[type=checkbox]')).length === 0);
@@ -86,7 +86,7 @@ async function stepThrough(page, max = 80) {
     e.querySelector('.name').textContent, e.querySelector('.by-jev, .by-haiku')?.textContent || ''])));
   check('only sent_type is Jev; every other model skill is Haiku (kind: agent)', badges.sent_type === '→ Jev'
     && ['discourse', 'predicate', 'np_phrase', 'special_entity', 'document'].every((k) => badges[k] === '→ Haiku')
-    && ['antecedent', 'coverage', 'reentrancy'].every((k) => badges[k] === ''), JSON.stringify(badges));
+    && ['antecedent', 'reentrancy'].every((k) => badges[k] === '') && !('coverage' in badges), JSON.stringify(badges));
 
   // a skill.md opens rendered as Markdown; the edit tab is its source
   await page.click('#skills .skill:has(.name:text-is("predicate")) .file:text-is("skill.md")');
@@ -171,7 +171,7 @@ async function stepThrough(page, max = 80) {
 
   await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
   await page.click('.tab:text-is("输出")');
-  check("a step's output is shown as Penman", /^\(\w+ \/ test-01\n {4}:modal-strength full-affirmative\)$/.test(await page.textContent('#output pre.penman')),
+  check("a step's output is shown as Penman", /^\(x \/ test-01\n {4}:ARG0 <node: placeholder>\n {4}:modal-strength full-affirmative\)$/.test(await page.textContent('#output pre.penman')),
     await page.textContent('#output pre.penman'));
   check("a step's graph fragment is drawn with its output", !!(await page.$('#output .graph-svg')));
   await page.click('#output .edit-btn');

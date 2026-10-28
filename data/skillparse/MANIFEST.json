@@ -18,7 +18,6 @@
 "fs/skillparseumr/src/output_handler/umroutputhandler.py",
 "fs/skillparseumr/src/registry.py",
 "fs/skillparseumr/web-procedures/en/antecedent/antecedent.py",
-"fs/skillparseumr/web-procedures/en/coverage/coverage.py",
 "fs/skillparseumr/web-procedures/en/discourse/reference/example.md",
 "fs/skillparseumr/web-procedures/en/discourse/skill.md",
 "fs/skillparseumr/web-procedures/en/document/reference/example.md",
@@ -41,7 +40,6 @@
 "fs/skillparseumr/web-procedures/tools/propbank.py",
 "fs/skillparseumr/web-procedures/zh/VERSION",
 "fs/skillparseumr/web-procedures/zh/antecedent/antecedent.py",
-"fs/skillparseumr/web-procedures/zh/coverage/coverage.py",
 "fs/skillparseumr/web-procedures/zh/discourse/reference/example.md",
 "fs/skillparseumr/web-procedures/zh/discourse/skill.md",
 "fs/skillparseumr/web-procedures/zh/document/reference/example.md",
@@ -64,7 +62,6 @@
 "fs/skillparseumr/web-procedures/zh/special_entity/skill.md"
 ],
 "vendor": [
-"vendor/jieba-0.42.1.zip",
 "vendor/penman-1.3.1-py3-none-any.whl"
 ]
 }

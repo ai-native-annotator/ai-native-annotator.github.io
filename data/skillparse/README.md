@@ -12,8 +12,11 @@ written into the browser's Python (Pyodide) file system under `/sp/`:
 | `fs/skillparseumr/skillsets/tools/propbank.py` | 〃 | the PropBank lookup `jevlib.py` loads |
 | `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV), English PropBank arg descriptions, and the PropBank frames: each folder of one XML file per lemma (24,521 Chinese, 5,618 English) merged into one JSON file, `chinese-propbank.json` and `english-propbank/propbank-amr-frames-xml-2018-01-25.json` |
 
-The composition is the only change to the procedures: `registry.yaml` gets `kind: jev` on `sent_type`
-and a header saying where everything came from. Each skill then runs as `src/skill_callable.py` runs
+The composition makes three changes to the procedures: `registry.yaml` gets `kind: jev` on
+`sent_type` and a header saying where everything came from; the `coverage` rule is left out (its
+registry entry and the dispatcher rules that ran it); and `jevlib.py` does not use jieba. sent_type
+needs no words, so a Chinese piece is cut only at punctuation (a run of characters between
+punctuation marks is one word) and English keeps its tokens. Each skill then runs as `src/skill_callable.py` runs
 it (`js/skillparse/models.js`, `data/skillparse/bridge/sp_bridge.py`):
 
 - `kind: jev` (`sent_type`): its closed questions go to Jev through OpenRouter (`typesafe/jev-1.13`).
@@ -48,14 +51,11 @@ human-driven (see `js/skillparse/reflect.js`).
   alignments the output left at `0-0` on export.
 - `docs/` — two sample documents from the experiment's test sets, sentences only (`# :: sntN`,
   `Index:`, `Words:`; no gold).
-- `vendor/` — jieba 0.42.1 (MIT; trimmed to the dictionary, `finalseg`, `posseg`) and penman
-  1.3.1 (MIT), unpacked into the Python path at boot. jieba is used only by Chinese sent_type
-  (`jevlib` cuts the character tokens into words for Jev's questions); its dictionary is loaded
-  before the first step of a Chinese document, never for an English one. Import does not use it:
-  the input handler numbers Chinese one character per token.
+- `vendor/` — penman 1.3.1 (MIT), unpacked into the Python path at boot. There is no word
+  segmenter: the input handler numbers Chinese one character per token, and nothing cuts words.
 
 To refresh after the procedures change upstream:
 
 ```bash
-python3 scripts/sync_skillparse.py ../skillparseumr ../modular-parsing <jieba-0.42.1 dir> <penman wheel>
+python3 scripts/sync_skillparse.py ../skillparseumr ../modular-parsing <penman wheel>
 ```
