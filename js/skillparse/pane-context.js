@@ -71,8 +71,9 @@ function draw() {
 
   const list = h('ul', { class: 'items', role: 'listbox', 'aria-label': t('items', { n: S.items.length }) }, S.items.map((it) => {
     const st = it.status.replace('+stale', '');
+    const live = [...S.live.keys()].some((k) => k.startsWith(`${S.wave}|${it.index}|`));
     return h('li', { role: 'option', 'aria-selected': String(it.index === S.item), onclick: () => selectItem(it.index) },
-      h('span', { class: `dot ${st}${it.status.includes('stale') ? ' stale' : ''}`, title: it.status }),
+      h('span', { class: `dot ${live ? 'live' : st}${it.status.includes('stale') ? ' stale' : ''}`, title: live ? t('liveLlmShort') : it.status }),
       h('span', { class: 'n', text: it.index + 1 }), h('span', { class: 'lbl', text: it.label }));
   }));
   const ep = S.episode;

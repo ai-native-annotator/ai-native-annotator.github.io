@@ -78,7 +78,25 @@ function reviewCard(d) {
     d.hint && !hintBox ? h('div', { class: 'note hint-now', text: `${t('hintNow')} ${hintLabel()}${d.hint}` }) : null);
 }
 
+const liveKey = (id) => `${S.wave}|${S.item}|${id}`;
+
+/** A model answering this step: who, how long so far. */
+function liveCard(live) {
+  const what = live.kind === 'jev' ? t('liveJev', { round: live.round, n: live.questions }) : t('liveLlm', { model: live.model });
+  return h('div', { class: 'card live-card', role: 'status' },
+    h('div', { class: 'row' }, h('span', { class: 'spinner' }), h('strong', { text: what }),
+      h('span', { class: 'grow' }), h('span', { class: 'note live-elapsed', dataset: { since: live.since }, text: elapsed(live.since) })),
+    h('div', { class: 'live-bar' }, h('span')),
+    live.retry ? h('div', { class: 'note warn', text: t('retried') }) : null);
+}
+
+const elapsed = (since) => t('elapsed', { s: Math.max(0, Math.round((Date.now() - since) / 1000)) });
+// the seconds on every live card tick on their own, without a redraw
+setInterval(() => document.querySelectorAll('.live-elapsed').forEach((el) => { el.textContent = elapsed(Number(el.dataset.since)); }), 1000);
+
 function outputTab(d) {
+  const live = S.live.get(liveKey(d.id));
+  if (live) return liveCard(live);
   if (d.status === 'pending' && !d.waiting) {
     const wait = S.episode?.awaiting || [];
     return h('div', {}, h('div', { class: 'empty', text: wait.length ? t('confirmFirst', { list: wait.join(', ') }) : '—' }),
@@ -316,9 +334,11 @@ function drawBottom() {
     ep?.error ? h('span', { class: 'note err', text: ep.error }) : null);
   if (!ep?.started) { clear(tree, h('div', { class: 'empty', text: t('notStarted') })); return; }
   clear(tree, h('ul', { class: 'tree' }, ep.nodes.map((n) => {
-    const st = n.waiting ? 'running' : n.status === 'ok' && !n.confirmed ? 'review' : n.status;
-    return h('li', { 'aria-selected': String(n.id === S.node), style: `padding-left:${6 + Math.min(n.depth, 14) * 14}px`, onclick: () => selectNode(n.id), title: n.error || '' },
-      h('span', { class: `st ${st}`, text: n.waiting ? '◐' : STATUS[st] || '?' }),
+    const live = S.live.get(liveKey(n.id));
+    const st = live || n.waiting ? 'running' : n.status === 'ok' && !n.confirmed ? 'review' : n.status;
+    return h('li', { class: live ? 'live' : undefined, 'aria-selected': String(n.id === S.node), title: live ? t(live.kind === 'jev' ? 'liveJevShort' : 'liveLlmShort') : n.error || '', style: `padding-left:${6 + Math.min(n.depth, 14) * 14}px`, onclick: () => selectNode(n.id) },
+      st === 'running' ? h('span', { class: 'st running' }, h('span', { class: 'spinner sm' }))
+        : h('span', { class: `st ${st}`, text: STATUS[st] || '?' }),
       n.edge ? h('span', { class: 'edge', text: `:${n.edge}` }) : null,
       h('span', { class: 'sk', text: n.skill }),
       n.loaded ? h('span', { class: 'human-tag loaded', text: t('loadedTag') })
@@ -329,7 +349,7 @@ function drawBottom() {
       h('span', { class: 'grow' }),
       h('span', { class: 'id', text: n.id.length > 12 ? `…${n.id.slice(-10)}` : n.id }),
       st === 'review' ? h('button', { class: 'play confirm', disabled: S.running > 0, text: '✓', title: t('confirm'), onclick: (e) => { e.stopPropagation(); selectNode(n.id).then(() => confirmNode(n.id)); } }) : null,
-      n.status === 'pending' && !n.waiting && !wait.length ? h('button', { class: 'play', disabled: S.running > 0, text: '▶', title: t('run'), onclick: (e) => { e.stopPropagation(); selectNode(n.id).then(() => runNode(n.id)); } }) : null,
+      n.status === 'pending' && !n.waiting && !live && !wait.length ? h('button', { class: 'play', disabled: S.running > 0, text: '▶', title: t('run'), onclick: (e) => { e.stopPropagation(); selectNode(n.id).then(() => runNode(n.id)); } }) : null,
       n.status !== 'pending' ? h('button', { class: 'play', disabled: S.running > 0, text: '↺', title: t('rerun'), onclick: (e) => { e.stopPropagation(); resetNode(n.id); } }) : null);
   })));
 }

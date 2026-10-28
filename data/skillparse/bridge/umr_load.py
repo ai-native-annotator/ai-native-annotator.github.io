@@ -8,8 +8,8 @@ placeholder (`open`) per child, and each placeholder is again a sent_type step. 
 children is a sent_type `stop` leaf. Every step's input is what a run would have given it: the
 text and span of its part of the sentence, so re-running any of them asks its skill again.
 A second mention of a node (a re-entrancy) is an `outside` participant whose antecedent step has
-the span of the node's own step, so that the merge by span made when the .umr is written (there is
-no reentrancy wave) joins it to that node; the document-level relations become the document
+the span of the node's own step and knows its concept, so that the merge by span and concept made
+when the .umr is written (there is no reentrancy wave) joins it to that node; the document-level relations become the document
 step's output. All of these are written as a person's results (confirmed).
 
 Alignments: the page numbers Chinese one character per token. A file whose Words: are words
@@ -114,6 +114,7 @@ class Loader:
     def __init__(self, engine):
         self.e = engine
         self.problems = []
+        self.merged = []            # two steps the file kept apart, one node by span and concept
         self.count = 0
 
     # -- the file's alignments on the page's tokens
@@ -125,8 +126,15 @@ class Loader:
         lo, hi = self.units.get(a[0]), self.units.get(a[1])
         return [lo[0], hi[1]] if lo and hi else None
 
+    def hint(self, u):
+        """Where a node is in the sentence: its alignment; for a name with none, where its words are."""
+        span = self.span_of(u.var)
+        if span is None and u.concept == "name":
+            span = self.find("".join(str(v).strip('"') for r, v in sorted(u.attrs) if r.startswith("op")))
+        return span
+
     def subtree_span(self, u):
-        spans = [s for s in [self.span_of(u.var)] + [self.subtree_span(k) for _, k in u.kids] if s]
+        spans = [s for s in [self.hint(u)] + [self.subtree_span(k) for _, k in u.kids] if s]
         return [min(s[0] for s in spans), max(s[1] for s in spans)] if spans else None
 
     def find(self, text):
@@ -345,17 +353,21 @@ class Loader:
             node = self.ep["nodes"][ant]
             node["input"] = dict(node["input"], **piece)
             node["output"] = node["stored"] = {"span": piece["span"]}
-            node["into"] = self.where[var]      # the node the file points at (RegistryEngine.merges)
+            node["concept"] = self.by_var[var].concept     # merged by span and concept (RegistryEngine.merges)
             owner = self.ep["nodes"][parent]
             item = dict(owner["output"]["outside"][k], **piece)
             owner["output"]["outside"][k] = item
             if "outside" in owner["stored"]:
                 owner["stored"]["outside"] = owner["output"]["outside"]
             want[ant] = self.where[var]
-        got = {m["node"]: m["into"] for m in self.e.merges(i)}
+        found = self.e.merges(i)
+        got = {m["node"]: m["into"] for m in found}
+        for m in found:
+            if m["node"] not in want:   # the file wrote the same word and concept twice
+                self.merged.append("snt%d %s=%s" % (i + 1, m["node"], m["into"]))
         for ant, into in want.items():
             if got.get(ant) != into:
-                self.problems.append("snt%d: the re-entrancy %s is joined by span to %s, not %s"
+                self.problems.append("snt%d: the re-entrancy %s is joined by span and concept to %s, not %s"
                                      % (i + 1, ant, got.get(ant), into))
         refs = {}
         for var, nid in self.where.items():
@@ -415,6 +427,7 @@ class Loader:
                 e.waves[w].max_depth, e.waves[w].max_nodes = d, m
         how = "word" if "word" in hows else "char" if "char" in hows else "token"
         return {"alignment": how, "converted": how == "word", "sentences": n, "steps": self.count,
+                "merged": len(self.merged),
                 "problems": self.problems[:50], "more_problems": max(0, len(self.problems) - 50)}
 
 

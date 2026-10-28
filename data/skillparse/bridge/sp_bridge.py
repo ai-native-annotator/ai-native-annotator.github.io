@@ -72,6 +72,15 @@ def jsonable(x):
     return str(x)
 
 
+FRAGMENT_SKILLS = ("predicate", "np_phrase", "special_entity")
+
+
+def _concept_key(c):
+    """A concept as the output handler writes it (quotes and spaces made plain)."""
+    c = re.sub(r"[\s()/:\"]+", "-", str(c).strip().strip('"')).strip("-")
+    return c if re.search(r"\w", c) else "thing"
+
+
 def _unconfirmed(n):
     return n["status"] in ("ok", "error") and not n.get("confirmed")
 
@@ -716,7 +725,7 @@ class RegistryEngine:
         self._drop_gens(w, i, nid)
         node.update(status="pending", output=None, stored={}, error=None, rounds=[], prompt=None, human=False,
                     children=[], dropped=[], rules=[], tool_calls=[], retried=False, problems=[],
-                    confirmed=False, loaded=False, into=None)
+                    confirmed=False, loaded=False, concept=None)
         self._mark_stale(w, int(i))
         return self.episode(w, i)
 
@@ -841,32 +850,75 @@ class RegistryEngine:
     # -- output
 
     def merges(self, i):
-        """Which nodes of sentence i's tree are one. There is no reentrancy wave: this is done when
-        the .umr is written, by span, with the procedure's reentrancy/reentrancy.py (two nodes of
-        the same type and span; an antecedent and the node with its span, or its head's).
-        Steps loaded from a file (umr_load) are a person's graph, already merged: two of them are
-        never merged by span, and a loaded antecedent goes to the node the file points at."""
-        tree = self._partial_tree("sentence", i)
+        """Which nodes of sentence i's tree are one. There is no reentrancy wave (nor its rule,
+        reentrancy/reentrancy.py, which merged by type and span): this is done when the .umr is
+        written, by span and concept:
+          - two nodes with the same span and the same concept are one (the later is merged into
+            the first that is not its ancestor); a node is a step that writes a concept
+            (predicate, np_phrase, special_entity, a sent_type leaf), its span is its input's;
+          - an antecedent (a participant written outside a piece) is the first node with its span,
+            else the first whose head (its alignment, or a leaf's node) has it, never one it is
+            inside of; when the antecedent knows the concept it stands for (one loaded from a
+            file does), the node's concept must be that one too, and it may be one it is inside
+            of (a relative clause's participant is the noun it describes)."""
         ep = self.eps["sentence"].get(i)
-        path = os.path.join(os.path.dirname(self.path), "reentrancy", "reentrancy.py")
-        if not tree or not ep or not os.path.exists(path):
+        if not ep:
             return []
-        key = (path, os.stat(path).st_mtime_ns)
-        if key not in self.modules:
-            self.modules[key] = _load_module(path, "skill_rules.reentrancy")
-        try:
-            found = self.modules[key].run(tree=tree)["merges"]
-        except Exception:
-            found = []
-        nodes = ep["nodes"]
-        loaded = lambda nid: bool(nodes.get(nid, {}).get("loaded"))   # noqa: E731
-        pointed = {nid: n["into"] for nid, n in nodes.items() if n.get("into") and n["status"] == "ok"}
-        out = [m for m in found if m["node"] not in pointed and not (loaded(m["node"]) and loaded(m["into"]))]
-        return out + [{"node": nid, "into": into} for nid, into in sorted(pointed.items()) if into in nodes]
+        all_nodes = ep["nodes"]
+        ok = sorted((n for n in all_nodes.values() if n["status"] == "ok"), key=lambda n: node_key(n["id"]))
+
+        def ancestors(nid):
+            out = set()
+            while all_nodes.get(nid, {}).get("parent") is not None:
+                nid = all_nodes[nid]["parent"]
+                out.add(nid)
+            return out
+
+        def concept_of(n):
+            o = n.get("output") or {}
+            if n["skill"] not in FRAGMENT_SKILLS and not (n["skill"] == "sent_type" and o.get("type") == "stop"):
+                return None
+            nodes = (o.get("graph") or {}).get("nodes") or []
+            return _concept_key(nodes[0].get("concept")) if nodes and isinstance(nodes[0], dict) else None
+
+        def head_of(n):
+            o = n.get("output") or {}
+            head = o.get("alignment")
+            if not head and n["skill"] == "sent_type":
+                nodes = (o.get("graph") or {}).get("nodes") or []
+                head = nodes[0].get("span") if nodes and isinstance(nodes[0], dict) else None
+            return tuple(head) if isinstance(head, (list, tuple)) and len(head) == 2 else None
+
+        kept, by_span, by_head, out = {}, {}, {}, []
+        for n in ok:
+            c, span = concept_of(n), n["input"].get("span")
+            if c is None or not span:
+                continue
+            key = (tuple(span), c)
+            into = next((k for k in kept.get(key, []) if k not in ancestors(n["id"])), None)
+            if into is not None:
+                out.append({"node": n["id"], "into": into})
+                continue
+            kept.setdefault(key, []).append(n["id"])
+            by_span.setdefault(tuple(span), []).append((n["id"], c))
+            if head_of(n):
+                by_head.setdefault(head_of(n), []).append((n["id"], c))
+        for n in ok:
+            span = n["input"].get("span")
+            if n["skill"] != "antecedent" or not span:
+                continue
+            want = _concept_key(n["concept"]) if n.get("concept") else None
+            # without a concept, never a node it is inside of; with one, span and concept say which
+            up = ancestors(n["id"]) if want is None else set()
+            into = next((k for k, c in by_span.get(tuple(span), []) + by_head.get(tuple(span), [])
+                         if k not in up and (want is None or c == want)), None)
+            if into is not None:
+                out.append({"node": n["id"], "into": into})
+        return out
 
     def _worktree_out(self):
-        """The worktree the output handler reads: the waves as they are, and the merges by span
-        where its reentrancy wave would be."""
+        """The worktree the output handler reads: the waves as they are, and the merges (by span
+        and concept) where its reentrancy wave would be."""
         wt = {w: [self._partial_tree(w, i) for i in range(len(self.doc.sents))] for w in self.order}
         if "reentrancy" not in self.waves:
             wt["reentrancy"] = [{"nodes": [{"id": "0", "merges": self.merges(i)}]} if t else None

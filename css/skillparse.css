@@ -258,3 +258,20 @@ button.badge.answerer:disabled { cursor: default; }
 .md tbody tr:nth-child(even) td { background: var(--panel-2); }
 .md a { color: var(--accent); }
 .md .md-slot { font-family: var(--mono); font-size: 12px; color: var(--hi); background: var(--hi-soft); border-radius: 4px; padding: 0 .3em; }
+
+/* a model at work: the step in the tree, its item, the output pane, the toolbar */
+.spinner.sm { width: 11px; height: 11px; border-width: 2px; display: inline-block; vertical-align: -1px; }
+.tree li.live { background: linear-gradient(90deg, var(--accent-soft), transparent 70%); animation: live-pulse 1.6s ease-in-out infinite; }
+.tree li.live .sk { color: var(--accent); }
+@keyframes live-pulse { 50% { background-color: var(--accent-soft); opacity: .78; } }
+.dot.live { background: var(--accent); animation: dot-pulse 1s ease-in-out infinite; }
+@keyframes dot-pulse { 50% { transform: scale(1.6); opacity: .5; } }
+.live-card { border-color: var(--accent); background: var(--accent-soft); display: grid; gap: 8px; }
+.live-bar { height: 3px; border-radius: 2px; background: var(--line-soft); overflow: hidden; }
+.live-bar span { display: block; width: 35%; height: 100%; background: var(--accent); border-radius: 2px; animation: live-slide 1.3s ease-in-out infinite; }
+@keyframes live-slide { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+body.busy .status::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; vertical-align: -1px;
+  border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .tree li.live, .dot.live, .live-bar span, body.busy .status::before { animation: none; }
+}

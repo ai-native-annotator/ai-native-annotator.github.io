@@ -229,6 +229,27 @@ async function stepThrough(page, max = 80) {
   const done = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('and the steps finish', done.length >= 3 && done.every((x) => x === '✓'), done.join(''));
 
+  // a model at work is shown at work: the step spins in the tree, its sentence pulses, the output
+  // pane says who is answering and for how long, the toolbar status has a spinner
+  calls.delay = 2500;
+  await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
+  await page.click('.tab:text-is("输出")');
+  await page.click('#output .review-card button:text-is("↻ 重跑这一步")');
+  await page.waitForSelector('.tree li.live .spinner', { timeout: 10000 }).catch(() => {});
+  const live = await page.evaluate(() => ({
+    tree: !!document.querySelector('.tree li.live .spinner'),
+    card: document.querySelector('#output .live-card')?.textContent || '',
+    item: !!document.querySelector('#context .items .dot.live'),
+    busy: document.body.classList.contains('busy'),
+  }));
+  check('while a model runs, the step is shown at work (tree, output pane, item, toolbar)',
+    live.tree && /正在写这一步/.test(live.card) && /秒/.test(live.card) && live.item && live.busy, JSON.stringify(live));
+  calls.delay = 0;
+  await settled(page);
+  check('and it stops when the answer is in', !(await page.$('.tree li.live')) && !(await page.$('#output .live-card'))
+    && !(await page.evaluate(() => document.body.classList.contains('busy'))));
+  await stepThrough(page);
+
   // the work is kept in this browser: after a reload the page offers to go on from it
   await page.waitForFunction(() => /已暂存/.test(document.getElementById('saved').textContent), null, { timeout: 30000 });
   const kept = await page.$$eval('.tree li', (els) => els.map((e) => `${e.querySelector('.sk').textContent}${e.querySelector('.st').textContent}`));

@@ -1,12 +1,13 @@
 # web-procedures/zh, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:
 # experiment/decision-orchestration/umr-zh-frag/versions/R42, with sent_type from experiment/decision-orchestration/umr-zh-v11/versions/V12 (kind: jev, and jevlib.py, prompt_loader.py, event_modifiers.py, event_modifiers.yaml it imports).
 # Every other model skill is kind: agent: its skill.md, answered by Haiku.
-# Left out on the web: coverage, and the reentrancy wave (merged by span when the .umr is written).
+# Left out on the web: coverage, and the reentrancy wave (nodes with the same span and concept are
+# merged when the .umr is written).
 # jevlib.py cuts a Chinese piece only at punctuation (no jieba).
 # umr-tree skillset. 语法说明见 skillsets/REGISTRY.md。
 #
-# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时按 span 合并：同类型、同 span 的节点，
-# 和并到同 span（或中心词同 span）节点上的 antecedent，规则是 reentrancy/reentrancy.py）：
+# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时合并：span 和概念都一样的节点是同一个，
+# antecedent 并到同 span（或中心词同 span）的节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
 #   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图
 #

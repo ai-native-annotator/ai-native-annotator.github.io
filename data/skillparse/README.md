@@ -17,8 +17,9 @@ The composition makes these changes to the procedures: `registry.yaml` gets `kin
 registry entry and the dispatcher rules that ran it); the reentrancy wave is left out, so there are
 two waves (sentence, document), and the document wave reads the sentence wave's trees (its
 `skill.md` says so); and `jevlib.py` does not use jieba. Re-entrancy is merged when the `.umr` is
-written, by span, with `reentrancy/reentrancy.py` (kept as a file the page loads; see
-`RegistryEngine.merges`); steps loaded from a file keep the merges the file has. sent_type
+written (`RegistryEngine.merges`): nodes with the same span and the same concept are one node, and
+an antecedent joins the node with its span (and its concept, when it knows it: one loaded from a
+file does). The reentrancy rule (`reentrancy/`, which merged by type and span) is not copied. sent_type
 needs no words, so a Chinese piece is cut only at punctuation (a run of characters between
 punctuation marks is one word) and English keeps its tokens. Each skill then runs as `src/skill_callable.py` runs
 it (`js/skillparse/models.js`, `data/skillparse/bridge/sp_bridge.py`):

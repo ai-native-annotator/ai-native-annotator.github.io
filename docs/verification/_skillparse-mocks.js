@@ -12,13 +12,15 @@
  */
 module.exports = function mocks() {
   const calls = { jev: 0, questions: 0, haiku: 0, reflect: 0, tools: {}, systems: new Set(), heads: 0, skills: new Set(),
-    jevStates: [], inputs: [] };
+    jevStates: [], inputs: [], delay: 0 };
+  const wait = () => new Promise((r) => setTimeout(r, calls.delay));     // a slow model, when a test wants one
 
   /** Jev: the first option of every choice ("predicate" when it is one), "no" to every yes/no. */
   async function systemone(route) {
     const body = JSON.parse(route.request().postData());
     calls.jev++;
     calls.jevStates.push(body.state);
+    await wait();
     const answers = {};
     for (const [k, q] of Object.entries(body.questions)) {
       calls.questions++;
@@ -69,6 +71,7 @@ module.exports = function mocks() {
     }
     calls.haiku++;
     calls.systems.add(sys);
+    await wait();
     calls.inputs.push(body.messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n'));
     if (user.startsWith('# Output Format')) calls.heads++;
     const skill = /## Input/.test(user) ? 'agent' : '?';
@@ -99,6 +102,7 @@ module.exports = function mocks() {
     const body = JSON.parse(route.request().postData());
     anth.calls++;
     anth.models.add(body.model);
+    await wait();
     const names = body.tools.map((x) => x.name);
     const used = body.messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === 'tool_result'));
     const use = (name, input) => route.fulfill({ json: { content: [{ type: 'tool_use', id: `t${Math.random()}`, name, input }], stop_reason: 'tool_use' } });

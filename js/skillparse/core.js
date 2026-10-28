@@ -33,6 +33,7 @@ export const S = {
   running: 0, cancel: false,
   umr: null, umrStale: true, graphStamp: 0, graphs: new Map(),
   ai: {},                 // node key -> {history: [], proposal, verify}
+  live: new Map(),        // "wave|item|node" -> {kind: 'jev' | 'llm', model, round, questions, since}: a model at work
   status: '',
 };
 
@@ -196,6 +197,7 @@ export async function open(skillset, doc) {
   if (loaded && !restored) {
     const more = loaded.problems.length + loaded.more_problems;
     problems.unshift(t('loadedReport', { n: loaded.sentences, steps: loaded.steps, how: t(`loadedHow.${loaded.alignment}`) })
+      + (loaded.merged ? ` ${t('loadedMerged', { n: loaded.merged })}` : '')
       + (more ? ` ${t('loadedProblems', { n: more, list: loaded.problems.slice(0, 3).join('; ') })}` : ''));
   }
   status(problems.length ? problems.join('; ') : t('ready'));
@@ -284,15 +286,21 @@ async function withSlot(fn) {
 /** Run one node to the end. Returns the bridge's final result. */
 export async function drive(w, i, nid, signal, { hint } = {}) {
   let r = await py('step', { w, i, nid, ...(hint === undefined ? {} : { hint }) });
+  const key = `${w}|${i}|${nid}`;
+  const since = Date.now();
+  // the step is shown at work (tree, item list, output pane) while a model answers it
+  const working = (what) => { S.live.set(key, { ...what, skill: r.skill, since }); render(); };
   try {
     while (r.need) {
       if (S.cancel) throw new Error(t('stopped'));
       if (r.need === 'jev') {
         const n = Object.keys(r.questions || {}).length;
+        working({ kind: 'jev', round: r.round, questions: n });
         status(t('running', { what: `${nid} ${r.skill} · Jev · ${t('round', { n: r.round })} · ${t('questions', { n })}` }));
         const answers = await withSlot(() => jev(r.state, r.questions, { onManual: manualAnswerer, signal }));
         r = await py('answer', { w, i, nid, answers });
       } else if (r.need === 'llm') {
+        working({ kind: 'llm', model: settings().roles.haiku.model, retry: r.retry });
         status(t('running', { what: `${nid} ${r.skill} · ${settings().roles.haiku.model}${r.retry ? ' · retry' : ''}` }));
         const out = await withSlot(() => llm({
           role: 'haiku', system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
@@ -306,6 +314,8 @@ export async function drive(w, i, nid, signal, { hint } = {}) {
   } catch (err) {
     await py('fail', { w, i, nid, error: err.message }).catch(() => {});
     throw err;
+  } finally {
+    if (S.live.delete(key)) render();
   }
   changed();
   return r;
@@ -317,6 +327,7 @@ let controller = null;
 function busy(delta) {
   S.running += delta;
   document.body.dataset.running = String(S.running);
+  document.body.classList.toggle('busy', S.running > 0);
 }
 
 async function guarded(fn) {
@@ -371,13 +382,14 @@ export async function runNode(nid = S.node, { hint } = {}) {
  * starts the item when it has not been started. Returns {ran: id} | {awaiting: [ids]} |
  * {done: true} | {needs: [...]} | {error}.
  */
-async function nextStep(w, i, signal) {
+async function nextStep(w, i, signal, onStart = null) {
   let ep = await py('episode', { w, i });
   // an item that was waiting for earlier waves is made again once they are there
   if (!ep.started || (ep.error && ep.needs?.length)) ep = await py('start', { w, i });
   if (ep.error) return ep.needs?.length ? { needs: ep.needs } : { error: ep.error };
   const nx = await py('next_step', { w, i });
   if (!nx.node) return nx;
+  if (onStart) await onStart(nx.node);
   const r = await drive(w, i, nx.node, signal);
   return { ran: nx.node, status: r.status, error: r.error };
 }
@@ -386,7 +398,13 @@ async function nextStep(w, i, signal) {
 export async function runNext(i = S.item) {
   return guarded(async (signal) => {
     try {
-      const r = await nextStep(S.wave, i, signal);
+      // the step about to run is selected first, so the output pane shows it at work
+      const r = await nextStep(S.wave, i, signal, async (nid) => {
+        if (i !== S.item) return;
+        await refresh({ detail: false });
+        if (S.tab === 'graph') S.tab = 'output';
+        await selectNode(nid);
+      });
       if (r.awaiting) status(t('confirmFirst', { list: r.awaiting.join(', ') }));
       else if (r.running) status(t('running', { what: r.running.join(', ') }));
       else if (r.done) status(t('itemDone'));

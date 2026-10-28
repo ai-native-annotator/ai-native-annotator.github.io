@@ -51,16 +51,16 @@ PROCEDURES = {
 JEV_SKILL = "sent_type"
 # skills the web procedures leave out (their registry entries and dispatcher rules too)
 DROP_SKILLS = ["coverage"]
-# the reentrancy wave is left out too: the page merges by span when it writes the .umr, with the
-# same rule (reentrancy/reentrancy.py stays, as a file the page loads, not a skill)
+# the reentrancy wave is left out too (and its rule, reentrancy/): the page merges nodes when it
+# writes the .umr, those with the same span and concept (sp_bridge.RegistryEngine.merges)
 REENTRANCY_WAVE = [
     ("""# 三波，按顺序跑：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
 #   reentrancy  每句一个 episode，规则（不调模型）：把这句树里同类型、同 span 的节点合并，
 #               并把 antecedent 并到同 span（或中心词同 span）的节点上
 #   document    每句一个 episode，看补过重入的这句和它前五句，产出这句的文档级图""",
-     """# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时按 span 合并：同类型、同 span 的节点，
-# 和并到同 span（或中心词同 span）节点上的 antecedent，规则是 reentrancy/reentrancy.py）：
+     """# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时合并：span 和概念都一样的节点是同一个，
+# antecedent 并到同 span（或中心词同 span）的节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
 #   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图"""),
     ("        trees:                          # 和 sents 一一对应，reentrancy 补过的树\n          window: worktree.reentrancy",
@@ -172,6 +172,7 @@ def compose(sp, lang):
         text = drop_skill(text, name)
         shutil.rmtree(os.path.join(dst, name))
     text = drop_reentrancy_wave(text)
+    shutil.rmtree(os.path.join(dst, "reentrancy"))
     doc_md = os.path.join(dst, "document", "skill.md")
     with open(doc_md, encoding="utf-8") as f:
         md = f.read()
@@ -183,7 +184,8 @@ def compose(sp, lang):
     header = ("# web-procedures/%s, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:\n"
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"
               "# Every other model skill is kind: agent: its skill.md, answered by Haiku.\n"
-              "# Left out on the web: %s, and the reentrancy wave (merged by span when the .umr is written).\n"
+              "# Left out on the web: %s, and the reentrancy wave (nodes with the same span and concept are\n"
+              "# merged when the .umr is written).\n"
               "# jevlib.py cuts a Chinese piece only at punctuation (no jieba).\n"
               % (lang, agent, JEV_SKILL, jev, ", ".join(JEV_MODULES), ", ".join(DROP_SKILLS)))
     with open(reg, "w", encoding="utf-8") as f:
@@ -215,7 +217,7 @@ def drop_reentrancy_wave(text):
         text = text.replace(old, new)
     text, n_wave = re.subn(r"  - name: reentrancy\n.*?(?=  - name: document\n)", "", text, flags=re.S)
     text, n_skill = re.subn(r"  reentrancy:[^\n]*\n    path: reentrancy\n(?:    [^\n]*\n)*\n", "", text)
-    rest = [line for line in text.split("\n") if "reentrancy" in line and "reentrancy/reentrancy.py" not in line
+    rest = [line for line in text.split("\n") if "reentrancy" in line
             and "no reentrancy" not in line and "reentrancy wave" not in line and "没有 reentrancy" not in line]
     if n_wave != 1 or n_skill != 1 or rest:
         raise SystemExit("registry: cannot drop the reentrancy wave: %s" % rest)
