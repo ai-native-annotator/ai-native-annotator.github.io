@@ -42,7 +42,7 @@
 | `js/skillparse/pane-work.js` | 中栏：图、输出（Penman + JSON）、输入、问答、提示词、工具调用、UMR 文本；下方步骤树和运行栏 |
 | `js/skillparse/pane-ai.js` · `reflect.js` | 右栏 AI：三种改 skill 的方式和 AI 自查 |
 | `js/skillparse/graph-view.js` | 把图画成 SVG |
-| `js/skillparse/penman-view.js` | 把一步的输出写成 Penman（`<node: …>` / `<outside: …>`） |
+| `js/skillparse/penman-view.js` | 把一步的输出写成 Penman（`<node: …>` / `<outside: …>`）；document 一步的节点编号写成词和概念，`docNodes` 列出它能指的节点 |
 | `js/skillparse/md.js` | skill.md 的 Markdown 渲染 |
 | `js/skillparse/diff.js` | 行级 diff、JSON 显示格式（`[]` 内不换行） |
 | `js/skillparse/save.js` | IndexedDB：暂存的工作、导入过的文档 |
@@ -128,6 +128,7 @@ Worker 是单线程的，所有 `py()` 调用按顺序排队执行。模型请�
 | `render(auto_align)` | 写整篇 `.umr`（见第 8 节） |
 | `graph(i)` | 第 i 句拼好的图，给页面画 SVG |
 | `export()` | 工作记录 JSON（导出菜单） |
+| `training(unconfirmed=False)` | 训练数据：每个跑完的步骤一条（导出菜单） |
 | `snapshot()` / `restore(state)` | 暂存和恢复（见第 10 节） |
 | `reload()` | skill 文件改了之后重新加载 registry 和模块 |
 
@@ -306,7 +307,23 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 
 `graph(i)`：从 render 结果里取第 i 句，用 penman 解出节点、边、属性、对齐、文档级关系，交给 `graph-view.js` 画 SVG。重入画虚线，当前步骤写的框高亮，悬停显示对齐的字。
 
-**导出菜单**：`.umr`（补齐对齐）、`.umr`（对齐保持原样）、工作记录 JSON（`export()`）、改过的 skill 文件 JSON。工具栏的「导出 .umr」等于第一项。
+**导出菜单**：`.umr`（补齐对齐）、`.umr`（对齐保持原样）、训练数据（JSONL，已确认的步骤 / 含未确认的步骤）、工作记录 JSON（`export()`）、改过的 skill 文件 JSON。工具栏的「导出 .umr」等于第一项。
+
+**训练数据**（`training()`，文件 `<文档>.<流程>.train.jsonl`）：两波的每个跑完的步骤一行 JSON，按 wave、句子、步骤编号排：
+
+| 字段 | 内容 |
+|---|---|
+| `doc` `lang` `wave` `item` `step` | 文档、语言、哪一波、第几句（从 1 起）、步骤编号 |
+| `skill` | 这一步的任务名（只是名字，不带 skill.md、提示词、工具调用） |
+| `context` | 这一步拿到的上下文：sentence 波是 `sent`、`token_sent`、`lang`；document 波是 `lang` |
+| `input` | 这一步的输入：`{text, span}`；document 是 `{sents, trees}`（前五句和这一句，及其树） |
+| `output` | 这一步的输出（emit）；人改过的就是人的 |
+| `source` `confirmed` | `model` / `human` / `loaded`（从 .umr 载入）；是否确认 |
+| `model` `hint` `model_output` | 有时才有：谁跑的；带的提示；人改之前模型的输出 |
+
+默认只导出已确认的步骤（载入的算已确认），没确认的有多少会在提示里说。
+
+**document 一步的显示**：它的输出用 `"<句号>:<步骤编号>[/变量]"` 指节点（如 `3:0.0/s3x`），Penman 里写成 `<node: 词 / 概念>`（词取这个节点的 span，没有就取它那一步的原文；概念和词一样时只写一个），前面句子的节点前面加 `s2 ` 这样的句号，指不到的写 `<node: ? 3:9.9>`。下面「可以指向的节点」列出这一句和前面几句每个节点的编号和词、概念；直接修改时这张表是展开的。模型的输入输出不变，仍然用编号。
 
 ---
 

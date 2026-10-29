@@ -276,3 +276,9 @@ body.busy .status::before { content: ""; display: inline-block; width: 10px; hei
 @media (prefers-reduced-motion: reduce) {
   .tree li.live, .dot.live, .live-bar span, body.busy .status::before { animation: none; }
 }
+
+/* a document step's nodes: the id it is pointed at with, and what it stands for */
+.doc-legend .legend { border-collapse: collapse; font-size: 12px; margin-top: 4px; }
+.doc-legend .legend td { padding: 1px 10px 1px 0; vertical-align: top; }
+.doc-legend .legend code { color: var(--muted); }
+.doc-legend { max-height: 340px; overflow: auto; }

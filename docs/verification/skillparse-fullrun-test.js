@@ -131,6 +131,19 @@ const statusIs = (page, re, timeout = 180000) =>
   check('the imported annotation is not in it', !umr.includes('ZZGOLDCONCEPT'));
   check('its words are numbered one per character', /Words: 玳 瑁 是 海 龟 科 的/.test(umr.replace(/ +/g, ' ')));
 
+  // training data: one line per confirmed step, its context, input and output, no skill text
+  await page.click('#btn-export');
+  const [tdl] = await Promise.all([page.waitForEvent('download'), page.click('#menu-export [data-export="train"]')]);
+  const train = fs.readFileSync(await tdl.path(), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  const tSkills = new Set(train.map((r) => r.skill));
+  check('training data: one JSON line per confirmed step of both waves', tdl.suggestedFilename() === 'hawksbill.web-zh.train.jsonl'
+    && train.length === total && tSkills.has('sent_type') && tSkills.has('document')
+    && new Set(train.map((r) => r.wave)).size === 2, `${train.length} lines for ${total} steps · ${[...tSkills].join(' ')}`);
+  check('each line has the step\'s context, input and output, and no skill.md or prompt',
+    train.every((r) => r.context && r.input && r.output && r.confirmed && !('prompt' in r) && !JSON.stringify(r).includes('# Output Format'))
+    && train.filter((r) => r.wave === 'sentence').every((r) => r.context.sent && r.context.token_sent)
+    && train.filter((r) => r.skill === 'document').every((r) => Array.isArray(r.input.trees)), Object.keys(train[0]).join(','));
+
   // 4. plain text
   for (const [fmt, text, n] of [['txt-lines', '第一句话。\n第二句话。', 2], ['txt-split', '第一句话。第二句话！第三句？', 3]]) {
     await page.click('#btn-import');

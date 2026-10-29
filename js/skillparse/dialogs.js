@@ -118,6 +118,13 @@ export async function exportAs(kind) {
     const u = await assembled(kind === 'umr');
     download(`${base}.umr`, u.text);
     toast(`${t('exported')} ${base}.umr${kind === 'umr' ? ` · ${t('alignAdded', { n: u.added.length })}` : ''}`);
+  } else if (kind === 'train' || kind === 'train-all') {
+    // one line per finished step: its context, input and output (no skill.md, no prompt)
+    const r = await py('training', { unconfirmed: kind === 'train-all' });
+    if (!r.records.length) { toast(r.left_out ? t('trainedLeft', { left: r.left_out }).trim() : t('nothing')); return; }
+    const file = `${base}.train.jsonl`;
+    download(file, r.records.map((x) => JSON.stringify(x)).join('\n') + '\n', 'application/jsonl');
+    toast(t('trained', { n: r.records.length, file }) + (r.left_out ? t('trainedLeft', { left: r.left_out }) : ''));
   } else if (kind === 'json') {
     const rec = await py('export');
     download(`${base}.work.json`, JSON.stringify(rec, null, 1), 'application/json');

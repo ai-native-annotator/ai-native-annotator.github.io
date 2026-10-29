@@ -15,7 +15,7 @@
 
 import { h, clear, pretty, toast, diffView } from './ui.js';
 import { S, onRender, render, selectNode, selectWave, selectItem, runNode, runNext, resetNode, saveOutput, startItem, sentenceGraph, confirmNode, confirmAndNext } from './core.js';
-import { outputPenman } from './penman-view.js';
+import { outputPenman, docNodes } from './penman-view.js';
 import { drawGraph, fragmentGraph } from './graph-view.js';
 import { lineDiff, hunks, stable } from './diff.js';
 import { renderMarkdown } from './md.js';
@@ -37,6 +37,22 @@ function tabsFor(d) {
 const kbd = (key) => h('kbd', { text: key });
 
 const hintLabel = () => (S.skillset?.endsWith('zh') ? 'human提示：' : 'Human hint: ');
+
+/**
+ * What a document step's relations can point at, "3:0.0/s3x" against the words and concept it
+ * stands for: this sentence first, then the earlier ones. Open while the output is edited by hand.
+ */
+function docLegend(input, open) {
+  const nodes = docNodes(input);
+  if (!nodes.length) return null;
+  const cur = nodes.filter((n) => n.current);
+  const earlier = nodes.filter((n) => !n.current).sort((a, b) => b.sentence - a.sentence);
+  const rows = (list) => list.map((n) => h('tr', {}, h('td', {}, h('code', { text: n.ref })), h('td', { text: n.label })));
+  return h('details', { class: 'doc-legend', open },
+    h('summary', { text: t('docNodes', { n: cur.length, m: earlier.length }) }),
+    h('table', { class: 'legend' }, h('tbody', {}, rows(cur),
+      earlier.length ? h('tr', {}, h('td', { colspan: 2, class: 'note', text: t('docEarlier') })) : null, rows(earlier))));
+}
 
 /** An empty output in the step's emit shape, to fill in by hand when the step has none. */
 function skeleton(emit = {}) {
@@ -134,7 +150,8 @@ function outputTab(d) {
           if (r?.status === 'error') toast(`${t('error')}: ${r.error}`);
           else toast(t('saved'));
         } }),
-        h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.editing = false; render(); } }), err));
+        h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.editing = false; render(); } }), err),
+      d.skill === 'document' ? docLegend(d.input, true) : null);
   }
   const parts = [];
   if (d.status === 'ok' || d.status === 'error') parts.push(reviewCard(d));
@@ -150,6 +167,7 @@ function outputTab(d) {
   }
   const pm = outputPenman(d.skill, d.output, d.input);
   if (pm) parts.push(h('div', { class: 'note', text: t('penmanTitle') }), h('pre', { class: 'block penman', text: pm }));
+  if (d.skill === 'document') parts.push(docLegend(d.input, false));
   const frag = fragmentGraph(d.output);
   if (frag) {
     parts.push(h('details', {}, h('summary', { text: t('fragment') }),

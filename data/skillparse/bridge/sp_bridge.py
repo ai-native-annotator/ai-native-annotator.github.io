@@ -1028,6 +1028,38 @@ class RegistryEngine:
                 "episodes": {w: {str(i): {k: v for k, v in ep.items() if k != "missing"}
                                  for i, ep in eps.items()} for w, eps in self.eps.items()}}
 
+    def training(self, unconfirmed=False):
+        """One training example per finished step, for every wave: what the step was given (the
+        episode's context and the step's input) and what it gave back (its output; a person's
+        when they edited it). No skill.md, prompt or tool calls: only the step's name says which
+        task it is. Steps not confirmed yet are left out unless `unconfirmed`; a step from a
+        loaded file counts as confirmed."""
+        records, left = [], 0
+        for w in self.order:
+            for i in sorted(self.eps[w]):
+                ep = self.eps[w][i]
+                for nid in sorted(ep["nodes"], key=node_key):
+                    n = ep["nodes"][nid]
+                    if n["status"] != "ok" or n["output"] is None:
+                        continue
+                    if not n.get("confirmed") and not unconfirmed:
+                        left += 1
+                        continue
+                    rec = {"doc": self.doc.doc_id, "lang": self.doc.lang, "wave": w, "item": int(i) + 1,
+                           "step": nid, "skill": n["skill"], "context": ep["context"], "input": n["input"],
+                           "output": n["output"],
+                           "source": "loaded" if n.get("loaded") else "human" if n["human"] else "model",
+                           "confirmed": bool(n.get("confirmed"))}
+                    if n.get("model"):
+                        rec["model"] = n["model"]
+                    if n.get("hint"):
+                        rec["hint"] = n["hint"]
+                    machine = n.get("machine_output")
+                    if n["human"] and machine is not None and machine != n["output"]:
+                        rec["model_output"] = machine      # what the model wrote before the person's edit
+                    records.append(jsonable(rec))
+        return {"records": records, "left_out": left}
+
     def snapshot(self):
         """The work so far, to keep and restore: every wave's episodes (their steps with outputs,
         confirmations, hints, Jev rounds, prompts, tool calls) and the window settings. Kept small:
