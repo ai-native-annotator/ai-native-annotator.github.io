@@ -2,7 +2,7 @@
 # skillsets/umr-tree, with sent_type from experiment/decision-orchestration/umr-en-v11/versions/V12 (kind: jev, and jevlib.py, prompt_loader.py, event_modifiers.py, event_modifiers.yaml it imports).
 # Every other model skill is kind: agent: its skill.md, answered by Haiku.
 # Left out on the web: coverage, and the reentrancy wave (nodes with the same span and concept are
-# merged when the .umr is written).
+# merged when the .umr is written). discourse's relation is any string (not checked against a list).
 # jevlib.py cuts a Chinese piece only at punctuation (no jieba).
 # umr-tree skillset. 语法说明见 skillsets/REGISTRY.md。
 #
@@ -91,11 +91,7 @@ skills:
       text: str                 # 这一块的原文
       span: list[int]
     emit:
-      # 篇章关系（UMR 指南 3-1-6）；不是并列关系时写 "none"，整段交给 predicate
-      relation: ["none", "and", "or", "inclusive-disj", "exclusive-disj", "and-but", "consecutive",
-                 "additive", "and-unexpected", "and-contrast", "but-91", "contrast-91",
-                 "unexpected-co-occurrence-91", "have-concession-91", "have-condition-91",
-                 "have-cause-91", "have-purpose-91"]
+      relation: str             # web: 不按列表检查取值（skill.md 说明各种关系）；不是并列关系时写 "none"
       parts: list[dict]         # 每块 {text, span, role}，role 如 op1 / op2 / ARG1 / ARG2
     store: [relation]
 

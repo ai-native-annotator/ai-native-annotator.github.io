@@ -71,6 +71,9 @@ REENTRANCY_WAVE = [
     ("  # ---- 整篇的两波 ----", "  # ---- 整篇的一波 ----"),
     ("  # antecedent / reentrancy / document：没有后续", "  # antecedent / document：没有后续"),
 ]
+# discourse's relation is not checked against a list of values (web): any string
+DISCOURSE_RELATION = (re.compile(r'(      # [^\n]*\n)?      relation: \[[^\]]*\]\n'),
+                      '      relation: str             # web: 不按列表检查取值（skill.md 说明各种关系）；不是并列关系时写 "none"\n')
 # what the document skill is told about its trees, which are now the sentence wave's
 DOCUMENT_TREES = ("""Each tree is the output of the
 reentrancy step; the sentence's own tree is under `nodes[0].input.tree.nodes`.""",
@@ -171,6 +174,9 @@ def compose(sp, lang):
     for name in DROP_SKILLS:
         text = drop_skill(text, name)
         shutil.rmtree(os.path.join(dst, name))
+    text, n = DISCOURSE_RELATION[0].subn(DISCOURSE_RELATION[1], text)
+    if n != 1:
+        raise SystemExit("%s: cannot find discourse's relation" % reg)
     text = drop_reentrancy_wave(text)
     shutil.rmtree(os.path.join(dst, "reentrancy"))
     doc_md = os.path.join(dst, "document", "skill.md")
@@ -185,7 +191,7 @@ def compose(sp, lang):
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"
               "# Every other model skill is kind: agent: its skill.md, answered by Haiku.\n"
               "# Left out on the web: %s, and the reentrancy wave (nodes with the same span and concept are\n"
-              "# merged when the .umr is written).\n"
+              "# merged when the .umr is written). discourse's relation is any string (not checked against a list).\n"
               "# jevlib.py cuts a Chinese piece only at punctuation (no jieba).\n"
               % (lang, agent, JEV_SKILL, jev, ", ".join(JEV_MODULES), ", ".join(DROP_SKILLS)))
     with open(reg, "w", encoding="utf-8") as f:

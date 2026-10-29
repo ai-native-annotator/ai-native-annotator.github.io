@@ -14,7 +14,8 @@ written into the browser's Python (Pyodide) file system under `/sp/`:
 
 The composition makes these changes to the procedures: `registry.yaml` gets `kind: jev` on
 `sent_type` and a header saying where everything came from; the `coverage` rule is left out (its
-registry entry and the dispatcher rules that ran it); the reentrancy wave is left out, so there are
+registry entry and the dispatcher rules that ran it); discourse's `relation` is any string (it is not checked against a list of
+values); the reentrancy wave is left out, so there are
 two waves (sentence, document), and the document wave reads the sentence wave's trees (its
 `skill.md` says so); and `jevlib.py` does not use jieba. Re-entrancy is merged when the `.umr` is
 written (`RegistryEngine.merges`): nodes with the same span and the same concept are one node, and

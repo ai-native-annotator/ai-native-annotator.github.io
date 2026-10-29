@@ -16,6 +16,7 @@ Alignments: the page numbers Chinese one character per token. A file whose Words
 (several characters) and whose alignments count words is converted to characters; a file whose
 alignments already count characters is read as it is. English words are the tokens.
 """
+import os
 import re
 
 import penman
@@ -108,6 +109,27 @@ def tree_of(graph_text):
                 u.attrs.append((role, target))
         return u
     return build(t.node)
+
+
+REIFIED = {"have-cause-91", "have-condition-91", "have-concession-91", "have-purpose-91"}
+
+
+def discourse_relations():
+    """UMR's discourse relations (the "discourse relations" group of SP_and_Discourse.csv), and the
+    reified ones the discourse skill writes."""
+    import csv
+    path = os.path.join(os.environ.get("PROPBANK_DIR", ""), "SP_and_Discourse.csv")
+    out, group = set(), ""
+    try:
+        with open(path, encoding="utf-8") as f:
+            for row in csv.reader(f):
+                if row and row[0].strip():
+                    group = row[0].strip()
+                if group.startswith("discourse") and len(row) > 1 and row[1].strip():
+                    out.add(row[1].strip())
+    except OSError:
+        pass
+    return (out - {"multi-sentence"}) | REIFIED
 
 
 class Loader:
@@ -391,7 +413,10 @@ class Loader:
         e = self.e
         self.lang = e.doc.lang
         sk = e.reg.skills
-        self.relations = set(sk["discourse"].emit["relation"]) - {"none"} if "discourse" in sk else set()
+        # which nodes are discourse relations: UMR's list (modular-parsing SP_and_Discourse.csv) and
+        # the reified relations the discourse skill.md describes; the skill's emit no longer lists them
+        listed = sk["discourse"].emit.get("relation") if "discourse" in sk else None
+        self.relations = (set(listed) if isinstance(listed, list) else discourse_relations()) - {"none"}
         self.aspects = set(sk["predicate"].emit["aspect"])
         self.modstrs = set(sk["predicate"].emit["modstr"])
         bs = blocks(text)
