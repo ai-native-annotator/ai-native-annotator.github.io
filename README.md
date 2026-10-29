@@ -123,6 +123,9 @@ confirmation, hint and model record, and the documents imported. Opening a docum
 asks whether to go on from it. Nothing is uploaded; another browser or cleared site data starts
 empty. The Python runs in the page too (Pyodide, in a Web Worker); there is no server.
 
+How the page calls everything, from a button to the Python bridge and the model services, is
+written up in **[`docs/SKILLPARSE.md`](docs/SKILLPARSE.md)**.
+
 Every step can be corrected, and a correction is a skill change in one of three ways: **(1)** edit
 the skill file yourself; **(2)** correct the step's output — the AI compares it with the machine's
 and proposes the skill edit that would have produced it; **(3)** say what is wrong and let the AI
@@ -262,6 +265,9 @@ Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<n
 「导出 .umr」直接产出文件。标注进度每改一次就自动暂存在这个浏览器里（IndexedDB，不上传）：每一步的输出、确认、
 提示、模型记录，以及导入的文档；再打开同一篇文档时会问要不要接着上次继续。Python 也在网页里运行（Pyodide），
 没有服务器。
+
+网页每一层怎么调用（按钮 → 浏览器里的 Python → 模型服务 → .umr），详见
+**[`docs/SKILLPARSE.md`](docs/SKILLPARSE.md)**。
 
 **Key 存在哪**：只存本机 `localStorage`，live 模式下浏览器直连厂商 API，不经过本项目的任何服务器
 （本项目也没有服务器）。Google Drive 需要你自己的 OAuth Client ID，GitHub 需要你自己的 PAT。
