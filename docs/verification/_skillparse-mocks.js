@@ -2,8 +2,9 @@
  * Stand-ins for the models skillparse tests call (no key, no network to any provider):
  *
  *   systemone  OpenRouter's Jev endpoint: the first option ("predicate" when offered), "no"
- *   chat       OpenRouter chat completions: Haiku running a kind: agent skill (calls get_example
- *              once, then answers final_result with an emit that fits the schema), or the
+ *   chat       OpenRouter chat completions: Haiku running a kind: agent skill (calls
+ *              search_annotations, search_guidelines and propbank_lookup once each, those it has,
+ *              then answers final_result with an emit that fits the schema), or the
  *              reflection (a one-edit proposal to the first skill file in the prompt)
  *   anthropic  the Anthropic Messages API, for Haiku through an Anthropic key
  *
@@ -79,20 +80,25 @@ module.exports = function mocks() {
     calls.skills.add(skill);
     const names = body.tools.map((t) => t.function.name);
     const used = body.messages.some((m) => m.role === 'tool');
-    if (!used && names.includes('get_example')) {
-      calls.tools.get_example = (calls.tools.get_example || 0) + 1;
-      return reply(route, 'get_example', {});
-    }
     if (used) {
       const res = body.messages.filter((m) => m.role === 'tool').map((m) => m.content).join('');
-      if (res.includes('"example"') && res.length > 200) calls.tools.exampleRead = true;
+      // whole gold sentences, read in the page's Python from resources/gold/zh/gold.json
+      if (res.includes('sentence level graph') && res.includes('have-org-role-91')) calls.tools.goldRead = true;
+      if (res.includes('"examples"') && res.includes('"skill"')) calls.tools.examplesRead = true;
+      if (res.includes('"heading"') && /Aspect/.test(res)) calls.tools.guidelinesRead = true;
       if (res.includes('"吃-01"')) calls.tools.propbankRead = true;
     }
-    // then PropBank, as a predicate does: the merged Chinese file read in the page's Python
+    // the tools in turn, each once per step: gold annotations, the guidelines, then PropBank
+    // (the merged Chinese file), as a predicate would
     const asked = body.messages.flatMap((m) => m.tool_calls || []).map((c) => c.function.name);
-    if (used && names.includes('propbank_lookup') && !asked.includes('propbank_lookup')) {
-      calls.tools.propbank_lookup = (calls.tools.propbank_lookup || 0) + 1;
-      return reply(route, 'propbank_lookup', { lemmas: ['吃'], language: 'zh' });
+    const plan = [['search_annotations', { language: 'zh', keywords: ['have-org-role-91', '报导'] }],
+      ['search_guidelines', { keywords: ['aspect', 'habitual'] }],
+      ['propbank_lookup', { lemmas: ['吃'], language: 'zh' }]];
+    for (const [name, args] of plan) {
+      if (names.includes(name) && !asked.includes(name)) {
+        calls.tools[name] = (calls.tools[name] || 0) + 1;
+        return reply(route, name, args);
+      }
     }
     return reply(route, 'final_result', emitFor(body.tools.find((t) => t.function.name === 'final_result').function.parameters));
   }
@@ -109,7 +115,7 @@ module.exports = function mocks() {
     const names = body.tools.map((x) => x.name);
     const used = body.messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === 'tool_result'));
     const use = (name, input) => route.fulfill({ json: { content: [{ type: 'tool_use', id: `t${Math.random()}`, name, input }], stop_reason: 'tool_use' } });
-    if (!used && names.includes('get_example')) return use('get_example', {});
+    if (!used && names.includes('search_guidelines')) return use('search_guidelines', { keywords: ['aspect'] });
     return use('final_result', emitFor(body.tools.find((x) => x.name === 'final_result').input_schema));
   }
 

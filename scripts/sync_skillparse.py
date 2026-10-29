@@ -19,7 +19,9 @@ sent_type and whose other model skills are kind: agent (a skill.md prompt, answe
 Also copied: src/registry.py and the UMR input and output handlers. The reflection code (rsi-batch/)
 is not. PropBank (modular-parsing/resources) is 24,521 + 5,618 XML files; each folder becomes one
 merged JSON file, and every propbank.py copied is patched to read it (same answers).
-Two web changes are made while composing: the coverage rule is dropped (drop_skill), and jevlib.py
+The site's own tools (data/skillparse/web_tools: search_annotations, search_guidelines) are copied
+next to propbank_lookup, in place of get_example, and the data they search is written to
+data/skillparse/resources/ (not loaded at start). Two web changes are made while composing: the coverage rule is dropped (drop_skill), and jevlib.py
 no longer uses jieba (patch_jevlib): sent_type does not need a sentence cut into words, so a Chinese
 piece is cut only at punctuation, and English keeps its tokens.
 """
@@ -91,7 +93,29 @@ reentrancy step; the sentence's own tree is under `nodes[0].input.tree.nodes`.""
                   """Each tree is the
 sentence's tree of steps (web: no reentrancy step), its nodes under `nodes`.""")
 JEV_MODULES = ["jevlib.py", "prompt_loader.py", "event_modifiers.py", "event_modifiers.yaml"]
-SHARED_TOOLS = ["skillsets/tools/example.py", "skillsets/tools/propbank.py"]
+SHARED_TOOLS = ["skillsets/tools/propbank.py"]      # get_example (skillsets/tools/example.py) is not used
+# the site's own tools (search_annotations, search_guidelines), next to propbank_lookup
+WEB_TOOLS = os.path.join(OUT, "web_tools")
+# gold annotations and the UMR guidelines, which those tools search; outside fs/ (not loaded at
+# start: the tools read them on their first call)
+RESOURCES = os.path.join(OUT, "resources")
+GOLD = {
+    # lang -> [(repo, folder)], earlier first: a document already taken is not taken again
+    "zh": [("sp", "newdata"), ("mp", "resources/real-umr-data/chinese/umr_data")],
+    "en": [("sp", "newdata/umr_en_normalized")],
+}
+GUIDELINES = ("experiment/annoforge/guidelines/umr_guidelines.md",       # umr4nlp/umr-guidelines guidelines.md
+              "f60deebff42ef5262bc5bb95d9f69142e2792bff0308388c315c912bf75aa612")
+# what the agent skills are told about the tools, in place of get_example
+EXAMPLES_OLD = [
+    "If you are unsure what a good answer looks like, call the `get_example` tool: it\nreturns worked examples of this skill's input and output.",
+    "Call the `get_example` tool before answering: it returns worked examples of\nthis skill's input and output.",
+]
+EXAMPLES_NEW = """To see how a case is annotated, call `search_annotations` with the language and a
+few keywords: words of the text, concepts (`have-org-role-91`), roles (`:ARG1-of`). It
+returns whole gold sentence annotations, and the worked examples of this procedure's
+skills, that contain them. To check a rule, call `search_guidelines` with keywords: it
+returns the matching sections of the UMR guidelines."""
 MP_FILES = [
     "resources/Abstract_predicate_and_rolesets.csv", "resources/All_relations.csv",
     "resources/Attribute_Values.csv", "resources/SP_and_Discourse.csv",
@@ -192,6 +216,19 @@ def compose(sp, lang):
     shutil.rmtree(os.path.join(dst, "reentrancy"))
     text = drop_antecedent(text)
     shutil.rmtree(os.path.join(dst, "antecedent"))
+    for skill in sorted(os.listdir(dst)):
+        md = os.path.join(dst, skill, "skill.md")
+        if not os.path.isfile(md):
+            continue
+        with open(md, encoding="utf-8") as f:
+            body = f.read()
+        n = sum(body.count(old) for old in EXAMPLES_OLD)
+        if n != 1 or "get_example" in body.replace(next(o for o in EXAMPLES_OLD if o in body), ""):
+            raise SystemExit("%s: cannot replace what it says about get_example" % md)
+        for old in EXAMPLES_OLD:
+            body = body.replace(old, EXAMPLES_NEW)
+        with open(md, "w", encoding="utf-8") as f:
+            f.write(body)
     doc_md = os.path.join(dst, "document", "skill.md")
     with open(doc_md, encoding="utf-8") as f:
         md = f.read()
@@ -313,6 +350,62 @@ def patch_jevlib(path):
         f.write(text)
 
 
+def gold_records(path, doc):
+    """[{doc, snt, text, annotation}] of one gold .umr file: each sentence's whole block."""
+    with open(path, encoding="utf-8-sig") as f:
+        text = f.read()
+    out = []
+    for block in text.split(RULE):
+        m = re.search(r"^#\s*::\s*snt(\d+)[ \t]*(.*)$", block, re.M)
+        if not m:
+            continue
+        w = re.search(r"^Words:[ \t]*(.*)$", block, re.M)
+        words = (w.group(1) if w else m.group(2)).split()
+        latin = lambda a, b: re.search(r"[A-Za-z0-9]$", a) and re.match(r"[A-Za-z0-9]", b)   # noqa: E731
+        joined = ""
+        for x in words:
+            joined += (" " if joined and (doc.startswith("english") or latin(joined, x)) else "") + x
+        out.append({"doc": doc, "snt": int(m.group(1)), "text": joined, "annotation": block[m.start():].strip()})
+    return out
+
+
+def write_resources(sp, mp):
+    """resources/gold/<lang>/gold.json (every gold sentence, with its whole annotation) and
+    resources/guidelines/umr_guidelines.md."""
+    import hashlib
+    roots = {"sp": sp, "mp": mp}
+    for lang, sources in GOLD.items():
+        taken, records, from_where = set(), [], []
+        for repo, folder in sources:
+            d = os.path.join(roots[repo], folder)
+            n = 0
+            for name in sorted(os.listdir(d)):
+                if not name.endswith(".umr") or name[:-4] in taken:
+                    continue
+                taken.add(name[:-4])
+                records += gold_records(os.path.join(d, name), name[:-4])
+                n += 1
+            from_where.append("%s %s: %d documents" % ({"sp": "SkillParseUMR", "mp": "modular-parsing"}[repo], folder, n))
+        out = os.path.join(RESOURCES, "gold", lang)
+        os.makedirs(out, exist_ok=True)
+        with open(os.path.join(out, "gold.json"), "w", encoding="utf-8") as f:
+            json.dump(records, f, ensure_ascii=False, separators=(",", ":"))
+        with open(os.path.join(out, "SOURCE.md"), "w", encoding="utf-8") as f:
+            f.write("# gold/%s\n\n%d sentences of %d documents, written by scripts/sync_skillparse.py from:\n\n%s\n"
+                    % (lang, len(records), len(taken), "".join("- %s\n" % x for x in from_where)))
+    rel, digest = GUIDELINES
+    with open(os.path.join(sp, rel), "rb") as f:
+        data = f.read()
+    if hashlib.sha256(data).hexdigest() != digest:
+        raise SystemExit("%s is not the guidelines.md expected (sha256 %s)" % (rel, digest))
+    os.makedirs(os.path.join(RESOURCES, "guidelines"), exist_ok=True)
+    with open(os.path.join(RESOURCES, "guidelines", "umr_guidelines.md"), "wb") as f:
+        f.write(data)
+    with open(os.path.join(RESOURCES, "guidelines", "SOURCE.md"), "w", encoding="utf-8") as f:
+        f.write("# guidelines\n\n`umr_guidelines.md`: the UMR guidelines, umr4nlp/umr-guidelines `guidelines.md`\n"
+                "(https://github.com/umr4nlp/umr-guidelines/blob/master/guidelines.md), sha256 %s.\n" % digest)
+
+
 def write_docs(sp):
     os.makedirs(os.path.join(OUT, "docs"), exist_ok=True)
     for name, rel in DOCS.items():
@@ -345,6 +438,10 @@ def main(sp, mp, penman_whl=None):
         dst = os.path.join(FS, "skillparseumr", WEB, "tools", os.path.basename(rel))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copyfile(os.path.join(sp, rel), dst)
+    for name in sorted(os.listdir(WEB_TOOLS)):
+        if name.endswith(".py"):
+            shutil.copyfile(os.path.join(WEB_TOOLS, name), os.path.join(FS, "skillparseumr", WEB, "tools", name))
+    write_resources(sp, mp)
     for base, _, names in os.walk(FS):
         for n in names:
             if n == "propbank.py":

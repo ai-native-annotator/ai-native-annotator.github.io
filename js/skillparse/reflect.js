@@ -37,8 +37,9 @@ How the skills work (SkillParseUMR decision orchestration):
   option lists in its prompts.yaml), Jev answers them with probabilities, and rules build its output
   ("emit") from the answers.
 - Every other model skill is kind "agent": its skill.md is the prompt (the part before "## Input" is
-  the instructions, the rest this call's input) sent to Haiku, which may call tools (get_example reads
-  reference/example.md; propbank_lookup) and returns the emit as JSON. Its problems are "instructions"
+  the instructions, the rest this call's input) sent to the chosen model, which may call tools
+  (search_annotations: gold UMR annotations and reference/example.md sections with given keywords;
+  search_guidelines: passages of the UMR guidelines; propbank_lookup) and returns the emit as JSON. Its problems are "instructions"
   (the skill.md, or an example in reference/example.md). A jev skill's wrong output has one of
   these causes: "question" (the right option was offered but the wording or option descriptions led
   to a wrong pick), "candidates" (the right answer was not among the options, or a needed question

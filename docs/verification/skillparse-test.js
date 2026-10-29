@@ -13,7 +13,8 @@
  *   2. Sentence 1 runs one step at a time: a finished step waits to be confirmed, and nothing
  *      (not even "all sentences: next step") runs the sentence on until it is. Confirming step by
  *      step makes a tree of steps; only sent_type's rounds go to Jev; the agent skills get the
- *      system prompt and their skill.md (split at "## Input"), call get_example for real, and
+ *      system prompt and their skill.md (split at "## Input"), call search_annotations, search_guidelines and
+ *      propbank_lookup for real (the gold data and guidelines fetched by the page's Python), and
  *      answer through final_result. A step's output is shown as Penman.
  *   3. The sentence's graph is drawn, and clicking a box selects the step that wrote it.
  *   4. A person corrects one step's output: it is kept as the human result and the steps under it
@@ -119,11 +120,13 @@ async function stepThrough(page, max = 80) {
   check('sent_type asked Jev', calls.jev > 0, `${calls.jev} requests, ${calls.questions} questions`);
   check('the agent skills went to Haiku with the system prompt and their skill.md', calls.haiku > 0 && calls.heads > 0
     && [...calls.systems].every((x) => x.startsWith('You are an expert annotator of Uniform Meaning Representation')), `${calls.haiku} calls`);
-  check('a tool call ran for real (get_example read reference/example.md)', !!calls.tools.exampleRead, JSON.stringify(calls.tools));
+  check('search_annotations works in the page (whole gold sentences from resources/gold/zh, and example.md sections)',
+    !!calls.tools.goldRead && !!calls.tools.examplesRead, JSON.stringify(calls.tools));
+  check('search_guidelines works in the page (passages of the UMR guidelines)', !!calls.tools.guidelinesRead, JSON.stringify(calls.tools));
   check('propbank_lookup works in the page (吃 → 吃-01 from the merged PropBank file)', !!calls.tools.propbankRead, JSON.stringify(calls.tools));
   await page.click('.tree li:has(.sk:text-is("predicate"))');
   await page.click('.tab:text-is("工具调用")');
-  check("the agent step's tool calls are shown", (await page.textContent('#output')).includes('get_example'));
+  check("the agent step's tool calls are shown", (await page.textContent('#output')).includes('search_annotations'));
   await page.click('.tab:text-is("提示词")');
   check("the agent step's prompt is its skill.md, rendered", (await page.textContent('#output')).includes('# Output Format')
     && !!(await page.$('#output .md h1')));

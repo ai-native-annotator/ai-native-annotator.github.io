@@ -53,6 +53,9 @@
 | `data/skillparse/bridge/umr_load.py` | 把已有 `.umr` 的标注拆成步骤 |
 | `data/skillparse/fs/skillparseumr/` | SkillParseUMR：`src/`（registry、输入输出模块）、`web-procedures/zh`、`web-procedures/en`（两套流程）、`web-procedures/tools/` |
 | `data/skillparse/fs/modular-parsing/resources/` | PropBank（`chinese-propbank.json`、`english-propbank/…arg-descr.txt`）和 UMR 列表（CSV） |
+| `data/skillparse/web_tools/search.py` | 本站自己的两个工具 `search_annotations`、`search_guidelines`，同步时复制到 `web-procedures/tools/` |
+| `data/skillparse/resources/gold/zh/gold.json` · `gold/en/gold.json` | 金标标注，按语言分开：中文 35 篇 2,278 句（SkillParseUMR `newdata/` 31 篇 + modular-parsing `real-umr-data/chinese` 4 篇），英文 580 篇 31,147 句（SkillParseUMR `newdata/umr_en_normalized/`）；来源写在各自的 `SOURCE.md` |
+| `data/skillparse/resources/guidelines/umr_guidelines.md` | UMR 指南全文（umr4nlp/umr-guidelines `guidelines.md`，取自 SkillParseUMR 固定的副本，sha256 校验） |
 | `data/skillparse/docs/` | 两篇样例文档（只有句子） |
 | `data/skillparse/vendor/` | penman 1.3.1 |
 | `scripts/sync_skillparse.py` | 从 SkillParseUMR 组装上面这些文件 |
@@ -187,7 +190,14 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 - instructions：`# Output Format` + emit 字段列表 + skill.md 里 `## Input` 之前的部分（用输入值 `str.format` 填好）；
 - input：skill.md 从 `## Input` 开始的部分，填好输入；有提示时在最后加一行 `human提示：…`（英文 `Human hint: …`），并在 system 后面加一句：输入最后的 human 提示是人对这一步的纠正，务必遵循，和说明冲突时以提示为准。
 
-**工具**：skill 自己的 `tools/`，然后 skillset 的 `tools/`，再然后上一层的 `tools/`（同名的只取第一个）。现在有 `get_example`（读 `reference/example.md`）和 `propbank_lookup`（读合并后的 PropBank）。模型要调用工具时，页面 `py('tool')` 在 Python 里执行，结果文本交还模型；记录在这一步的「工具调用」里。需要 `RunContext` 的工具得到一个 `deps = {skill_dir, skill}` 的替身（浏览器里没有 pydantic-ai）。
+**工具**：skill 自己的 `tools/`，然后 skillset 的 `tools/`，再然后上一层的 `tools/`（同名的只取第一个）。现在每个 agent skill 有三个：`propbank_lookup`（读合并后的 PropBank）、`search_annotations`、`search_guidelines`（后两个在 `web-procedures/tools/search.py`，源文件 `data/skillparse/web_tools/search.py`，见下表）。SkillParseUMR 的 `get_example` 去掉了，skill.md 里原来叫模型用它的两句换成了一段说明两个搜索工具的话。模型要调用工具时，页面 `py('tool')` 在 Python 里执行，结果文本交还模型；记录在这一步的「工具调用」里。需要 `RunContext` 的工具得到一个 `deps = {skill_dir, skill, doc_sentences}` 的替身（浏览器里没有 pydantic-ai）。
+
+| 工具 | 参数 | 返回 |
+|---|---|---|
+| `search_annotations` | `language`（`zh` / `en`），`keywords`（词、概念 `have-org-role-91`、角色 `:ARG1-of`、属性 `:aspect state` 等，在句子和标注里任意位置匹配），`max_results`（默认 3，最多 10） | `gold`：整句的金标标注 `{doc, sentence_number, sentence, annotation}`（annotation 是这句在 .umr 里的整块：词、句级图、alignment、文档级标注）；`examples`：本流程各 skill 的 `reference/example.md` 中匹配的 `## ` 段 `{skill, section, text}`；`found`：一共匹配多少。命中关键词种类多的排前，再按命中次数、长度短的。正在标注的文档里的句子不返回（样例文档本身是金标），有被排除的会在 `left_out` 里说明 |
+| `search_guidelines` | `keywords`，`max_results`（默认 3，最多 10） | `sections`：`{heading, text}`，heading 是在指南里的位置（`UMR attributes > Part 3-3-1. Aspect > …`），text 是一节，长的节按段落切成约 3000 字一段（标 `(k/n)`）；`found`。排序：命中关键词种类多的，标题里命中的，命中密度高的 |
+
+数据在 `data/skillparse/resources/`，启动时不加载（英文金标 24.7 MB）：第一次搜索时由 Python 用 Pyodide 的 `open_url` 从 `SP_BASE + "resources/…"` 取来并缓存（本地跑时先看 `$SP_RESOURCES`）。
 
 **`llm()` 的循环**（`models.js`）：
 - 工具列表最后加一个 `final_result`，它的参数 schema 由 emit 生成（`emitSchema`）。
@@ -470,6 +480,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
 | PropBank | 每个词条一个 XML（中文 24,521 个） | 合并成一个 JSON，`propbank.py` 改成读它，查询结果相同 |
+| 工具 | `get_example`（读 `reference/example.md`）、`propbank_lookup` | 去掉 `get_example`；加 `search_annotations`（金标 + example.md）、`search_guidelines`（UMR 指南）；skill.md 里提到 get_example 的两句改成说明这两个工具 |
 
 另外，网页的运行方式和 SkillParseUMR 的命令行 Runner 有这些不同：
 - 每一步要人确认才继续；

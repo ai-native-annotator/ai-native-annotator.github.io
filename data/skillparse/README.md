@@ -7,10 +7,23 @@ written into the browser's Python (Pyodide) file system under `/sp/`:
 |---|---|---|
 | `fs/skillparseumr/web-procedures/zh/` | sxndqc/SkillParseUMR @ 4534a9f: `experiment/decision-orchestration/umr-zh-frag/versions/R42`, with `sent_type` from `umr-zh-v11/versions/V12` | **the Chinese procedure**: R42's registry, agent skills (`skill.md`, `reference/example.md`, `tools/`) and rules; `sent_type` is V12's `kind: jev` skill with the modules it imports (`jevlib.py`, `prompt_loader.py`, `event_modifiers.*`) |
 | `fs/skillparseumr/web-procedures/en/` | 〃: `skillsets/umr-tree`, with `sent_type` from `umr-en-v11/versions/V12` | **the English procedure**, composed the same way (decision-orchestration has no English agent version) |
-| `fs/skillparseumr/web-procedures/tools/` | 〃: `skillsets/tools` | `get_example`, `propbank_lookup`: the general tools, found next to the procedures as `experiment/rsi-zh2/skills/tools` is found next to its versions |
+| `fs/skillparseumr/web-procedures/tools/` | 〃: `skillsets/tools/propbank.py`; this site: `web_tools/search.py` | `propbank_lookup`, `search_annotations`, `search_guidelines`: the general tools, found next to the procedures as `experiment/rsi-zh2/skills/tools` is found next to its versions (upstream's `get_example` is left out, and the skills' sentences that point to it now point to the two search tools) |
 | `fs/skillparseumr/src/` | 〃 | `registry.py` (REGISTRY.md parser and expressions), the UMR input / output handlers (the output handler writes the `.umr` file and its alignment) |
 | `fs/skillparseumr/skillsets/tools/propbank.py` | 〃 | the PropBank lookup `jevlib.py` loads |
 | `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV), English PropBank arg descriptions, and the PropBank frames: each folder of one XML file per lemma (24,521 Chinese, 5,618 English) merged into one JSON file, `chinese-propbank.json` and `english-propbank/propbank-amr-frames-xml-2018-01-25.json` |
+
+`resources/` is not written into the Python file system when the page starts; the search tools
+fetch a file the first time they need it (`SP_BASE` + `resources/…`, through Pyodide's
+`open_url`) and keep it:
+
+| here | from | what |
+|---|---|---|
+| `resources/gold/zh/gold.json` | SkillParseUMR `newdata/` (31 documents), modular-parsing `resources/real-umr-data/chinese/umr_data/` (4) | 2,278 Chinese gold sentences: `{doc, snt, text, annotation}`, the annotation being the sentence's whole block of the `.umr` file (words, sentence-level graph, alignment, document-level annotation), 3.3 MB |
+| `resources/gold/en/gold.json` | SkillParseUMR `newdata/umr_en_normalized/` (580 documents) | 31,147 English gold sentences, the same way, 24.7 MB |
+| `resources/guidelines/umr_guidelines.md` | SkillParseUMR `experiment/annoforge/guidelines/umr_guidelines.md` (umr4nlp/umr-guidelines `guidelines.md`, sha256-checked) | the UMR guidelines, searched by `search_guidelines` in passages (a section, or about 3,000 characters of a long one, with its heading path) |
+
+`search_annotations` never returns a sentence of the document being annotated (the sample
+documents are gold documents too).
 
 The composition makes these changes to the procedures: `registry.yaml` gets `kind: jev` on
 `sent_type` and a header saying where everything came from; the `coverage` rule is left out (its
@@ -47,9 +60,9 @@ answer from the `final_result` output tool; and validating that answer against `
 does the first in `js/skillparse/models.js` (the same loop over the Anthropic Messages API or an
 OpenAI-style chat API; the tools themselves run in Python in the bridge) and the second in the bridge
 (`_check_emit`: every `emit` field present, enum values from the list, lists and objects where
-declared). The one import of pydantic-ai left in the copied code is `get_example`'s type annotation
-(`ctx: RunContext[dict]` in `skillsets/tools/example.py`); the bridge registers a small
-`pydantic_ai` module whose `RunContext` only carries `deps`, which is all the tool reads.
+declared). The one import of pydantic-ai left is `search_annotations`' type annotation
+(`ctx: RunContext[dict]` in `web_tools/search.py`); the bridge registers a small `pydantic_ai`
+module whose `RunContext` only carries `deps`, which is all the tool reads.
 
 The reflection code (`rsi-batch/`) is not copied: the page's own reflection is per step and
 human-driven (see `js/skillparse/reflect.js`).

@@ -89,7 +89,8 @@ the Python files run in Pyodide in a Web Worker (`data/skillparse/`, `js/skillpa
 `sent_type` is `kind: jev` (rules list the options, **Jev** answers the closed questions, from
 decision-orchestration V12); every other model skill (`discourse`, `predicate`, `np_phrase`,
 `special_entity`, `document`) is `kind: agent`: its `skill.md` is the prompt and **Haiku** answers,
-with the skill's tools (`get_example`, `propbank_lookup`), as `src/skill_callable.py` does. The
+with the skill's tools (`propbank_lookup`, and the site's `search_annotations` over gold UMR data and
+example.md, `search_guidelines` over the UMR guidelines), as `src/skill_callable.py` does. The
 Chinese prompts are decision-orchestration's `umr-zh-frag` R42, the English ones the `umr-tree` seed.
 Jev goes through OpenRouter; Haiku through the OpenRouter key or straight to the Anthropic API with an Anthropic key, as chosen in ⚙. The layout follows the registry:
 
@@ -249,7 +250,7 @@ Skill 修订与调用；审核保留后，AI 自动生成带版本的候选并�
 Runner（`src/runner.py`、`src/skill_callable.py`）在浏览器里跑一个 registry（Pyodide，Python 文件不改）：
 只有 sent_type 是 `kind: jev`（规则列选项，Jev 回答封闭问题，来自决策编排 V12）；其余调模型的 skill
 （discourse、predicate、np_phrase、special_entity、document）都是 `kind: agent`：skill.md 就是提示词，
-直接交给 Haiku，带 skill 的工具（get_example、propbank_lookup）。中文提示词是决策编排的 umr-zh-frag R42，
+直接交给 Haiku，带 skill 的工具（propbank_lookup；本站的 search_annotations 搜金标数据和 example.md，search_guidelines 搜 UMR 指南）。中文提示词是决策编排的 umr-zh-frag R42，
 英文是 umr-tree 种子。界面按 registry
 排：左边是上下文（选 wave：sentence 或 document；选每个 wave 的 for_each 项、调上下文窗口：一句话还是前五句），然后是
 skill 栏，中间上面是生成内容（画出来的图；点图里的框跳到写它的那一步）、下面是点击运行的步骤，右边是 AI。每一步都能改，改法三种：(1) 直接改 skill；

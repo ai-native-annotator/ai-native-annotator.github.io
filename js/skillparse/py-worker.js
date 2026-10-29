@@ -48,6 +48,8 @@ async function boot(base) {
   }
 
   progress('starting the skills …');
+  // the search tools read data/skillparse/resources/ from the site on their first call
+  py.runPython(`import os; os.environ["SP_BASE"] = ${JSON.stringify(root)}`);
   py.runPython('import sys; sys.path.insert(0, "/sp/bridge")');
   const mod = py.pyimport('sp_bridge');
   call = (method, args) => JSON.parse(mod.call(method, JSON.stringify(args || {})));

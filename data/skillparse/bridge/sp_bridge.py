@@ -33,6 +33,9 @@ for p in (SP + "/src", FS + "/vendor"):
     if p not in sys.path:
         sys.path.insert(0, p)
 os.environ.setdefault("PROPBANK_DIR", MP + "/resources")
+# what search_annotations / search_guidelines read: a local copy here, else (in the browser) the
+# site's data/skillparse/resources/, from $SP_BASE, which the worker sets
+os.environ.setdefault("SP_RESOURCES", FS + "/resources")
 sys.dont_write_bytecode = True
 
 DO = SP + "/experiment/decision-orchestration"
@@ -110,8 +113,9 @@ def purge_modules():
 
 
 def _pydantic_ai_stub():
-    """skillsets/tools/example.py types its first parameter as pydantic_ai.RunContext[dict]; the
-    browser has no pydantic-ai, so a RunContext that only carries `deps` stands in for it."""
+    """web-procedures/tools/search.py types search_annotations' first parameter as
+    pydantic_ai.RunContext[dict]; the browser has no pydantic-ai, so a RunContext that only
+    carries `deps` stands in for it."""
     import types
     if "pydantic_ai" in sys.modules:
         return
@@ -597,7 +601,8 @@ class RegistryEngine:
                 "retry": bool(retry)}
 
     def tool(self, w, i, nid, name, args):
-        """Run one tool for an agent node; ctx.deps is {"skill_dir", "skill"} as SkillCallable gives it."""
+        """Run one tool for an agent node; ctx.deps is {"skill_dir", "skill"} as SkillCallable gives it,
+        and the sentences of the open document (search_annotations leaves them out)."""
         ep, node = self._node(w, i, nid)
         skill = self.reg.skills[node["skill"]]
         fns = {t.__name__: t for t in skill_tools(skill.path)}
@@ -607,7 +612,8 @@ class RegistryEngine:
             fn = fns[name]
             try:
                 if _wants_ctx(fn):
-                    ctx = sys.modules["pydantic_ai"].RunContext({"skill_dir": skill.path, "skill": skill.name})
+                    ctx = sys.modules["pydantic_ai"].RunContext({"skill_dir": skill.path, "skill": skill.name,
+                                                                 "doc_sentences": [s.text for s in self.doc.sents]})
                     res = fn(ctx, **(args or {}))
                 else:
                     res = fn(**(args or {}))
