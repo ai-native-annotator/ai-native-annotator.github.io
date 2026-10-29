@@ -611,10 +611,13 @@ class RegistryEngine:
         node.setdefault("tool_calls", []).append({"tool": name, "args": args, "result": text[:4000]})
         return text
 
-    def complete(self, w, i, nid, output):
-        """A model's JSON answer for an agent node. An answer that does not fit emit is sent back
-        once with what is wrong (agent.run's retries=1), then the node is in error."""
+    def complete(self, w, i, nid, output, model=None):
+        """A model's JSON answer for an agent node (and which model gave it). An answer that does
+        not fit emit is sent back once with what is wrong (agent.run's retries=1), then the node
+        is in error."""
         ep, node = self._node(w, i, nid)
+        if model:
+            node["model"] = str(model)
         skill = self.reg.skills[node["skill"]]
         try:
             self._check_emit(skill, output)
@@ -725,7 +728,7 @@ class RegistryEngine:
         self._drop_gens(w, i, nid)
         node.update(status="pending", output=None, stored={}, error=None, rounds=[], prompt=None, human=False,
                     children=[], dropped=[], rules=[], tool_calls=[], retried=False, problems=[],
-                    confirmed=False, loaded=False)
+                    confirmed=False, loaded=False, model=None)
         self._mark_stale(w, int(i))
         return self.episode(w, i)
 

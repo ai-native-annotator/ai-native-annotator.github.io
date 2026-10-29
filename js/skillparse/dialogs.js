@@ -56,6 +56,7 @@ export function openSettings() {
       });
       closeModal();
       toast(t('saveSettings'));
+      document.dispatchEvent(new CustomEvent('settings-changed'));
     } })));
   openModal(t('settingsTitle'), body, { wide: false });
 }

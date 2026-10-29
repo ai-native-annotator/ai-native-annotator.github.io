@@ -122,6 +122,7 @@ function outputTab(d) {
   if (d.status === 'ok' || d.status === 'error') parts.push(reviewCard(d));
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
   if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
+  if (d.model && d.status !== 'pending') parts.push(h('div', { class: 'note', text: t('madeBy', { model: d.model }) }));
   if (d.loaded) {
     parts.push(h('div', { class: 'row' }, h('span', { class: 'human-tag loaded', text: t('loadedTag') }),
       h('span', { class: 'note', text: t('loadedNote') })));

@@ -361,7 +361,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 | 键 | 内容 |
 |---|---|
 | `annotator_secrets` | API key（和旧工作台共用） |
-| `skillparse_settings_v4` | 模型、服务商、Jev 设置、并发数 |
+| `skillparse_settings_v4` | 模型、服务商（包括工具栏菜单的选择）、Jev 设置、并发数 |
 | `skillparse_files:<skillset>` | 改过的 skill 文件，每次保存一个版本 |
 | `skillparse_lang` | 界面语言 |
 | `skillparse_last` | 上次打开的文档 |
@@ -414,6 +414,24 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 ---
 
 ## 13. 设置和模型
+
+**工具栏的「模型」菜单**：选 agent 步骤（discourse、predicate、np_phrase、special_entity、document）用哪个模型，从下一步起生效。sent_type 仍然问 Jev。
+
+| 选项 | Anthropic API | OpenRouter | OpenAI |
+|---|---|---|---|
+| Haiku 5.5（默认） | `claude-haiku-5-5` | `anthropic/claude-haiku-5.5` | — |
+| Sonnet 5.5 | `claude-sonnet-5-5` | `anthropic/claude-sonnet-5.5` | — |
+| Opus 5.5 | `claude-opus-5-5` | `anthropic/claude-opus-5.5` | — |
+| Fable 5.1 | `claude-fable-5-1` | `anthropic/claude-fable-5.1` | — |
+| GPT-6.1 Sol | — | `openai/gpt-6.1-sol` | `gpt-6.1-sol` |
+
+- **走哪个 key**（`pickModel`）：现在用的服务商有这个模型就继续用它，否则换成第一个有这个模型、而且填了 key 的服务商。
+- **记录**：每一步记下生成它的模型（`node.model`），输出栏显示「这一步由 X 生成」。
+- **Sonnet 5.5、Opus 5.5、Fable 5.1 的请求差别**：
+  - 这三个模型不接受强制调用工具（`tool_choice` 的 any / tool，OpenAI 写法的 `required`）。对它们改用 `auto`，在 system 里要求用 `final_result` 作答；如果第一次用文字回答，会提醒一次。
+  - 直连 Anthropic 时，加上服务器端拒答回退：请求头 `anthropic-beta: server-side-fallback-2026-07-01`，请求体 `fallbacks: "default"`。
+  - 模型拒答（`stop_reason: "refusal"`，或 OpenAI 写法的 `content_filter`）时，这一步出错并写明原因。
+- 自定义的模型名仍可在 ⚙ 里填，菜单里会显示成「模型名（服务商）」。
 
 ⚙ 设置（`openSettings`）：
 

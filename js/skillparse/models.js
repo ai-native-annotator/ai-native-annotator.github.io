@@ -29,6 +29,49 @@ export const MODEL_DEFAULTS = {
   reflect: { openrouter: 'anthropic/claude-sonnet-5.5', anthropic: 'claude-sonnet-5-5', openai: '' },
 };
 
+/**
+ * The models the toolbar switches the agent skills between, by the name each provider knows them
+ * by. Haiku is the default; a stronger model is there for the steps Haiku gets wrong.
+ */
+export const MODEL_CHOICES = [
+  { id: 'haiku', label: 'Haiku 5.5', anthropic: 'claude-haiku-5-5', openrouter: 'anthropic/claude-haiku-5.5' },
+  { id: 'sonnet', label: 'Sonnet 5.5', anthropic: 'claude-sonnet-5-5', openrouter: 'anthropic/claude-sonnet-5.5' },
+  { id: 'opus', label: 'Opus 5.5', anthropic: 'claude-opus-5-5', openrouter: 'anthropic/claude-opus-5.5' },
+  { id: 'fable', label: 'Fable 5.1', anthropic: 'claude-fable-5-1', openrouter: 'anthropic/claude-fable-5.1' },
+  { id: 'sol', label: 'GPT-6.1 Sol', openai: 'gpt-6.1-sol', openrouter: 'openai/gpt-6.1-sol' },
+];
+
+/** Which of MODEL_CHOICES a role runs now, or null (a model typed in Settings). */
+export function currentChoice(role = 'haiku') {
+  const { provider, model } = settings().roles[role];
+  return MODEL_CHOICES.find((c) => c[provider] === model) || null;
+}
+
+/**
+ * Switch a role to one of MODEL_CHOICES: through the provider it uses now when that provider has
+ * the model, else the first one that does and has a key (else simply the first one).
+ */
+export function pickModel(id, role = 'haiku') {
+  const choice = MODEL_CHOICES.find((c) => c.id === id);
+  if (!choice) return null;
+  const cfg = settings();
+  const k = keys();
+  const offered = PROVIDERS.filter((p) => choice[p]);
+  const provider = choice[cfg.roles[role].provider] ? cfg.roles[role].provider
+    : offered.find((p) => k[p]) || offered[0];
+  cfg.roles[role] = { provider, model: choice[provider] };
+  saveSettings(cfg);
+  return cfg.roles[role];
+}
+
+// models that refuse a forced tool call (tool_choice any / tool, OpenAI-style "required"): the
+// answer is still asked for through final_result, with tool_choice auto and an instruction
+const NO_FORCED_TOOL = /(opus-5[.-]5|sonnet-5[.-]5|fable-5[.-]1|mythos-5[.-]1)/;
+// models whose refusals the Claude API can hand to another model (server-side fallback)
+const FALLBACK = /^claude-(opus-5-5|sonnet-5-5|fable-5-1)$/;
+const ANSWER_NOTE = 'When you have the answer, call the final_result tool with it; do not answer in text.';
+const REMIND = 'Call the final_result tool now with your answer.';
+
 const DEFAULTS = {
   roles: {
     haiku: { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' },
@@ -132,26 +175,43 @@ async function anthropicLoop({ cfg, key, system, instructions, input, all, callT
   const content = [{ type: 'text', text: instructions, ...(instructions.length > 2000 ? { cache_control: { type: 'ephemeral' } } : {}) }];
   if (input) content.push({ type: 'text', text: input });
   const messages = [{ role: 'user', content }];
+  const free = NO_FORCED_TOOL.test(cfg.model);
   const headers = {
     'content-type': 'application/json',
     'x-api-key': key,
     'anthropic-version': '2023-06-01',
     'anthropic-dangerous-direct-browser-access': 'true',
   };
+  // a refusal on these models is answered by a fallback model the API picks by its category
+  if (FALLBACK.test(cfg.model)) headers['anthropic-beta'] = 'server-side-fallback-2026-07-01';
+  let reminded = false;
   for (let turn = 0; turn < maxTurns; turn++) {
     const last = turn === maxTurns - 1;
     const body = {
       model: cfg.model, max_tokens: 16000, messages,
       tools: all.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })),
-      tool_choice: last ? { type: 'tool', name: 'final_result' } : { type: 'any' },
+      tool_choice: free ? { type: 'auto' } : last ? { type: 'tool', name: 'final_result' } : { type: 'any' },
     };
-    if (system) body.system = system;
+    if (FALLBACK.test(cfg.model)) body.fallbacks = 'default';
+    const sys = [system, free ? ANSWER_NOTE : ''].filter(Boolean).join('\n\n');
+    if (sys) body.system = sys;
     const data = await withRetry(() => post('https://api.anthropic.com/v1/messages', headers, body, signal, 'Anthropic'));
+    if (data.stop_reason === 'refusal') {
+      throw new Error(`${cfg.model} declined this step${data.stop_details?.category ? ` (${data.stop_details.category})` : ''}.`);
+    }
     messages.push({ role: 'assistant', content: data.content });
     const uses = (data.content || []).filter((c) => c.type === 'tool_use');
     const fin = uses.find((u) => u.name === 'final_result');
     if (fin) return fin.input;
-    if (!uses.length) throw new Error('The model answered without calling final_result.');
+    if (!uses.length) {
+      // answered in text with tool_choice auto: ask once more for final_result
+      if (free && !reminded && !last) {
+        reminded = true;
+        messages.push({ role: 'user', content: REMIND });
+        continue;
+      }
+      throw new Error('The model answered without calling final_result.');
+    }
     const results = [];
     for (const u of uses) {
       const out = callTool ? await callTool(u.name, u.input) : `no tool ${u.name}`;
@@ -164,25 +224,37 @@ async function anthropicLoop({ cfg, key, system, instructions, input, all, callT
 }
 
 async function openaiLoop({ cfg, key, url, system, instructions, input, all, callTool, maxTurns, signal, onEvent }) {
+  const free = NO_FORCED_TOOL.test(cfg.model);
   const messages = [];
-  if (system) messages.push({ role: 'system', content: system });
+  const sys = [system, free ? ANSWER_NOTE : ''].filter(Boolean).join('\n\n');
+  if (sys) messages.push({ role: 'system', content: sys });
   messages.push({ role: 'user', content: input ? `${instructions}\n\n${input}` : instructions });
   const headers = { 'content-type': 'application/json', authorization: `Bearer ${key}` };
+  let reminded = false;
   for (let turn = 0; turn < maxTurns; turn++) {
     const last = turn === maxTurns - 1;
     const body = {
       model: cfg.model, messages,
       tools: all.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.parameters } })),
-      tool_choice: last ? { type: 'function', function: { name: 'final_result' } } : 'required',
+      tool_choice: free ? 'auto' : last ? { type: 'function', function: { name: 'final_result' } } : 'required',
     };
     const data = await withRetry(() => post(url, headers, body, signal, cfg.provider === 'openai' ? 'OpenAI' : 'OpenRouter'));
-    const msg = data.choices?.[0]?.message;
-    if (!msg) throw new Error('OpenAI returned no message.');
+    const choice = data.choices?.[0];
+    const msg = choice?.message;
+    if (!msg) throw new Error(`${cfg.model} returned no message.`);
+    if (choice.finish_reason === 'content_filter' || msg.refusal) throw new Error(`${cfg.model} declined this step.`);
     messages.push(msg);
     const calls = msg.tool_calls || [];
     const fin = calls.find((c) => c.function?.name === 'final_result');
     if (fin) return JSON.parse(fin.function.arguments || '{}');
-    if (!calls.length) throw new Error('The model answered without calling final_result.');
+    if (!calls.length) {
+      if (free && !reminded && !last) {
+        reminded = true;
+        messages.push({ role: 'user', content: REMIND });
+        continue;
+      }
+      throw new Error('The model answered without calling final_result.');
+    }
     for (const c of calls) {
       let args = {};
       try { args = JSON.parse(c.function.arguments || '{}'); } catch { /* keep {} */ }

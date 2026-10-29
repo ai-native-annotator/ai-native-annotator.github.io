@@ -13,7 +13,8 @@ import { S, SKILLSETS, loadDocs, render, setManualAnswerer, setRestoreAsker, sta
 import { openSettings, openImport, exportAs, answerByHand, askRestore, fillSelectors, reopen } from './dialogs.js';
 import { allImports, lastOpen } from './save.js';
 import { py } from './py.js';
-import { closeModal, toast } from './ui.js';
+import { MODEL_CHOICES, currentChoice, pickModel, settings } from './models.js';
+import { closeModal, toast, h } from './ui.js';
 import { applyStatic, getLang, setLang, t } from './i18n.js';
 import './pane-context.js';
 import './pane-skills.js';
@@ -25,6 +26,13 @@ function wire() {
   document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('modal').hidden) closeModal(); });
   document.getElementById('btn-settings').addEventListener('click', openSettings);
+  document.getElementById('model-pick').addEventListener('change', (e) => {
+    const r = pickModel(e.target.value);
+    fillModels();
+    render();
+    if (r) toast(t('modelPicked', { model: r.model, via: t(`via.${r.provider}`) }));
+  });
+  document.addEventListener('settings-changed', fillModels);
   document.getElementById('btn-import').addEventListener('click', openImport);
   document.getElementById('btn-stop').addEventListener('click', stop);
   document.getElementById('btn-next-all').addEventListener('click', () => runNextAll().catch(fail));
@@ -39,6 +47,7 @@ function wire() {
     setLang(getLang() === 'zh' ? 'en' : 'zh');
     lang.textContent = getLang() === 'zh' ? 'EN' : '中文';
     applyStatic();
+    fillModels();
     render();
   });
   document.getElementById('skillset').addEventListener('change', async (e) => {
@@ -60,6 +69,17 @@ function wire() {
   });
 }
 
+/** The toolbar's model menu: which model runs the agent skills from the next step on. */
+function fillModels() {
+  const sel = document.getElementById('model-pick');
+  const now = currentChoice();
+  const { provider, model } = settings().roles.haiku;
+  sel.replaceChildren(
+    ...MODEL_CHOICES.map((c) => h('option', { value: c.id, text: c.id === 'haiku' ? `${c.label}（${t('defaultTag')}）` : c.label, selected: now?.id === c.id })),
+    now ? null : h('option', { value: '', text: `${model}（${provider}）`, selected: true }));
+  sel.title = `${model} · ${t(`via.${provider}`)}`;
+}
+
 function fail(err) {
   console.error(err);
   status(`${t('error')}: ${err.message}`);
@@ -71,6 +91,7 @@ async function boot() {
   setLang(getLang());
   applyStatic();
   wire();
+  fillModels();
   setManualAnswerer(answerByHand);
   setRestoreAsker(askRestore);
   // keep the work when the page is left or hidden (a pending save would otherwise be lost)

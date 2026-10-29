@@ -10,6 +10,7 @@ import { py } from './py.js';
 import { addVersion, versions, forget, original, edited } from './store.js';
 import { lineDiff, hunks } from './diff.js';
 import { renderMarkdown } from './md.js';
+import { currentChoice, settings } from './models.js';
 import { t } from './i18n.js';
 
 const root = () => document.getElementById('skills');
@@ -20,10 +21,13 @@ function fileChip(path) {
   return h('button', { class: `file${isEdited ? ' edited' : ''}`, title: path, text: name, onclick: (e) => { e.stopPropagation(); openEditor(path); } });
 }
 
-/** Which model a skill calls: Jev for kind: jev (closed questions), Haiku for kind: agent (skill.md). */
+/** Which model a skill calls: Jev for kind: jev (closed questions), the toolbar's model for kind: agent (skill.md). */
 function modelBadge(kind) {
   if (kind === 'jev') return h('span', { class: 'badge by-jev', title: t('jevTitle'), text: '→ Jev' });
-  if (kind === 'agent') return h('span', { class: 'badge by-haiku', title: t('haikuTitle'), text: '→ Haiku' });
+  if (kind === 'agent') {
+    const name = currentChoice()?.label.replace(/ [\d.]+$/, '') || settings().roles.haiku.model;
+    return h('span', { class: 'badge by-haiku', title: t('haikuTitle'), text: `→ ${name}` });
+  }
   return null;
 }
 

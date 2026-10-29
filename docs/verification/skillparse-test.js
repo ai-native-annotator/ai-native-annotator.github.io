@@ -229,6 +229,33 @@ async function stepThrough(page, max = 80) {
   const done = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('and the steps finish', done.length >= 3 && done.every((x) => x === '✓'), done.join(''));
 
+  // the toolbar switches the model of the agent steps; each step says which model wrote it
+  const opts = await page.$$eval('#model-pick option', (e) => e.map((x) => x.value));
+  check('the toolbar offers Haiku (default), Sonnet 5.5, Opus 5.5, Fable 5.1 and GPT-6.1 Sol',
+    ['haiku', 'sonnet', 'opus', 'fable', 'sol'].every((v) => opts.includes(v)) && (await page.$eval('#model-pick', (e) => e.value)) === 'haiku', opts.join(','));
+  await page.selectOption('#model-pick', 'sonnet');
+  await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
+  await page.click('.tab:text-is("输出")');
+  const nAnth = anth.bodies.length;
+  await page.click('#output .review-card button:text-is("↻ 重跑这一步")');
+  await settled(page);
+  const sonnet = anth.bodies.slice(nAnth);
+  check('Sonnet 5.5 through the Anthropic key: no forced tool call, refusals fall back',
+    sonnet.length > 0 && sonnet.every((b) => b.model === 'claude-sonnet-5-5' && b.tool_choice?.type === 'auto'
+      && b.fallbacks === 'default' && /server-side-fallback/.test(b.beta) && /final_result/.test(b.system)), JSON.stringify(sonnet[0]));
+  check('the step says which model wrote it', (await page.textContent('#output')).includes('这一步由 claude-sonnet-5-5 生成'));
+  await page.selectOption('#model-pick', 'sol');
+  const nChat = (calls.bodies || []).length;
+  await page.click('#output .review-card button:text-is("↻ 重跑这一步")');
+  await settled(page);
+  const sol = (calls.bodies || []).slice(nChat);
+  check('GPT-6.1 Sol has no Anthropic name, so it goes through OpenRouter', sol.length > 0
+    && sol.every((b) => b.model === 'openai/gpt-6.1-sol' && b.tool_choice === 'required'),
+  JSON.stringify(sol[0]) || `${await page.textContent('#status')} · ${await page.evaluate(() => localStorage.getItem('skillparse_settings_v4'))}`);
+  await page.selectOption('#model-pick', 'haiku');
+  check('and back to Haiku', (await page.evaluate(() => JSON.parse(localStorage.getItem('skillparse_settings_v4')).roles.haiku.model)) === 'anthropic/claude-haiku-5.5');
+  await stepThrough(page);
+
   // a model at work is shown at work: the step spins in the tree, its sentence pulses, the output
   // pane says who is answering and for how long, the toolbar status has a spinner
   calls.delay = 2500;

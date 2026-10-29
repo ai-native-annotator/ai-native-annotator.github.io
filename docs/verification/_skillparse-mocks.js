@@ -71,6 +71,7 @@ module.exports = function mocks() {
     }
     calls.haiku++;
     calls.systems.add(sys);
+    calls.bodies = [...(calls.bodies || []), { model: body.model, tool_choice: body.tool_choice, system: sys }];
     await wait();
     calls.inputs.push(body.messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n'));
     if (user.startsWith('# Output Format')) calls.heads++;
@@ -97,11 +98,13 @@ module.exports = function mocks() {
   }
 
   /** Haiku through the Anthropic API (the Messages API's tool_use blocks). */
-  const anth = { calls: 0, models: new Set() };
+  const anth = { calls: 0, models: new Set(), bodies: [] };
   async function anthropic(route) {
     const body = JSON.parse(route.request().postData());
     anth.calls++;
     anth.models.add(body.model);
+    anth.bodies = [...anth.bodies, { model: body.model, tool_choice: body.tool_choice, fallbacks: body.fallbacks,
+      system: body.system || '', beta: route.request().headers()["anthropic-beta"] || "" }];
     await wait();
     const names = body.tools.map((x) => x.name);
     const used = body.messages.some((m) => Array.isArray(m.content) && m.content.some((c) => c.type === 'tool_result'));

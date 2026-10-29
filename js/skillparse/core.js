@@ -21,8 +21,8 @@ import { workKey, getWork, putWork, dropWork, lastOpen } from './save.js';
 import { t } from './i18n.js';
 
 export const SKILLSETS = [
-  { id: 'web-zh', label: '中文 · sent_type: Jev, 其余: Haiku (R42 + V12)', lang: 'zh' },
-  { id: 'web-en', label: 'English · sent_type: Jev, rest: Haiku (umr-tree + V12)', lang: 'en' },
+  { id: 'web-zh', label: '中文 · sent_type: Jev, 其余: 所选模型 (R42 + V12)', lang: 'zh' },
+  { id: 'web-en', label: 'English · sent_type: Jev, rest: the chosen model (umr-tree + V12)', lang: 'en' },
 ];
 
 export const S = {
@@ -306,7 +306,7 @@ export async function drive(w, i, nid, signal, { hint } = {}) {
           role: 'haiku', system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
           schema: emitSchema(r.emit), signal, callTool: (name, args) => py('tool', { w, i, nid, name, args }),
         }));
-        r = await py('complete', { w, i, nid, output: out });
+        r = await py('complete', { w, i, nid, output: out, model: settings().roles.haiku.model });
       } else {
         throw new Error(`unknown need ${r.need}`);
       }
