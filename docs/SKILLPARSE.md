@@ -185,7 +185,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 **kind: agent 的提示词**（照 SkillParseUMR `skill_callable.prompt_parts`）：
 - system：`You are an expert annotator of Uniform Meaning Representation (UMR), following the UMR guidelines. Do exactly the one task you are given.`
 - instructions：`# Output Format` + emit 字段列表 + skill.md 里 `## Input` 之前的部分（用输入值 `str.format` 填好）；
-- input：skill.md 从 `## Input` 开始的部分，填好输入；有提示时在最后加一行 `human提示：…`（英文 `Human hint: …`）。
+- input：skill.md 从 `## Input` 开始的部分，填好输入；有提示时在最后加一行 `human提示：…`（英文 `Human hint: …`），并在 system 后面加一句：输入最后的 human 提示是人对这一步的纠正，务必遵循，和说明冲突时以提示为准。
 
 **工具**：skill 自己的 `tools/`，然后 skillset 的 `tools/`，再然后上一层的 `tools/`（同名的只取第一个）。现在有 `get_example`（读 `reference/example.md`）和 `propbank_lookup`（读合并后的 PropBank）。模型要调用工具时，页面 `py('tool')` 在 Python 里执行，结果文本交还模型；记录在这一步的「工具调用」里。需要 `RunContext` 的工具得到一个 `deps = {skill_dir, skill}` 的替身（浏览器里没有 pydantic-ai）。
 
@@ -200,7 +200,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 - 把问题按每批 40 个，POST 到 `https://openrouter.ai/api/v1/systemone`，模型 `typesafe/jev-1.13`，请求体 `{model, state, questions}`；
 - 每个答案标上 `by: 'jev'`，同样的 state + 问题会用缓存；
 - ⚙ 里可以改成「我自己回答」，这时弹 `answerByHand` 对话框；
-- 有提示时，提示放进 state 的 `human提示` 字段。
+- 有提示时，提示放进 state 的 `human提示（务必遵循）` 字段（英文 `Human hint (must be followed)`）。
 
 **`_finish()`**：
 1. `_check_emit`：字段要齐、类型要对、取值在列表里（见第 11 节）；

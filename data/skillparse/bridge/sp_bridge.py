@@ -53,6 +53,10 @@ RULE80 = "#" * 80
 # a person's hint for re-running a step: written after the skill's input (agent skills), or put in
 # the state Jev sees (sent_type)
 HINT_LABEL = {"zh": "human提示：", "en": "Human hint: "}
+# with a hint, the system prompt says it must be followed; in Jev's state the hint's key says so
+HINT_RULE = ('If the input ends with a human hint ("human提示：…" or "Human hint: …"), it is a person\'s '
+             "correction of this step: you must follow it. Where it disagrees with the instructions, the hint wins.")
+HINT_KEY = {"zh": "human提示（务必遵循）", "en": "Human hint (must be followed)"}
 
 
 # ------------------------------------------------------------------ setup
@@ -548,9 +552,11 @@ class RegistryEngine:
                 instructions, user = head + md.format(**values), ""
             else:
                 instructions, user = head + md[:cut].format(**values), md[cut:].format(**values)
+            system = SYSTEM
             if node.get("hint"):
                 user = user.rstrip("\n") + "\n\n" + self._hint_label() + node["hint"] + "\n"
-            node["prompt"] = {"system": SYSTEM, "instructions": instructions, "input": user}
+                system = SYSTEM + " " + HINT_RULE
+            node["prompt"] = {"system": system, "instructions": instructions, "input": user}
             node["tool_calls"] = []
             node["retried"] = False
             return self._llm_request(node, skill)
@@ -560,7 +566,7 @@ class RegistryEngine:
     def _ask(self, w, i, node, req):
         state = jsonable(req.get("state"))
         if node.get("hint"):
-            key = self._hint_label().rstrip("： :")
+            key = HINT_KEY.get(self.doc.lang, HINT_KEY["en"])
             state = {**state, key: node["hint"]} if isinstance(state, dict) else {"state": state, key: node["hint"]}
         node["rounds"].append({"state": state, "questions": jsonable(req.get("questions")), "answers": None})
         return {"need": "jev", "node": node["id"], "skill": node["skill"], "round": len(node["rounds"]),

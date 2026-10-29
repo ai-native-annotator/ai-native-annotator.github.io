@@ -154,6 +154,8 @@ async function stepThrough(page, max = 80) {
   await settled(page);
   const sent = calls.inputs.slice(nInputs);
   check('the hint is written after the input and the step runs again', sent.length > 0 && sent.every((u) => /## Input[\s\S]*\n\nhuman提示：应该是 and，不是 none\n?$/.test(u)), JSON.stringify(sent[0]?.slice(-80)));
+  const sysHint = (calls.bodies || []).slice(-1)[0]?.system || '';
+  check('with a hint, the system prompt says the hint must be followed', /you must follow it/.test(sysHint), sysHint.slice(-160));
   await page.click('.tab:text-is("提示词")');
   check('the prompt tab shows the hint', (await page.textContent('#output')).includes('human提示：应该是 and，不是 none'));
   await page.click('.tab:text-is("输出")');
@@ -169,7 +171,7 @@ async function stepThrough(page, max = 80) {
   await page.click('#output .hint-go');
   await settled(page);
   check("sent_type's hint goes into the state Jev sees", calls.jevStates.length > nJev
-    && calls.jevStates.slice(nJev).every((st) => st['human提示'] === '这是一个从句'), JSON.stringify(calls.jevStates[nJev]).slice(0, 120));
+    && calls.jevStates.slice(nJev).every((st) => st['human提示（务必遵循）'] === '这是一个从句'), JSON.stringify(calls.jevStates[nJev]).slice(-80));
   await stepThrough(page);
 
   await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
