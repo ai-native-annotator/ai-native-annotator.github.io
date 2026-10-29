@@ -78,7 +78,7 @@ async function stepThrough(page, max = 80) {
 
   await page.goto(`${BASE}/index.html`);
   await statusIs(page, /就绪/);
-  check('Python boots and the Chinese procedure opens', (await page.$$('.skill')).length === 7
+  check('Python boots and the Chinese procedure opens', (await page.$$('.skill')).length === 6
     && (await page.$eval('#skillset', (e) => e.value)) === 'web-zh');
   check('two waves (sentence, document): re-entrancy is merged by span when the .umr is written',
     (await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]))).join(',') === 'sentence,document');
@@ -87,7 +87,7 @@ async function stepThrough(page, max = 80) {
     e.querySelector('.name').textContent, e.querySelector('.by-jev, .by-haiku')?.textContent || ''])));
   check('only sent_type is Jev; every other model skill is Haiku (kind: agent)', badges.sent_type === '→ Jev'
     && ['discourse', 'predicate', 'np_phrase', 'special_entity', 'document'].every((k) => badges[k] === '→ Haiku')
-    && badges.antecedent === '' && !('coverage' in badges) && !('reentrancy' in badges), JSON.stringify(badges));
+    && ['antecedent', 'coverage', 'reentrancy'].every((k) => !(k in badges)), JSON.stringify(badges));
 
   // a skill.md opens rendered as Markdown; the edit tab is its source
   await page.click('#skills .skill:has(.name:text-is("predicate")) .file:text-is("skill.md")');

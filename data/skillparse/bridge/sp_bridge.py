@@ -725,7 +725,7 @@ class RegistryEngine:
         self._drop_gens(w, i, nid)
         node.update(status="pending", output=None, stored={}, error=None, rounds=[], prompt=None, human=False,
                     children=[], dropped=[], rules=[], tool_calls=[], retried=False, problems=[],
-                    confirmed=False, loaded=False, concept=None)
+                    confirmed=False, loaded=False)
         self._mark_stale(w, int(i))
         return self.episode(w, i)
 
@@ -849,44 +849,72 @@ class RegistryEngine:
 
     # -- output
 
-    def merges(self, i):
+    def _sentence_out(self, i):
+        """Sentence i's tree as the output handler reads it, with one antecedent node for each item
+        of a step's `outside` (there is no antecedent step: the participant stays in the step that
+        found it). Such a node has the item's span and text, hangs under that step with the item's
+        role (predicate) or var (the others) as its edge, and is joined to a node by merges().
+        Each node keeps its step's output as `_output`, and an antecedent its item as `_item`."""
+        ep = self.eps["sentence"].get(i)
+        if not ep:
+            return None
+        nodes = sorted((n for n in ep["nodes"].values() if n["status"] != "dropped"), key=lambda n: node_key(n["id"]))
+        out = [dict(self._node_dict(n), _output=n.get("output") or {}) for n in nodes]
+        for n in nodes:
+            items = [x for x in ((n.get("output") or {}).get("outside") or []) if n["status"] == "ok"
+                     and isinstance(x, dict) and isinstance(x.get("span"), list) and len(x["span"]) == 2]
+            if not items:
+                continue
+            depth = n["id"].count(".") + 1
+            used = [int(k.rsplit(".", 1)[1]) for k in ep["nodes"] if k.startswith(n["id"] + ".") and k.count(".") == depth]
+            base = max(used, default=-1) + 1
+            for k, item in enumerate(items):
+                out.append({"id": "%s.%d" % (n["id"], base + k), "skill": "antecedent", "parent": n["id"],
+                            "input": {"text": item.get("text", ""), "span": list(item["span"])},
+                            "edge": item.get("role") if n["skill"] == "predicate" else item.get("var"),
+                            "depth": n["depth"] + 1, "status": "ok", "span": list(item["span"]),
+                            "_output": {}, "_item": item})
+        out.sort(key=lambda x: node_key(x["id"]))
+        return out
+
+    def merges(self, i, nodes=None):
         """Which nodes of sentence i's tree are one. There is no reentrancy wave (nor its rule,
-        reentrancy/reentrancy.py, which merged by type and span): this is done when the .umr is
-        written, by span and concept:
+        reentrancy/reentrancy.py, which merged by type and span) and no antecedent step: this is
+        done when the .umr is written, by span and concept:
           - two nodes with the same span and the same concept are one (the later is merged into
             the first that is not its ancestor); a node is a step that writes a concept
             (predicate, np_phrase, special_entity, a sent_type leaf), its span is its input's;
-          - an antecedent (a participant written outside a piece) is the first node with its span,
-            else the first whose head (its alignment, or a leaf's node) has it, never one it is
-            inside of; when the antecedent knows the concept it stands for (one loaded from a
-            file does), the node's concept must be that one too, and it may be one it is inside
-            of (a relative clause's participant is the noun it describes)."""
-        ep = self.eps["sentence"].get(i)
-        if not ep:
+          - a participant written outside a piece (an item of a step's `outside`) is the first
+            node with its span, else the first whose head (its alignment, or a leaf's node) has
+            it, never one it is inside of; when the item names the concept it stands for (one
+            loaded from a file does), the node's concept must be that one too, and it may be one
+            it is inside of (a relative clause's participant is the noun it describes)."""
+        nodes = nodes if nodes is not None else self._sentence_out(i)
+        if not nodes:
             return []
-        all_nodes = ep["nodes"]
-        ok = sorted((n for n in all_nodes.values() if n["status"] == "ok"), key=lambda n: node_key(n["id"]))
+        parent = {n["id"]: n["parent"] for n in nodes}
+        ok = [n for n in nodes if n["status"] == "ok"]
 
         def ancestors(nid):
             out = set()
-            while all_nodes.get(nid, {}).get("parent") is not None:
-                nid = all_nodes[nid]["parent"]
+            while parent.get(nid) is not None:
+                nid = parent[nid]
                 out.add(nid)
             return out
 
         def concept_of(n):
-            o = n.get("output") or {}
+            o = n["_output"]
             if n["skill"] not in FRAGMENT_SKILLS and not (n["skill"] == "sent_type" and o.get("type") == "stop"):
                 return None
-            nodes = (o.get("graph") or {}).get("nodes") or []
-            return _concept_key(nodes[0].get("concept")) if nodes and isinstance(nodes[0], dict) else None
+            g = (o.get("graph") or {}).get("nodes") or []
+            return _concept_key(g[0].get("concept")) if g and isinstance(g[0], dict) else None
 
         def head_of(n):
-            o = n.get("output") or {}
+            o = n["_output"]
             head = o.get("alignment")
             if not head and n["skill"] == "sent_type":
-                nodes = (o.get("graph") or {}).get("nodes") or []
-                head = nodes[0].get("span") if nodes and isinstance(nodes[0], dict) else None
+                g = (o.get("graph") or {}).get("nodes") or []
+                head = g[0].get("span") if g and isinstance(g[0], dict) else None
             return tuple(head) if isinstance(head, (list, tuple)) and len(head) == 2 else None
 
         kept, by_span, by_head, out = {}, {}, {}, []
@@ -904,25 +932,30 @@ class RegistryEngine:
             if head_of(n):
                 by_head.setdefault(head_of(n), []).append((n["id"], c))
         for n in ok:
-            span = n["input"].get("span")
-            if n["skill"] != "antecedent" or not span:
+            if n["skill"] != "antecedent":
                 continue
-            want = _concept_key(n["concept"]) if n.get("concept") else None
+            span = tuple(n["input"]["span"])
+            want = _concept_key(n["_item"]["concept"]) if n["_item"].get("concept") else None
             # without a concept, never a node it is inside of; with one, span and concept say which
             up = ancestors(n["id"]) if want is None else set()
-            into = next((k for k, c in by_span.get(tuple(span), []) + by_head.get(tuple(span), [])
+            into = next((k for k, c in by_span.get(span, []) + by_head.get(span, [])
                          if k not in up and (want is None or c == want)), None)
             if into is not None:
                 out.append({"node": n["id"], "into": into})
         return out
 
     def _worktree_out(self):
-        """The worktree the output handler reads: the waves as they are, and the merges (by span
-        and concept) where its reentrancy wave would be."""
+        """The worktree the output handler reads: the sentence trees with their outside
+        participants as antecedent nodes, the merges (by span and concept) where its reentrancy
+        wave would be, and the other waves as they are."""
         wt = {w: [self._partial_tree(w, i) for i in range(len(self.doc.sents))] for w in self.order}
-        if "reentrancy" not in self.waves:
-            wt["reentrancy"] = [{"nodes": [{"id": "0", "merges": self.merges(i)}]} if t else None
-                                for i, t in enumerate(wt.get("sentence") or [])]
+        sentence, merges = [], []
+        for i in range(len(self.doc.sents)):
+            nodes = self._sentence_out(i)
+            merges.append({"nodes": [{"id": "0", "merges": self.merges(i, nodes)}]} if nodes else None)
+            sentence.append({"nodes": [{k: v for k, v in n.items() if not k.startswith("_")} for n in nodes]}
+                            if nodes else None)
+        wt["sentence"], wt["reentrancy"] = sentence, merges
         return wt
 
     def render(self, auto_align=True):
@@ -1035,7 +1068,13 @@ class RegistryEngine:
                 continue
             for i, ep in eps.items():
                 ep = unpack(ep)
+                # a step of a skill the procedure no longer has (antecedent) goes, with what is under it
+                gone = [k for k, n in ep.get("nodes", {}).items() if n.get("skill") not in self.reg.skills]
+                for k in gone:
+                    for j in [j for j in ep["nodes"] if j == k or j.startswith(k + ".")]:
+                        ep["nodes"].pop(j, None)
                 for n in ep.get("nodes", {}).values():
+                    n["children"] = [c for c in n.get("children") or [] if c in ep["nodes"]]
                     if n.get("status") == "running":
                         n["status"] = "pending"
                 ep["missing"] = [tuple(x) for x in ep.get("missing") or []]

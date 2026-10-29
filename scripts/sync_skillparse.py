@@ -60,7 +60,7 @@ REENTRANCY_WAVE = [
 #               并把 antecedent 并到同 span（或中心词同 span）的节点上
 #   document    每句一个 episode，看补过重入的这句和它前五句，产出这句的文档级图""",
      """# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时合并：span 和概念都一样的节点是同一个，
-# antecedent 并到同 span（或中心词同 span）的节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
+# outside 里的参与者接到同 span（或中心词同 span）的节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
 #   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图"""),
     ("        trees:                          # 和 sents 一一对应，reentrancy 补过的树\n          window: worktree.reentrancy",
@@ -70,6 +70,17 @@ REENTRANCY_WAVE = [
     ("由 reentrancy 合并", "写 .umr 时按 span 合并"),
     ("  # ---- 整篇的两波 ----", "  # ---- 整篇的一波 ----"),
     ("  # antecedent / reentrancy / document：没有后续", "  # antecedent / document：没有后续"),
+]
+# no antecedent step either (web): a participant written outside a piece stays in the step's
+# `outside`, and is joined to the node with its span when the .umr is written
+ANTECEDENT = [
+    ("每个从句外的参与者 → antecedent（规则，写 .umr 时按 span 合并）", "每个从句外的参与者：写在 outside 里，写 .umr 时按 span 接上"),
+    ("每个短语外的参与者 → antecedent（如 其同类 的 其）", "每个短语外的参与者：写在 outside 里（如 其同类 的 其）"),
+    ("每个外面的参与者 → antecedent（一般没有）", "每个外面的参与者：写在 outside 里（一般没有）"),
+    ("── 每个外面的参与者 → antecedent", "── 外面的参与者写在 outside 里"),
+    ("  # 按类型分发；text 和 span 原样往下传。stop：只为 outside 起 antecedent",
+     "  # 按类型分发；text 和 span 原样往下传。stop：没有后续（outside 写 .umr 时按 span 接上）"),
+    ("  # antecedent / document：没有后续", "  # document：没有后续"),
 ]
 # discourse's relation is not checked against a list of values (web): any string
 DISCOURSE_RELATION = (re.compile(r'(      # [^\n]*\n)?      relation: \[[^\]]*\]\n'),
@@ -179,6 +190,8 @@ def compose(sp, lang):
         raise SystemExit("%s: cannot find discourse's relation" % reg)
     text = drop_reentrancy_wave(text)
     shutil.rmtree(os.path.join(dst, "reentrancy"))
+    text = drop_antecedent(text)
+    shutil.rmtree(os.path.join(dst, "antecedent"))
     doc_md = os.path.join(dst, "document", "skill.md")
     with open(doc_md, encoding="utf-8") as f:
         md = f.read()
@@ -190,7 +203,8 @@ def compose(sp, lang):
     header = ("# web-procedures/%s, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:\n"
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"
               "# Every other model skill is kind: agent: its skill.md, answered by Haiku.\n"
-              "# Left out on the web: %s, and the reentrancy wave (nodes with the same span and concept are\n"
+              "# Left out on the web: %s, antecedent (outside stays in the step) and the reentrancy wave\n"
+              "# (nodes with the same span and concept, and outside participants by span, are\n"
               "# merged when the .umr is written). discourse's relation is any string (not checked against a list).\n"
               "# jevlib.py cuts a Chinese piece only at punctuation (no jieba).\n"
               % (lang, agent, JEV_SKILL, jev, ", ".join(JEV_MODULES), ", ".join(DROP_SKILLS)))
@@ -212,6 +226,22 @@ def drop_skill(text, name):
     text, n_own = re.subn(r"  %s:\n(?:    [^\n]*\n)+\n" % name, "", text)
     if n_skill != 1 or n_own > 1 or re.search(r"\b%s\b" % re.escape(name), text):
         raise SystemExit("cannot drop %s from the registry" % name)
+    return text
+
+
+def drop_antecedent(text):
+    """The registry without the antecedent skill and the dispatcher rules that start it (each
+    with the comment lines right above it)."""
+    for old, new in ANTECEDENT:
+        if old not in text:
+            raise SystemExit("registry: cannot find %r" % old[:60])
+        text = text.replace(old, new)
+    text, n_skill = re.subn(r"  antecedent:[^\n]*\n    path: antecedent\n(?:    [^\n]*\n)*\n", "", text)
+    text, n_rules = re.subn(r"(?:    #[^\n]*\n)*    - (?:each|when): [^\n]*\n(?:      [^\n]*\n)*",
+                            lambda m: "" if "run: antecedent" in m.group(0) else m.group(0), text)
+    rest = [line for line in text.split("\n") if "antecedent" in line and "antecedent (outside" not in line]
+    if n_skill != 1 or rest:
+        raise SystemExit("registry: cannot drop antecedent: %s" % rest)
     return text
 
 

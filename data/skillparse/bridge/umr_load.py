@@ -7,9 +7,9 @@ reached through a sent_type step whose output is the node's kind, then the step 
 placeholder (`open`) per child, and each placeholder is again a sent_type step. A node with no
 children is a sent_type `stop` leaf. Every step's input is what a run would have given it: the
 text and span of its part of the sentence, so re-running any of them asks its skill again.
-A second mention of a node (a re-entrancy) is an `outside` participant whose antecedent step has
-the span of the node's own step and knows its concept, so that the merge by span and concept made
-when the .umr is written (there is no reentrancy wave) joins it to that node; the document-level relations become the document
+A second mention of a node (a re-entrancy) is an `outside` participant with the span of the node's
+own step and its concept, so that the merge by span and concept made when the .umr is written
+(there is no reentrancy wave and no antecedent step) joins it to that node; the document-level relations become the document
 step's output. All of these are written as a person's results (confirmed).
 
 Alignments: the page numbers Chinese one character per token. A file whose Words: are words
@@ -323,15 +323,11 @@ class Loader:
         for nd in out["graph"]["nodes"][1:]:
             self.where_inner[nd["var"]] = cid
         kids = {k.var: k for k in opened}
-        refs = list(enumerate(out_vars))
+        self.outside += [(cid, k, var) for k, var in enumerate(out_vars)]
         for c in node["children"]:
             child = self.ep["nodes"][c]
             if child["skill"] == "sent_type" and child["edge"] in kids:
                 self.fill(c, kids.pop(child["edge"]))
-            elif child["skill"] == "antecedent" and refs:
-                k, var = refs.pop(0)
-                self.put(c, {"span": child["input"].get("span") or part["span"]})
-                self.antecedents.append((c, var, cid, k))
         for v in kids:
             self.problems.append("snt%d %s: no step for the placeholder %s" % (self.i + 1, cid, v))
 
@@ -341,7 +337,7 @@ class Loader:
         self.tokens = list(sent.tokenized_text)
         self.align = b["align"]
         self.how, self.units = unit_spans(b["words"], self.tokens, b["align"], self.lang)
-        self.where, self.where_inner, self.antecedents = {}, {}, []
+        self.where, self.where_inner, self.outside = {}, {}, []
         self.modstr = {t: s for g, s_, s, t in self.doc_rel(b["doc"]) if g == "modal" and s_ == "author"
                        and s in self.modstrs}
         if not b["graph"]:
@@ -362,35 +358,36 @@ class Loader:
         self.e.start(self.w, i)
         self.ep = self.e.eps[self.w][i]
         self.fill("0", top)
-        # each antecedent takes the span (and text) of the step of the node it stands for, in its
-        # parent's `outside` item too, so that the merge by span finds that node
+        # each outside item takes the span and text of the step of the node it stands for, and that
+        # node's concept, so that the merge made when the .umr is written joins it to that node
         want = {}
-        for ant, var, parent, k in self.antecedents:
+        for owner, k, var in self.outside:
             if var not in self.where:
                 self.problems.append("snt%d: the re-entrancy %s points inside a fixed structure; it is "
                                      "left out" % (i + 1, var))
                 continue
             target = self.ep["nodes"][self.where[var]]["input"]
-            piece = {"text": target.get("text", ""), "span": list(target["span"])}
-            node = self.ep["nodes"][ant]
-            node["input"] = dict(node["input"], **piece)
-            node["output"] = node["stored"] = {"span": piece["span"]}
-            node["concept"] = self.by_var[var].concept     # merged by span and concept (RegistryEngine.merges)
-            owner = self.ep["nodes"][parent]
-            item = dict(owner["output"]["outside"][k], **piece)
-            owner["output"]["outside"][k] = item
-            if "outside" in owner["stored"]:
-                owner["stored"]["outside"] = owner["output"]["outside"]
-            want[ant] = self.where[var]
-        found = self.e.merges(i)
+            node = self.ep["nodes"][owner]
+            item = dict(node["output"]["outside"][k], text=target.get("text", ""), span=list(target["span"]),
+                        concept=self.by_var[var].concept)
+            node["output"]["outside"][k] = item
+            if "outside" in node["stored"]:
+                node["stored"]["outside"] = node["output"]["outside"]
+            want[(owner, k)] = self.where[var]
+        nodes = self.e._sentence_out(i)
+        found = self.e.merges(i, nodes)
         got = {m["node"]: m["into"] for m in found}
-        for m in found:
-            if m["node"] not in want:   # the file wrote the same word and concept twice
-                self.merged.append("snt%d %s=%s" % (i + 1, m["node"], m["into"]))
-        for ant, into in want.items():
-            if got.get(ant) != into:
-                self.problems.append("snt%d: the re-entrancy %s is joined by span and concept to %s, not %s"
-                                     % (i + 1, ant, got.get(ant), into))
+        seen = {}
+        for n in nodes:                 # the antecedent nodes made for outside items, in item order
+            if n["skill"] == "antecedent":
+                k = seen.get(n["parent"], 0)
+                seen[n["parent"]] = k + 1
+                into = want.pop((n["parent"], k), None)
+                if into is not None and got.get(n["id"]) != into:
+                    self.problems.append("snt%d: the re-entrancy %s/%d is joined by span and concept to %s, "
+                                         "not %s" % (i + 1, n["parent"], k, got.get(n["id"]), into))
+            elif n["id"] in got:        # the file wrote the same word and concept twice
+                self.merged.append("snt%d %s=%s" % (i + 1, n["id"], got[n["id"]]))
         refs = {}
         for var, nid in self.where.items():
             refs[var] = "%d:%s/%s" % (sent.index, nid, var)

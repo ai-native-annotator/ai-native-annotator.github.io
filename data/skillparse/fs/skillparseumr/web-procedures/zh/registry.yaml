@@ -1,13 +1,14 @@
 # web-procedures/zh, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:
 # experiment/decision-orchestration/umr-zh-frag/versions/R42, with sent_type from experiment/decision-orchestration/umr-zh-v11/versions/V12 (kind: jev, and jevlib.py, prompt_loader.py, event_modifiers.py, event_modifiers.yaml it imports).
 # Every other model skill is kind: agent: its skill.md, answered by Haiku.
-# Left out on the web: coverage, and the reentrancy wave (nodes with the same span and concept are
+# Left out on the web: coverage, antecedent (outside stays in the step) and the reentrancy wave
+# (nodes with the same span and concept, and outside participants by span, are
 # merged when the .umr is written). discourse's relation is any string (not checked against a list).
 # jevlib.py cuts a Chinese piece only at punctuation (no jieba).
 # umr-tree skillset. 语法说明见 skillsets/REGISTRY.md。
 #
 # 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时合并：span 和概念都一样的节点是同一个，
-# antecedent 并到同 span（或中心词同 span）的节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
+# outside 里的参与者接到同 span（或中心词同 span）的节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
 #   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图
 #
@@ -15,12 +16,12 @@
 #   sent_type ─┬─ discourse ──┬─ 有关系：每块 → sent_type
 #              │              └─ 没关系：整段 → predicate
 #              ├─ predicate ──┬─ 每个 open（占位） → sent_type
-#              │              └─ 每个从句外的参与者 → antecedent（规则，写 .umr 时按 span 合并）
+#              │              └─ 每个从句外的参与者：写在 outside 里，写 .umr 时按 span 接上
 #              ├─ np_phrase ──┬─ 每个 open → sent_type
-#              │              └─ 每个短语外的参与者 → antecedent（如 其同类 的 其）
+#              │              └─ 每个短语外的参与者：写在 outside 里（如 其同类 的 其）
 #              ├─ special_entity ─┬─ 每个 open → sent_type（一般没有）
-#              │                  └─ 每个外面的参与者 → antecedent（一般没有）
-#              └─ stop（叶子，自带一个小图）── 每个外面的参与者 → antecedent
+#              │                  └─ 每个外面的参与者：写在 outside 里（一般没有）
+#              └─ stop（叶子，自带一个小图）── 外面的参与者写在 outside 里
 #
 # 产出图的 skill（predicate、np_phrase、special_entity，以及 stop 时的 sent_type）都写一个
 # 图片段 graph = {nodes, edges, attrs}，还没展开的部分写成占位变量，列在 open 里。
@@ -118,16 +119,6 @@ skills:
       polarity: [positive, negative]
     store: [graph, open, alignment, frame, aspect, modstr, polarity]   # 后三个写成谓词的属性
 
-  antecedent:                   # 规则：只记下 span，写 .umr 时并到同 span（或中心词同 span）的节点上
-    path: antecedent
-    kind: rule
-    input:
-      text: str
-      span: list[int]
-    emit:
-      span: list[int]
-    store: []
-
   np_phrase:                    # 自带 propbank_lookup（施事名词、名物化事件要查义项）
     path: np_phrase
     input:
@@ -171,18 +162,12 @@ skills:
 # 每条规则都会检查，命中的都执行（不是 if/elif）。
 dispatcher:
 
-  # 按类型分发；text 和 span 原样往下传。stop：只为 outside 起 antecedent
+  # 按类型分发；text 和 span 原样往下传。stop：没有后续（outside 写 .umr 时按 span 接上）
   sent_type:
     - {when: {sent_type_emit.type: discourse},      run: discourse,      input: {text: text, span: span}}
     - {when: {sent_type_emit.type: predicate},      run: predicate,      input: {text: text, span: span}}
     - {when: {sent_type_emit.type: np_phrase},      run: np_phrase,      input: {text: text, span: span}}
     - {when: {sent_type_emit.type: special_entity}, run: special_entity, input: {text: text, span: span}}
-    # 叶子要的、写在外面的参与者：edge 是 outside 的变量，合并后 output handler 用它填这个变量
-    - when: {sent_type_emit.type: stop}
-      each: {other: sent_type_emit.outside}
-      run: antecedent
-      input: {text: other.text, span: other.span}
-      edge: other.var
 
   discourse:
     # 有篇章关系：每一块交给 sent_type 重新判断类型
@@ -202,32 +187,17 @@ dispatcher:
       run: sent_type
       input: {text: hole.text, span: hole.span}
       edge: hole.var
-    # 从句之外的参与者不再展开，只留一个 antecedent，写 .umr 时按 span 合并
-    - each: {other: predicate_emit.outside}
-      run: antecedent
-      input: {text: other.text, span: other.span}
-      edge: other.role
 
   np_phrase:
     - each: {hole: np_phrase_emit.open}
       run: sent_type
       input: {text: hole.text, span: hole.span}
       edge: hole.var
-    # 短语外面的参与者：和 predicate 一样只留一个 antecedent，写 .umr 时按 span 合并；
-    # edge 是 outside 的变量（不是角色），合并后 output handler 用它填这个变量
-    - each: {other: np_phrase_emit.outside}
-      run: antecedent
-      input: {text: other.text, span: other.span}
-      edge: other.var
 
   special_entity:
     - each: {hole: special_entity_emit.open}
       run: sent_type
       input: {text: hole.text, span: hole.span}
       edge: hole.var
-    - each: {other: special_entity_emit.outside}
-      run: antecedent
-      input: {text: other.text, span: other.span}
-      edge: other.var
 
-  # antecedent / document：没有后续
+  # document：没有后续
