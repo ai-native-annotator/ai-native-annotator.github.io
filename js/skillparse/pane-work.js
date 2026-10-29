@@ -7,6 +7,10 @@
  * from it. A finished step waits for the person: it is correct (confirm), or it is re-run with a
  * hint written after its input, or its output is edited directly; only then can the item's next
  * step run. Bottom: the item's steps as a tree; click to select, ▶ to run the next one.
+ *
+ * Keys (not while typing or in a dialog): Enter confirms the step waiting and runs the next one
+ * (or runs the first / next step); Tab opens "re-run with a hint" for it. In the hint box, Enter
+ * re-runs with the hint (Shift+Enter: a new line), Esc closes it.
  */
 
 import { h, clear, pretty, toast, diffView } from './ui.js';
@@ -30,6 +34,8 @@ function tabsFor(d) {
   return out;
 }
 
+const kbd = (key) => h('kbd', { text: key });
+
 const hintLabel = () => (S.skillset?.endsWith('zh') ? 'human提示：' : 'Human hint: ');
 
 /** An empty output in the step's emit shape, to fill in by hand when the step has none. */
@@ -50,16 +56,28 @@ function reviewCard(d) {
   if (S.hinting && model) {
     const area = h('textarea', { rows: 3, class: 'hint-area', placeholder: t('hintPlaceholder') });
     area.value = d.hint || '';
+    area.addEventListener('keydown', (e) => {
+      // an IME composing Chinese commits with Enter: that Enter is not ours
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        hintBox.querySelector('.hint-go').click();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        S.hinting = false;
+        render();
+      }
+    });
     hintBox = h('div', { class: 'hint-box' },
       h('div', { class: 'note', text: t(d.kind === 'jev' ? 'hintWhereJev' : 'hintWhere', { label: hintLabel() }) }),
       area,
       h('div', { class: 'row' },
-        h('button', { class: 'btn primary hint-go', disabled: busy, text: t('hintGo'), onclick: () => {
+        h('button', { class: 'btn primary hint-go', disabled: busy, text: t('hintGo'), 'aria-keyshortcuts': 'Enter', onclick: () => {
           const v = area.value.trim();
           if (!v) { area.focus(); return; }
           S.hinting = false;
           runNode(d.id, { hint: v });
-        } }),
+        } }, kbd('Enter')),
         d.hint ? h('button', { class: 'btn', disabled: busy, text: t('hintClear'), onclick: () => { S.hinting = false; runNode(d.id, { hint: '' }); } }) : null,
         h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.hinting = false; render(); } })));
   }
@@ -67,11 +85,11 @@ function reviewCard(d) {
     unconfirmed ? h('div', { class: 'note', text: t('awaitHelp') }) : d.status === 'error' ? h('div', { class: 'note warn', text: t('errorHelp') }) : null,
     h('div', { class: 'row' },
       unconfirmed ? [
-        h('button', { class: 'btn primary', text: t('confirmNext'), disabled: busy, onclick: () => confirmAndNext(d.id) }),
+        h('button', { class: 'btn primary', text: t('confirmNext'), disabled: busy, 'aria-keyshortcuts': 'Enter', onclick: () => confirmAndNext(d.id) }, kbd('Enter')),
         h('button', { class: 'btn', text: t('confirm'), disabled: busy, onclick: () => confirmNode(d.id) }),
       ] : d.confirmed && !d.human ? h('span', { class: 'ok-tag', text: `✓ ${t('confirmedTag')}` }) : null,
-      model ? h('button', { class: 'btn hint-btn', 'aria-pressed': String(S.hinting), disabled: busy, text: t('hintRerun'),
-        onclick: () => { S.hinting = !S.hinting; S.editing = false; render(); } }) : null,
+      model ? h('button', { class: 'btn hint-btn', 'aria-pressed': String(S.hinting), disabled: busy, text: t('hintRerun'), 'aria-keyshortcuts': 'Tab',
+        onclick: () => { S.hinting = !S.hinting; S.editing = false; render(); focusHint(); } }, kbd('Tab')) : null,
       h('button', { class: 'btn edit-btn', disabled: busy, text: t('editDirect'), onclick: () => { S.editing = true; S.hinting = false; render(); } }),
       h('button', { class: 'btn ghost', disabled: busy, text: t('rerun'), onclick: () => runNode(d.id) })),
     hintBox,
@@ -297,6 +315,52 @@ function drawTop() {
   clear(out, view);
 }
 
+const focusHint = () => document.querySelector('#output .hint-area')?.focus();
+
+/** A finished step's other answers open in the output tab: re-run with a hint, or edit it. */
+async function openFix(id, mode) {
+  // the step shown already opens at once, so what is typed straight after Tab lands in the box
+  if (S.node !== id || S.detail?.id !== id) await selectNode(id);
+  S.tab = 'output';
+  S.editing = mode === 'edit';
+  S.hinting = mode === 'hint';
+  render();
+  if (mode === 'hint') focusHint();
+}
+
+/** The step the selected item waits on (finished or failed, not yet confirmed), or null. */
+function waitingStep() {
+  const ep = S.episode;
+  const id = ep?.awaiting?.[0];
+  return id ? ep.nodes.find((n) => n.id === id) || null : null;
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' && e.key !== 'Tab') return;
+  if (e.defaultPrevented || e.isComposing || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (!S.desc || S.running > 0 || !document.getElementById('modal').hidden) return;
+  const el = e.target instanceof Element ? e.target : null;
+  if (el?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
+  const first = waitingStep();
+  if (e.key === 'Tab') {
+    if (!first || first.kind === 'rule') return;
+    e.preventDefault();
+    openFix(first.id, 'hint');
+    return;
+  }
+  // Enter on a focused button, link or box does what that control does
+  if (el?.closest('button, a, [role="button"], [tabindex]')) return;
+  const ep = S.episode;
+  if (first) {
+    if (first.status !== 'ok') return;
+    e.preventDefault();
+    confirmAndNext(first.id);
+  } else if (!ep?.started || ep.nodes.some((n) => n.status === 'pending')) {
+    e.preventDefault();
+    runNext();
+  }
+});
+
 const STATUS = { ok: '✓', review: '◆', running: '◐', error: '✕', pending: '○', skipped: '–', blocked: '!' };
 
 function drawBottom() {
@@ -308,23 +372,16 @@ function drawBottom() {
   // the step to confirm is always at hand here, whichever tab is open above
   const first = wait.length ? ep.nodes.find((n) => n.id === wait[0]) : null;
   const busy = S.running > 0;
-  // the other two answers to a finished step open in the output tab
-  const open = (id, mode) => async () => {
-    await selectNode(id);
-    S.tab = 'output';
-    S.editing = mode === 'edit';
-    S.hinting = mode === 'hint';
-    render();
-  };
+  const open = (id, mode) => () => openFix(id, mode);
   const fix = (n) => [
-    n.kind !== 'rule' ? h('button', { class: 'btn sm hint-open', disabled: busy, text: t('hintRerun'), onclick: open(n.id, 'hint') }) : null,
+    n.kind !== 'rule' ? h('button', { class: 'btn sm hint-open', disabled: busy, text: t('hintRerun'), 'aria-keyshortcuts': 'Tab', onclick: open(n.id, 'hint') }, kbd('Tab')) : null,
     h('button', { class: 'btn sm edit-open', disabled: busy, text: t('editDirect'), onclick: open(n.id, 'edit') }),
   ];
   clear(bar,
     h('strong', { text: `#${S.item + 1}` }),
     !ep?.started ? h('button', { class: 'btn sm primary run-first', disabled: busy, text: t('runFirst'), onclick: () => runNext() })
       : first?.status === 'ok' ? [
-        h('button', { class: 'btn sm primary confirm-next', disabled: busy, text: t('confirmNext'), onclick: () => confirmAndNext(first.id) }),
+        h('button', { class: 'btn sm primary confirm-next', disabled: busy, text: t('confirmNext'), 'aria-keyshortcuts': 'Enter', onclick: () => confirmAndNext(first.id) }, kbd('Enter')),
         h('button', { class: 'btn sm confirm-only', disabled: busy, text: t('confirm'), onclick: () => confirmNode(first.id) }),
         fix(first),
         h('span', { class: 'note', text: `${t('awaitTag')}: ${first.id} ${first.skill}` }),

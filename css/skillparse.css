@@ -51,6 +51,7 @@ textarea { width: 100%; font-family: var(--mono); font-size: 12px; line-height: 
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.danger { color: var(--danger); border-color: var(--danger); }
+.btn kbd { margin-left: 6px; padding: 0 4px; border: 1px solid currentColor; border-radius: 3px; font: 10px/1.4 var(--mono); opacity: .65; }
 .btn.ghost { background: transparent; }
 .btn.sm { padding: 2px 8px; font-size: 12px; }
 .btn.icon { font-size: 15px; padding: 1px 8px; }

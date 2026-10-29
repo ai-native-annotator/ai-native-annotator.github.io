@@ -156,16 +156,21 @@ Worker 是单线程的，所有 `py()` 调用按顺序排队执行。模型请�
 | 按钮 | 位置 | 调用 |
 |---|---|---|
 | ▶ 运行第一步 / ▶ 运行下一步 | 步骤栏 | `runNext(i)` |
-| ✓ 确认并运行下一步 | 输出栏、步骤栏 | `confirmAndNext(nid)`：`confirm` 后 `runNext` |
+| ✓ 确认并运行下一步（Enter） | 输出栏、步骤栏 | `confirmAndNext(nid)`：`confirm` 后 `runNext` |
 | ✓ 正确，确认 | 输出栏、步骤栏、步骤树的 ✓ | `confirmNode(nid)` |
 | 所有句子：下一步 | 工具栏、左栏 | `runNextAll(w)` |
 | ↻ 重跑这一步 | 输出栏 | `runNode(nid)` |
-| 💬 加提示重跑 → 带提示重跑 | 输出栏、步骤栏 | `runNode(nid, {hint})` |
+| 💬 加提示重跑（Tab）→ 带提示重跑（Enter） | 输出栏、步骤栏 | `runNode(nid, {hint})` |
 | ✎ 直接修改 → 保存修改 | 输出栏、步骤栏 | `saveOutput(json)` → `set_output` |
 | 步骤树的 ▶ | 步骤树 | `runNode(nid)`（只在没有待确认步骤时出现） |
 | ↺（步骤树） | 步骤树 | `resetNode(nid)` → `reset` |
 | ↻ 重新开始 | 步骤栏 | `startItem()` → `start` |
 | 停止 | 工具栏 | `stop()`：取消正在等的模型请求 |
+
+**快捷键**（`pane-work.js`；在输入框、文本框里打字时和对话框打开时不起作用）：
+- **Enter**：有待确认的步骤，就确认并运行下一步；没有，就运行第一步 / 下一步。焦点在某个按钮或图里的框上时，Enter 照常按那个按钮。
+- **Tab**：给待确认（或出错）的步骤打开「加提示重跑」，光标直接在提示框里。Shift+Tab 照常切换焦点。
+- 提示框里：**Enter** 带提示重跑，**Shift+Enter** 换行，**Esc** 关掉；中文输入法选字时按的 Enter 不算。
 
 - `runNext(i)` → `nextStep`：没开始就 `start`；`next_step` 给出要跑的一步，先选中它（输出栏能看到运行动画），再 `drive`；跑完选中它，状态栏提示检查输出。
 - `runNextAll(w)`：这个 wave 的所有项各跑一步。同时跑的项数不超过 registry 里这个 wave 的 `parallel`；还有待确认步骤、已完成或要等前一波的项跳过。最后报告跑了几步、几句等确认。

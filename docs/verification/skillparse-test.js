@@ -149,7 +149,7 @@ async function stepThrough(page, max = 80) {
   await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
   await page.click('.tab:text-is("输出")');
   const answers = await page.$$eval('#output .review-card button', (e) => e.map((x) => x.textContent));
-  check('a finished step offers: correct, re-run with a hint, edit directly', answers.includes('💬 加提示重跑') && answers.includes('✎ 直接修改'), answers.join(' | '));
+  check('a finished step offers: correct, re-run with a hint, edit directly', answers.some((x) => x.startsWith('💬 加提示重跑')) && answers.includes('✎ 直接修改'), answers.join(' | '));
   const nInputs = calls.inputs.length;
   await page.click('#output .hint-btn');
   await page.fill('#output .hint-area', '应该是 and，不是 none');
@@ -175,6 +175,32 @@ async function stepThrough(page, max = 80) {
   await settled(page);
   check("sent_type's hint goes into the state Jev sees", calls.jevStates.length > nJev
     && calls.jevStates.slice(nJev).every((st) => st['human提示（务必遵循）'] === '这是一个从句'), JSON.stringify(calls.jevStates[nJev]).slice(-80));
+
+  // keys: Tab opens the hint box for the step waiting, Esc closes it, Enter confirms and runs on
+  const blur = () => page.evaluate(() => document.activeElement?.blur());
+  const waitingId = () => page.evaluate(() => document.querySelector('#run-bar .note')?.textContent || '');
+  await blur();
+  await page.keyboard.press('Tab');
+  const focused = () => page.waitForFunction(() => document.activeElement?.classList.contains('hint-area'), null, { timeout: 10000 }).then(() => true, () => false);
+  check('Tab opens "re-run with a hint" for the step waiting, ready to type in', await focused());
+  await page.keyboard.press('Escape');
+  check('Esc closes the hint box', !(await page.$('#output .hint-area')));
+  const waitBefore = await waitingId();
+  const nRuns = calls.jev + calls.haiku;
+  await blur();
+  await page.keyboard.press('Enter');
+  await settled(page);
+  const waitAfter = await waitingId();
+  check('Enter confirms the step waiting and runs the next one', calls.jev + calls.haiku > nRuns && waitAfter !== waitBefore && waitAfter.length > 0, `${waitBefore} → ${waitAfter}`);
+  const nIn = calls.inputs.length + calls.jevStates.length;
+  await blur();
+  await page.keyboard.press('Tab');
+  await focused();
+  await page.keyboard.type('快捷键的提示');
+  await page.keyboard.press('Enter');
+  await settled(page);
+  check('in the hint box, Enter re-runs the step with the hint', calls.inputs.length + calls.jevStates.length > nIn
+    && (await page.textContent('#output .hint-now')).includes('快捷键的提示'), await waitingId());
   await stepThrough(page);
 
   await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
