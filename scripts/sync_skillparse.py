@@ -156,12 +156,19 @@ MERGED_LOOKUP = '''@functools.lru_cache(maxsize=1)
 def _chinese():
     # ai-native-annotator.github.io: chinese-propbank/ (24,521 XML files) is one merged file,
     # chinese-propbank.json ({lemma: [[roleset id, name, [[n, descr], ...]], ...]}, made by
-    # scripts/sync_skillparse.py); the lookup reads it instead of a file per lemma, same answers
-    path = os.path.join(_resources(), "chinese-propbank.json")
+    # scripts/sync_skillparse.py); the lookup reads it instead of a file per lemma, same answers.
+    # The page loads several copies of this file (jevlib's, the skills' tools/): they share one
+    # parsed copy, kept in sys.modules, so the 24,521 lemmas are read once, not once per copy
+    import sys
+    import types
+    path = os.path.realpath(os.path.join(_resources(), "chinese-propbank.json"))
     if not os.path.exists(path):
         return {}
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+    shared = sys.modules.setdefault("_merged_propbank", types.ModuleType("_merged_propbank")).__dict__
+    if path not in shared:
+        with open(path, encoding="utf-8") as f:
+            shared[path] = json.load(f)
+    return shared[path]
 
 
 def _lookup_zh(lemma):

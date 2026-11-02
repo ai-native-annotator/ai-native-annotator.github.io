@@ -136,6 +136,13 @@ def _wants_ctx(fn):
     return bool(params) and getattr(params[0].annotation, "__name__", "") == "RunContext"
 
 
+# a tool file, loaded once while it is unchanged: (real path, mtime, size) -> module. Tools are
+# looked up for every agent step and every tool call; loading the file again each time would
+# throw away what the module keeps (PropBank parsed by propbank.py's lru_cache, the gold data
+# and guidelines search.py has read), and read it all again on every call
+_TOOL_MODULES = {}
+
+
 def _tools_in(directory, prefix):
     """skill_callable._tools_in: every public function of every <directory>/*.py not starting with _."""
     tools = []
@@ -144,11 +151,17 @@ def _tools_in(directory, prefix):
     for filename in sorted(os.listdir(directory)):
         if not filename.endswith(".py") or filename.startswith("_"):
             continue
-        name = "%s.%s" % (prefix, filename[:-3])
-        module = _load_module(os.path.join(directory, filename), name)
-        sys.modules[name] = module
+        path = os.path.join(directory, filename)
+        st = os.stat(path)
+        key = (os.path.realpath(path), st.st_mtime_ns, st.st_size)
+        module = _TOOL_MODULES.get(key)
+        if module is None:
+            name = "%s.%s" % (prefix, filename[:-3])
+            module = _load_module(path, name)
+            sys.modules[name] = module
+            _TOOL_MODULES[key] = module
         for fname, obj in inspect.getmembers(module, inspect.isfunction):
-            if not fname.startswith("_") and obj.__module__ == name:
+            if not fname.startswith("_") and obj.__module__ == module.__name__:
                 tools.append(obj)
     return tools
 

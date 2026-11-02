@@ -50,8 +50,8 @@ def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str]
     n = _count(max_results, 3)
     skip = {_plain(s) for s in ((getattr(ctx, "deps", None) or {}).get("doc_sentences") or [])}
     gold, left_out = [], 0
-    for rec in _gold(lang):
-        hits = _hits(rec["text"] + "\n" + rec["annotation"], words)
+    for rec, low in _gold(lang):
+        hits = _hits(low, words, lowered=True)
         if not hits[0]:
             continue
         if _plain(rec["text"]) in skip:
@@ -121,9 +121,9 @@ def _count(n, default):
         return default
 
 
-def _hits(text, words):
+def _hits(text, words, lowered=False):
     """(how many of the keywords occur, how many times in all)."""
-    low = text.lower()
+    low = text if lowered else text.lower()
     counts = [low.count(w) for w in words]
     return sum(1 for c in counts if c), sum(counts)
 
@@ -152,9 +152,12 @@ def _read(rel):
 
 
 def _gold(lang):
+    """[(record, its sentence and annotation in lower case)], made once: a search runs through
+    every sentence (31,147 in English)."""
     key = "gold:" + lang
     if key not in _cache:
-        _cache[key] = json.loads(_read("gold/%s/gold.json" % lang))
+        recs = json.loads(_read("gold/%s/gold.json" % lang))
+        _cache[key] = [(r, (r["text"] + "\n" + r["annotation"]).lower()) for r in recs]
     return _cache[key]
 
 

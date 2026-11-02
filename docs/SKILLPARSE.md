@@ -205,6 +205,16 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 数据在 `data/skillparse/resources/`，启动时不加载（英文金标 24.7 MB）：第一次搜索时由 Python 用 Pyodide 的 `open_url` 从 `SP_BASE + "resources/…"` 取来并缓存（本地跑时先看 `$SP_RESOURCES`）。
 
+**工具模块只加载一次**（`_tools_in` 的 `_TOOL_MODULES`，按文件的路径、修改时间、大小）：每个 agent 步骤和每次工具调用都要找工具，以前每次都重新执行工具文件，模块里的缓存跟着丢掉，于是每次 `propbank_lookup` 都把整个 PropBank 重新解析一遍、每次搜索都把金标重新下载解析一遍。改过工具文件，修改时间变了，会重新加载。几份 `propbank.py`（jevlib 的、predicate 的、共用的）还共用同一份解析好的中文 PropBank（同步时打的补丁）。浏览器里实测（Pyodide）：
+
+| 调用 | 以前 | 现在（第一次 → 之后） |
+|---|---|---|
+| propbank_lookup 中文 | 每次 120–200 ms | 170 ms → 2–3 ms |
+| propbank_lookup 英文 | 每次 90–420 ms | 120 ms → 2 ms |
+| search_annotations 中文 | 每次约 330 ms | 320 ms → 16 ms |
+| search_annotations 英文 | 每次 1.8–2.6 s（重新下载解析 24.7 MB） | 2.4 s → 90 ms |
+| search_guidelines | 每次约 50 ms | 40 ms → 4 ms |
+
 **`llm()` 的循环**（`models.js`）：
 - 工具列表最后加一个 `final_result`，它的参数 schema 由 emit 生成（`emitSchema`）。
 - 每一轮 `tool_choice` 要求必须调用工具，最后一轮强制调用 `final_result`；最多 10 轮。
