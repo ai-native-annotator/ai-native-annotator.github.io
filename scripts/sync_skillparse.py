@@ -88,10 +88,57 @@ ANTECEDENT = [
 DISCOURSE_RELATION = (re.compile(r'(      # [^\n]*\n)?      relation: \[[^\]]*\]\n'),
                       '      relation: str             # web: 不按列表检查取值（skill.md 说明各种关系）；不是并列关系时写 "none"\n')
 # what the document skill is told about its trees, which are now the sentence wave's
-DOCUMENT_TREES = ("""Each tree is the output of the
-reentrancy step; the sentence's own tree is under `nodes[0].input.tree.nodes`.""",
-                  """Each tree is the
-sentence's tree of steps (web: no reentrancy step), its nodes under `nodes`.""")
+# the document step reads a table of each sentence's nodes, not its trees (web): the registry's
+# input and what document/skill.md says about it
+DOCUMENT_INPUT = [
+    ("""        sents:                          # 前五句 + 这一句，这一句在最后；开头几句不足五句就少几项
+          window: annotation.sents
+          range: [-5, 1]
+        trees:                          # 和 sents 一一对应，sentence 这一波的树
+          window: worktree.sentence
+          range: [-5, 1]
+""", """        sentences:                      # web：前五句 + 这一句，这一句在最后；开头几句不足五句就少几项
+          window: worktree.sentence     # 每句是 sentence 这一波的一张节点表（句号、原文、每个节点的编号、
+          range: [-5, 1]                # full span 原文、概念、事件或实体、哪个 skill 产出），不是整棵树；
+          pick: table                   # 见 sp_bridge.py 的 RegistryEngine._table
+"""),
+    ("""      sents: list[dict]
+      trees: list[dict]
+""", """      sentences: list[dict]           # web：每句一张节点表（见上面 document 这一波）
+"""),
+]
+DOCUMENT_MD = [
+    ("""current sentence (the **last** item of the lists below) and up to five
+sentences before it, each with the tree its sentence graph was built from.""",
+     """current sentence (the **last** one below) and up to five
+sentences before it, each with a table of the nodes of its sentence graph."""),
+    ("""The input is under **Input** at the end: the language; the sentences (each
+has `index`, its sentence number, and `text`), the last one being the current
+sentence; and the trees, in the same order. Each tree is the output of the
+reentrancy step; the sentence's own tree is under `nodes[0].input.tree.nodes`.
+A node is `{{"id", "skill", "input": {{"text", "span"}}, "parent", "edge", "graph", ...}}`;
+`graph` is the node's fragment (its first node is the node's own concept). A
+node from `predicate` is an **event**; nodes from `np_phrase`,
+`special_entity` and `sent_type` with type `stop` are **entities**.""",
+     """The input is under **Input** at the end: the language, then the sentences in
+order, the last one being the current sentence. Each sentence has its number,
+its text and a table with a row per node of its graph: `node` is how you refer
+to the node (below); `text` is the full span the node covers (an event's whole
+clause, an entity's whole phrase); `concept` is its concept; `kind` is `event`
+(with its aspect, and `negative` when it is negated), `event (nominal)` for an
+event concept built inside a noun phrase, or `entity`; `step` is the step that
+built it. A node from `predicate` is an **event**; nodes from `np_phrase`,
+`special_entity` and `sent_type` with type `stop` are **entities**."""),
+    ("""the constants `author`, `document-creation-time`.
+""", """the constants `author`, `document-creation-time`. The tables list every node
+you can point at, under `node`.
+"""),
+    ("""Sentences:
+{sents}
+
+Trees:
+{trees}""", """{sentences}"""),
+]
 JEV_MODULES = ["jevlib.py", "prompt_loader.py", "event_modifiers.py", "event_modifiers.yaml"]
 SHARED_TOOLS = ["skillsets/tools/propbank.py"]      # get_example (skillsets/tools/example.py) is not used
 # the site's own tools (search_annotations, search_guidelines), next to propbank_lookup
@@ -269,6 +316,10 @@ def compose(sp, lang):
     if n != 1:
         raise SystemExit("%s: cannot find discourse's relation" % reg)
     text = drop_reentrancy_wave(text)
+    for old, new in DOCUMENT_INPUT:
+        if text.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (reg, old[:60]))
+        text = text.replace(old, new)
     shutil.rmtree(os.path.join(dst, "reentrancy"))
     text = drop_antecedent(text)
     shutil.rmtree(os.path.join(dst, "antecedent"))
@@ -293,10 +344,12 @@ def compose(sp, lang):
     doc_md = os.path.join(dst, "document", "skill.md")
     with open(doc_md, encoding="utf-8") as f:
         md = f.read()
-    if md.count(DOCUMENT_TREES[0]) != 1:
-        raise SystemExit("%s: cannot say what its trees are" % doc_md)
+    for old, new in DOCUMENT_MD:
+        if md.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (doc_md, old[:60]))
+        md = md.replace(old, new)
     with open(doc_md, "w", encoding="utf-8") as f:
-        f.write(md.replace(*DOCUMENT_TREES))
+        f.write(md)
     patch_jevlib(os.path.join(dst, "jevlib.py"))
     header = ("# web-procedures/%s, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:\n"
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"

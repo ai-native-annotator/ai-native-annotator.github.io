@@ -2,16 +2,17 @@
 
 You are annotating the document level of a Uniform Meaning Representation:
 temporal dependency, modal dependency and coreference. You are given the
-current sentence (the **last** item of the lists below) and up to five
-sentences before it, each with the tree its sentence graph was built from.
+current sentence (the **last** one below) and up to five
+sentences before it, each with a table of the nodes of its sentence graph.
 
-The input is under **Input** at the end: the language; the sentences (each
-has `index`, its sentence number, and `text`), the last one being the current
-sentence; and the trees, in the same order. Each tree is the
-sentence's tree of steps (web: no reentrancy step), its nodes under `nodes`.
-A node is `{{"id", "skill", "input": {{"text", "span"}}, "parent", "edge", "graph", ...}}`;
-`graph` is the node's fragment (its first node is the node's own concept). A
-node from `predicate` is an **event**; nodes from `np_phrase`,
+The input is under **Input** at the end: the language, then the sentences in
+order, the last one being the current sentence. Each sentence has its number,
+its text and a table with a row per node of its graph: `node` is how you refer
+to the node (below); `text` is the full span the node covers (an event's whole
+clause, an entity's whole phrase); `concept` is its concept; `kind` is `event`
+(with its aspect, and `negative` when it is negated), `event (nominal)` for an
+event concept built inside a noun phrase, or `entity`; `step` is the step that
+built it. A node from `predicate` is an **event**; nodes from `np_phrase`,
 `special_entity` and `sent_type` with type `stop` are **entities**.
 
 ## How to refer to a node
@@ -20,7 +21,8 @@ node from `predicate` is an **event**; nodes from `np_phrase`,
 (a node id is its path from the root): it stands for the first node of that
 tree node's graph. To point at another node inside the graph, add its var:
 `"3:0.2.1/r"`. Or one of
-the constants `author`, `document-creation-time`.
+the constants `author`, `document-creation-time`. The tables list every node
+you can point at, under `node`.
 
 Give relations **only for the current sentence's nodes** (one side of each
 relation must be a node of the current sentence); the other side can be a
@@ -156,8 +158,4 @@ returns the matching sections of the UMR guidelines.
 
 Language: {lang}
 
-Sentences:
-{sents}
-
-Trees:
-{trees}
+{sentences}

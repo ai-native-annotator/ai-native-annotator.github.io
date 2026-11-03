@@ -142,7 +142,12 @@ const statusIs = (page, re, timeout = 180000) =>
   check('each line has the step\'s context, input and output, and no skill.md or prompt',
     train.every((r) => r.context && r.input && r.output && r.confirmed && !('prompt' in r) && !JSON.stringify(r).includes('# Output Format'))
     && train.filter((r) => r.wave === 'sentence').every((r) => r.context.sent && r.context.token_sent)
-    && train.filter((r) => r.skill === 'document').every((r) => Array.isArray(r.input.trees)), Object.keys(train[0]).join(','));
+    && train.filter((r) => r.skill === 'document').every((r) => Array.isArray(r.input.sentences) && r.input.sentences.every((t) => Array.isArray(t.nodes))),
+    Object.keys(train[0]).join(','));
+  const docInputs = calls.inputs.filter((u) => u.includes('### Sentence'));
+  check('the document step reads each sentence\'s text and a table of its nodes, not its trees', docInputs.length > 0
+    && docInputs.every((u) => u.includes('| node | text | concept | kind | step |') && u.includes('(current sentence)')
+      && !u.includes('tokenized_text') && !u.includes('"graph"')), docInputs[0]?.slice(-300));
 
   // 4. plain text
   for (const [fmt, text, n] of [['txt-lines', '第一句话。\n第二句话。', 2], ['txt-split', '第一句话。第二句话！第三句？', 3]]) {

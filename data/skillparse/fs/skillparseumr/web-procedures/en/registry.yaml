@@ -61,12 +61,10 @@ waves:
       context:
         lang: annotation.lang
       input:
-        sents:                          # 前五句 + 这一句，这一句在最后；开头几句不足五句就少几项
-          window: annotation.sents
-          range: [-5, 1]
-        trees:                          # 和 sents 一一对应，sentence 这一波的树
-          window: worktree.sentence
-          range: [-5, 1]
+        sentences:                      # web：前五句 + 这一句，这一句在最后；开头几句不足五句就少几项
+          window: worktree.sentence     # 每句是 sentence 这一波的一张节点表（句号、原文、每个节点的编号、
+          range: [-5, 1]                # full span 原文、概念、事件或实体、哪个 skill 产出），不是整棵树；
+          pick: table                   # 见 sp_bridge.py 的 RegistryEngine._table
 
 
 skills:
@@ -148,8 +146,7 @@ skills:
   document:                     # TODO: 时间、模态、共指，一个 skill 还是拆开
     path: document
     input:
-      sents: list[dict]
-      trees: list[dict]
+      sentences: list[dict]           # web：每句一张节点表（见上面 document 这一波）
     emit:
       # 每个 {group, source, relation, target}，group 是 temporal / modal / coref。
       # source、target 用节点编号 "<句号>:<节点 id>"（如 "3:0.2.1"），或常量 author、document-creation-time 等；

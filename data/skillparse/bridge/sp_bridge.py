@@ -55,6 +55,28 @@ TOOL_PREFIXES = ("skill_rules.", "skill_tools.", "skillset_tools.", "shared_tool
 RULE80 = "#" * 80
 # a person's hint for re-running a step: written after the skill's input (agent skills), or put in
 # the state Jev sees (sent_type)
+SENSE = re.compile(r"-\d+$")          # a concept with a sense number (报导-01) names an event
+
+
+def prompt_value(v):
+    """An input value as skill.md gets it: a string as it is; the document step's node tables
+    (RegistryEngine._table) as Markdown, a section per sentence, the last one the current; anything
+    else as JSON."""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, list) and v and all(isinstance(t, dict) and {"sentence", "text", "nodes"} <= set(t) for t in v):
+        cell = lambda x: str(x).replace("|", "\\|").replace("\n", " ")  # noqa: E731
+        parts = []
+        for k, t in enumerate(v):
+            head = "### Sentence %s%s" % (t["sentence"], " (current sentence)" if k == len(v) - 1 else "")
+            lines = [head, "", t["text"], "", "| node | text | concept | kind | step |", "|---|---|---|---|---|"]
+            lines += ["| %s |" % " | ".join(cell(r[c]) for c in ("node", "text", "concept", "kind", "step"))
+                      for r in t["nodes"]]
+            parts.append("\n".join(lines))
+        return "\n\n".join(parts)
+    return json.dumps(jsonable(v), ensure_ascii=False)
+
+
 HINT_LABEL = {"zh": "human提示：", "en": "Human hint: "}
 # with a hint, the system prompt says it must be followed; in Jev's state the hint's key says so
 HINT_RULE = ('If the input ends with a human hint ("human提示：…" or "Human hint: …"), it is a person\'s '
@@ -365,7 +387,48 @@ class RegistryEngine:
         if any(n["status"] in ("pending", "running") or _unconfirmed(n) for n in ep["nodes"].values()):
             return None
         nodes = sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"]))
-        return {"nodes": [self._node_dict(n) for n in nodes]}
+        return {"nodes": [self._node_dict(n) for n in nodes], "table": self._table(i, nodes)}
+
+    def _table(self, i, steps):
+        """Sentence i's nodes as the document step reads them (registry: `pick: table`): its
+        number and text, and a row per graph node with how a relation names it ("3:0.0", or
+        "3:0.0/x" for another node of that step's fragment), the full span it covers (the step's
+        own text for the step's first node), its concept, event or entity, and the step that
+        built it. A name node is not a row: its words are in its entity's text."""
+        sent = self.doc.sents[i]
+        tokens = sent.tokenized_text
+        joiner = " " if self.doc.lang != "zh" else ""
+        rows = []
+        for n in steps:
+            out = n.get("output") if n["status"] == "ok" else None
+            g = (out or {}).get("graph") if isinstance(out, dict) else None
+            if not isinstance(g, dict) or not g.get("nodes"):
+                continue
+            names = {t for _, r, t in g.get("edges") or [] if str(r).lstrip(":") == "name"}
+            negated = {v for v, r, x in g.get("attrs") or [] if str(r).lstrip(":") == "polarity" and str(x).strip('"') == "-"}
+            for k, gn in enumerate(g["nodes"]):
+                v = gn.get("var")
+                if not v or v in names:
+                    continue
+                span = gn.get("span") or [0, 0]
+                own = joiner.join(tokens[span[0] - 1:span[1]]) if span and span[0] >= 1 else ""
+                text = str((n["input"] or {}).get("text") or "") if k == 0 else own
+                concept = str(gn.get("concept", ""))
+                if n["skill"] == "predicate" and k == 0:
+                    kind = "event"
+                    if out.get("aspect") and out["aspect"] != "none":
+                        kind += " (%s)" % out["aspect"]
+                    if out.get("polarity") == "negative" or v in negated:
+                        kind += ", negative"
+                elif SENSE.search(concept):
+                    kind = "event" if n["skill"] == "predicate" else "event (nominal)"
+                    if v in negated:
+                        kind += ", negative"
+                else:
+                    kind = "entity"
+                rows.append({"node": "%d:%s%s" % (sent.index, n["id"], "" if k == 0 else "/" + v),
+                             "text": text or own, "concept": concept, "kind": kind, "step": n["skill"]})
+        return {"sentence": sent.index, "text": sent.text, "nodes": rows}
 
     def _partial_tree(self, w, i):
         ep = self.eps[w].get(i)
@@ -560,8 +623,7 @@ class RegistryEngine:
             # through the output tool (pydantic-ai's final_result), validated against emit
             with open(os.path.join(skill.path, "skill.md"), encoding="utf-8") as f:
                 md = f.read()
-            values = {k: v if isinstance(v, str) else json.dumps(jsonable(v), ensure_ascii=False)
-                      for k, v in inputs.items()}
+            values = {k: prompt_value(v) for k, v in inputs.items()}
             fields = ", ".join('"%s"' % k for k in skill.emit)
             head = "# Output Format\nYou must produce a JSON object with exactly these fields: %s.\n\n" % fields
             cut = md.rfind("\n## Input\n")

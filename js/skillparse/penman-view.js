@@ -4,7 +4,7 @@
  * piece, which a later step joins to the node it names, is `<outside: its text>`.
  *
  * The document step's relations name nodes as "<sentence>:<step id>[/var]" ("3:0.0/s3x"); they
- * are written `<node: words / concept>`, with `s2 ` before a node of an earlier sentence.
+ * are written `<node: full span / concept>`, with `s2 ` before a node of an earlier sentence.
  *
  *   outputPenman(skill, output, input) -> string | null (null: show the JSON only)
  *   docNodes(input) -> [{ref, sentence, current, label}]: what a document step can point at
@@ -73,61 +73,43 @@ function eventAttrs(o) {
   return out;
 }
 
-const DOC_GROUPS = ['temporal', 'modal', 'coref'];
 const REF = /^(\d+):([^/\s]+)(?:\/(\S+))?$/;
 
-const clip = (s, n = 16) => (s.length > n ? `${s.slice(0, n)}…` : s);
-
-/** The document step's input, indexed: sentence number -> {tokens, joiner, nodes by step id}. */
+/**
+ * The document step's input (`sentences`: per sentence {sentence, text, nodes: [{node, text,
+ * concept, kind, step}]}, sp_bridge.py's RegistryEngine._table), indexed by node ref.
+ */
 function docIndex(input = {}) {
-  const sents = Array.isArray(input.sents) ? input.sents : [];
-  const trees = Array.isArray(input.trees) ? input.trees : [];
-  const by = new Map();
-  sents.forEach((snt, k) => {
-    const nodes = new Map((trees[k]?.nodes || []).filter((n) => n?.id != null).map((n) => [String(n.id), n]));
-    const text = String(snt?.text ?? '');
-    by.set(String(snt?.index), { tokens: snt?.tokenized_text || [], joiner: /\s/.test(text.trim()) ? ' ' : '', nodes });
-  });
-  return { by, current: sents.length ? String(sents[sents.length - 1]?.index) : null };
+  const tables = Array.isArray(input.sentences) ? input.sentences : [];
+  const rows = new Map();
+  for (const t of tables) for (const r of t?.nodes || []) if (r?.node) rows.set(r.node, { ...r, sentence: String(t.sentence) });
+  return { rows, current: tables.length ? String(tables[tables.length - 1]?.sentence) : null };
 }
 
-/** A graph node's words (its span, else its step's text) and concept. */
-function nodeLabel(snt, step, v) {
-  const g = step.graph?.nodes || [];
-  const gn = g.find((x) => x?.var === v) || (v ? null : g[0]);
-  const span = gn?.span;
-  const words = Array.isArray(span) && span[0] >= 1 && span[1] >= span[0]
-    ? snt.tokens.slice(span[0] - 1, span[1]).join(snt.joiner) : clip(String(step.input?.text ?? '').trim());
-  const concept = gn?.concept ?? null;
-  if (!concept) return words || step.id;
-  return !words || words === concept ? String(concept) : `${words} / ${concept}`;
+/** A node's full span and concept. */
+function rowLabel(r) {
+  const text = String(r.text ?? '').trim();
+  const concept = r.concept ? String(r.concept) : '';
+  if (!concept) return text || r.node;
+  return !text || text === concept ? concept : `${text} / ${concept}`;
 }
 
 function refText(ref, idx) {
   const m = REF.exec(String(ref ?? ''));
   if (!m) return String(ref ?? '?');
-  const snt = idx.by.get(m[1]);
-  const step = snt?.nodes.get(m[2]);
-  if (!step) return `<node: ? ${ref}>`;
+  const r = idx.rows.get(m[0]) || idx.rows.get(`${m[1]}:${m[2]}`);
+  if (!r) return `<node: ? ${ref}>`;
   const where = m[1] === idx.current ? '' : `s${m[1]} `;
-  return `<node: ${where}${nodeLabel(snt, step, m[3])}>`;
+  return `<node: ${where}${rowLabel(r)}>`;
 }
 
 export function docNodes(input) {
   const idx = docIndex(input);
-  const out = [];
-  for (const [sentence, snt] of idx.by) {
-    for (const step of snt.nodes.values()) {
-      const g = step.graph?.nodes || [];
-      g.forEach((gn, k) => {
-        if (!gn?.var) return;
-        out.push({ ref: k === 0 ? `${sentence}:${step.id}` : `${sentence}:${step.id}/${gn.var}`, sentence: Number(sentence),
-          current: sentence === idx.current, label: nodeLabel(snt, step, gn.var) });
-      });
-    }
-  }
-  return out;
+  return [...idx.rows.values()].map((r) => ({ ref: r.node, sentence: Number(r.sentence), current: r.sentence === idx.current,
+    label: rowLabel(r), kind: r.kind || '' }));
 }
+
+const DOC_GROUPS = ['temporal', 'modal', 'coref'];
 
 export function outputPenman(skill, o, input = {}) {
   if (!o || typeof o !== 'object') return null;

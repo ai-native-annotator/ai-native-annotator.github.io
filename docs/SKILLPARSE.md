@@ -42,7 +42,7 @@
 | `js/skillparse/pane-work.js` | 中栏：图、输出（Penman + JSON）、输入、问答、提示词、工具调用、UMR 文本；下方步骤树和运行栏 |
 | `js/skillparse/pane-ai.js` · `reflect.js` | 右栏 AI：三种改 skill 的方式和 AI 自查 |
 | `js/skillparse/graph-view.js` | 把图画成 SVG |
-| `js/skillparse/penman-view.js` | 把一步的输出写成 Penman（`<node: …>` / `<outside: …>`）；document 一步的节点编号写成词和概念，`docNodes` 列出它能指的节点 |
+| `js/skillparse/penman-view.js` | 把一步的输出写成 Penman（`<node: …>` / `<outside: …>`）；document 一步的节点编号写成 full span 和概念，`docNodes` 列出它能指的节点 |
 | `js/skillparse/md.js` | skill.md 的 Markdown 渲染 |
 | `js/skillparse/diff.js` | 行级 diff、JSON 显示格式（`[]` 内不换行） |
 | `js/skillparse/save.js` | IndexedDB：暂存的工作、导入过的文档 |
@@ -269,7 +269,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 | wave | for_each | 起点 | 读什么 |
 |---|---|---|---|
 | sentence | 每一句 | `sent_type`（输入整句） | 这一句的文本和 token |
-| document | 每一句 | `document` | 前 5 句和这一句的文本，以及它们在 sentence 这一波的树（要都完成并确认） |
+| document | 每一句 | `document` | 前 5 句和这一句，每句一张节点表（`sentences`，由 sentence 这一波的树生成，要都完成并确认） |
 
 sentence 这一波里的流向（dispatcher）：
 
@@ -326,14 +326,35 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 | `doc` `lang` `wave` `item` `step` | 文档、语言、哪一波、第几句（从 1 起）、步骤编号 |
 | `skill` | 这一步的任务名（只是名字，不带 skill.md、提示词、工具调用） |
 | `context` | 这一步拿到的上下文：sentence 波是 `sent`、`token_sent`、`lang`；document 波是 `lang` |
-| `input` | 这一步的输入：`{text, span}`；document 是 `{sents, trees}`（前五句和这一句，及其树） |
+| `input` | 这一步的输入：`{text, span}`；document 是 `{sentences}`（前五句和这一句的节点表） |
 | `output` | 这一步的输出（emit）；人改过的就是人的 |
 | `source` `confirmed` | `model` / `human` / `loaded`（从 .umr 载入）；是否确认 |
 | `model` `hint` `model_output` | 有时才有：谁跑的；带的提示；人改之前模型的输出 |
 
 默认只导出已确认的步骤（载入的算已确认），没确认的有多少会在提示里说。
 
-**document 一步的显示**：它的输出用 `"<句号>:<步骤编号>[/变量]"` 指节点（如 `3:0.0/s3x`），Penman 里写成 `<node: 词 / 概念>`（词取这个节点的 span，没有就取它那一步的原文；概念和词一样时只写一个），前面句子的节点前面加 `s2 ` 这样的句号，指不到的写 `<node: ? 3:9.9>`。下面「可以指向的节点」列出这一句和前面几句每个节点的编号和词、概念；直接修改时这张表是展开的。模型的输入输出不变，仍然用编号。
+**document 一步的显示**：它的输出用 `"<句号>:<步骤编号>[/变量]"` 指节点（如 `3:0.0/s3x`），Penman 里写成 `<node: full span / 概念>`（取节点表里的 text；概念和它一样时只写一个），前面句子的节点前面加 `s2 ` 这样的句号，指不到的写 `<node: ? 3:9.9>`。下面「可以指向的节点」列出这一句和前面几句每个节点的编号、full span 和概念；直接修改时这张表是展开的。模型的输出仍然用编号。
+
+**document 一步的输入**（web 改过）：不再给整棵树，而是每句一张节点表。`registry.yaml` 里是
+
+```yaml
+sentences:
+  window: worktree.sentence
+  range: [-5, 1]
+  pick: table          # 每棵树的 table：RegistryEngine._table 生成
+```
+
+每句 `{sentence, text, nodes}`，`nodes` 每行 `{node, text, concept, kind, step}`：
+
+| 列 | 内容 |
+|---|---|
+| `node` | 关系里指它的编号：一步的第一个节点 `3:0.0`，片段里的其他节点 `3:0.0/变量` |
+| `text` | 它覆盖的 full span 原文：一步的第一个节点是那一步的原文（事件是整个分句，实体是整个短语），片段里的其他节点是自己的 span |
+| `concept` | 概念 |
+| `kind` | predicate 的事件 `event (aspect)`，否定的加 `, negative`；名词短语里带义项号的 `event (nominal)`；其余 `entity` |
+| `step` | 哪个 skill 产出的 |
+
+修饰词（mod、quant、unit 等）都在表里；`name` 节点不单列（名字在它的实体那一行的 text 里）。去掉的是 sent_type 等没有图的步骤、`tokenized_text`、关系（parent / edge）和步骤的其他字段。写进提示词时（`prompt_value`）每句一节：`### Sentence N`（最后一句标 `(current sentence)`）、原文、一张 Markdown 表。0001 号金标第 3 句：输入从约 2.6 万字符变成约 3,200；第 6 句起从 4 万多变成约 5,000。
 
 ---
 
@@ -388,7 +409,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 - 存好后工具栏显示「已暂存 时:分」，有未存的改动时这行字先消失。
 
 **`snapshot()` 存什么**：每一波每一项的所有步骤和窗口设置。为了变小：
-- 每项第一步的输入不存，恢复时重算（document 那一步的输入是整棵树）；
+- 每项第一步的输入不存，恢复时重算（document 那一步的输入是几句的节点表）；
 - 300 字以上的文本放进一张共用的表，相同的只存一份；提示词、Jev 的问题这类反复出现的长文本因此只存一次。
 
 51 句、约 1800 步的文档约 1.5 MB。
@@ -508,7 +529,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 | coverage | predicate、np_phrase 之后检查漏掉的词 | 去掉 |
 | reentrancy | 单独一波，按类型和 span 合并 | 去掉；写 .umr 时按 span 和概念合并（`merges`） |
 | antecedent | 每个 outside 一个规则步骤 | 去掉；outside 留在原步骤里，写 .umr 时接上 |
-| document 的树 | reentrancy 那一波的输出 | sentence 那一波的树（skill.md 里那句说明也改了） |
+| document 的输入 | `sents` + `trees`（reentrancy 那一波的整棵树） | `sentences`：sentence 那一波生成的每句节点表（编号、full span、概念、类型、skill）；skill.md 讲输入的几段改成说明这张表 |
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
 | PropBank | 每个词条一个 XML（中文 24,521 个） | 合并成一个 JSON，`propbank.py` 改成读它，查询结果相同 |
