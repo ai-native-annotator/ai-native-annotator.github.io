@@ -116,6 +116,37 @@ few keywords: words of the text, concepts (`have-org-role-91`), roles (`:ARG1-of
 returns whole gold sentence annotations, and the worked examples of this procedure's
 skills, that contain them. To check a rule, call `search_guidelines` with keywords: it
 returns the matching sections of the UMR guidelines."""
+# propbank_lookup: what the predicate and np_phrase skills are told to look up (every alternate
+# of the lemma, not "up to two"), {skill: (old, new)}
+PROPBANK_ASK = {
+    "predicate": ("(give the\nlemma and up to two alternates)",
+                  "(give the\nlemma and **every** alternate it could be listed under, all in one call, up to 20:\n"
+                  "the word as written and each other form of it, with and without a particle,\n"
+                  "complement or suffix, the single verb inside a compound, the base form; the result\n"
+                  "names any lemma it did not look up)"),
+    "np_phrase": ("**look the\nlemma up with `propbank_lookup`** and use a sense it returned.",
+                  "**look the\nlemma up with `propbank_lookup`**, giving **every** alternate form it could be\n"
+                  "listed under in one call (up to 20), and use a sense it returned."),
+}
+PROPBANK_LIMIT = 20
+PROPBANK_DOC = ('    """Look up up to three lemmas (the lemma and alternates) in PropBank.\n',
+                '    """Look up a lemma and every alternate of it in PropBank (at most %d per call).\n' % PROPBANK_LIMIT)
+PROPBANK_DOC_END = ("    an empty list means the lemma is not in PropBank.\n    \"\"\"",
+                    "    an empty list means the lemma is not in PropBank. Lemmas over the limit are not\n"
+                    "    looked up: they are listed under \"_not_looked_up\" (call again with them).\n    \"\"\"")
+PROPBANK_LOOP = ("""    for lemma in [l for l in (lemmas or []) if isinstance(l, str) and l.strip()][:3]:
+""", """    lemmas = [l for l in (lemmas or []) if isinstance(l, str) and l.strip()]
+    for lemma in lemmas[:%d]:
+""" % PROPBANK_LIMIT)
+PROPBANK_RETURN = ("""        out[lemma] = found
+    return out
+""", """        out[lemma] = found
+    if len(lemmas) > %d:
+        # web: said, not dropped without a word: a lemma left out is not one missing from PropBank
+        out["_not_looked_up"] = {"lemmas": lemmas[%d:],
+                                 "why": "only the first %d lemmas of a call are looked up; call propbank_lookup again with these"}
+    return out
+""" % (PROPBANK_LIMIT, PROPBANK_LIMIT, PROPBANK_LIMIT))
 MP_FILES = [
     "resources/Abstract_predicate_and_rolesets.csv", "resources/All_relations.csv",
     "resources/Attribute_Values.csv", "resources/SP_and_Discourse.csv",
@@ -196,6 +227,24 @@ def patch_propbank(path):
         f.write(head + MERGED_LOOKUP)
 
 
+def patch_propbank_limit(path):
+    """Every copied propbank.py: up to PROPBANK_LIMIT lemmas a call instead of 3, and the ones over
+    it named in the result. A copy that delegates (np_phrase's) gets only the new docstring."""
+    with open(path, encoding="utf-8") as f:
+        text = f.read()
+    for old, new in (PROPBANK_DOC, PROPBANK_DOC_END):
+        if text.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (path, old[:40]))
+        text = text.replace(old, new)
+    if "def _lookup(" in text:
+        for old, new in (PROPBANK_LOOP, PROPBANK_RETURN):
+            if text.count(old) != 1:
+                raise SystemExit("%s: cannot find %r" % (path, old[:40]))
+            text = text.replace(old, new)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
 def compose(sp, lang):
     """web-procedures/<lang>: the agent procedure, with sent_type taken from a jev version."""
     agent, jev = PROCEDURES[lang]
@@ -234,6 +283,11 @@ def compose(sp, lang):
             raise SystemExit("%s: cannot replace what it says about get_example" % md)
         for old in EXAMPLES_OLD:
             body = body.replace(old, EXAMPLES_NEW)
+        if skill in PROPBANK_ASK:
+            old, new = PROPBANK_ASK[skill]
+            if body.count(old) != 1:
+                raise SystemExit("%s: cannot find what it says about propbank_lookup" % md)
+            body = body.replace(old, new)
         with open(md, "w", encoding="utf-8") as f:
             f.write(body)
     doc_md = os.path.join(dst, "document", "skill.md")
@@ -453,6 +507,7 @@ def main(sp, mp, penman_whl=None):
         for n in names:
             if n == "propbank.py":
                 patch_propbank(os.path.join(base, n))
+                patch_propbank_limit(os.path.join(base, n))
     for rel in MP_FILES:
         copy(mp, rel, os.path.join(FS, "modular-parsing"))
     for rel, folder in PROPBANK.items():

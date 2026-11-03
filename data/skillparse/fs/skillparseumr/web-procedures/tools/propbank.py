@@ -27,23 +27,29 @@ _EN_SUFFIXES = [("ies", "y"), ("ied", "y"), ("ing", ""), ("ed", ""), ("es", ""),
 
 
 def propbank_lookup(lemmas: list[str], language: str) -> dict:
-    """Look up up to three lemmas (the lemma and alternates) in PropBank.
+    """Look up a lemma and every alternate of it in PropBank (at most 20 per call).
 
     language is "en" or "zh". Returns, per lemma, every roleset that exists
     with its argument descriptions, e.g.
     {"taste": [{"roleset": "taste-01", "roles": {"ARG0": "taster", ...}}]};
-    an empty list means the lemma is not in PropBank.
+    an empty list means the lemma is not in PropBank. Lemmas over the limit are not
+    looked up: they are listed under "_not_looked_up" (call again with them).
     """
     # a model may write "Chinese" or "中文" for "zh"
     language = "zh" if str(language).strip().lower()[:2] in ("zh", "ch", "中文"[:2]) else "en"
     out = {}
-    for lemma in [l for l in (lemmas or []) if isinstance(l, str) and l.strip()][:3]:
+    lemmas = [l for l in (lemmas or []) if isinstance(l, str) and l.strip()]
+    for lemma in lemmas[:20]:
         found = []
         for form in _variants(lemma.strip(), language):
             found = _lookup(form, language)
             if found:
                 break
         out[lemma] = found
+    if len(lemmas) > 20:
+        # web: said, not dropped without a word: a lemma left out is not one missing from PropBank
+        out["_not_looked_up"] = {"lemmas": lemmas[20:],
+                                 "why": "only the first 20 lemmas of a call are looked up; call propbank_lookup again with these"}
     return out
 
 

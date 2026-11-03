@@ -206,7 +206,10 @@ More Chinese constructions:
 
 
 **Look the lemma up with `propbank_lookup` before choosing a sense** (give the
-lemma and up to two alternates), then pick the sense whose argument
+lemma and **every** alternate it could be listed under, all in one call, up to 20:
+the word as written and each other form of it, with and without a particle,
+complement or suffix, the single verb inside a compound, the base form; the result
+names any lemma it did not look up), then pick the sense whose argument
 descriptions fit the participants of this clause. Never invent a sense
 number; a lemma the lookup does not return is `<lemma>-00` (never `-01` by default: 注销-00, 转寄-00, 加注-00, 摄-00). The concept is the predicate word as written in the clause; never expand it to a synonym compound (最富创意 → `富-01`, not `富有-01`).
 

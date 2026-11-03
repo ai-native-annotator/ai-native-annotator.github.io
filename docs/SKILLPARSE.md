@@ -512,6 +512,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
 | PropBank | 每个词条一个 XML（中文 24,521 个） | 合并成一个 JSON，`propbank.py` 改成读它，查询结果相同 |
+| propbank_lookup 一次查几个词 | 最多 3 个（原词加两个备选），多的悄悄丢掉；predicate 的 skill.md 说「up to two alternates」 | 最多 20 个，超出的列在结果的 `_not_looked_up` 里，叫模型再查；predicate、np_phrase 的 skill.md 改成一次给出**所有**备选形式（最多 20 个） |
 | 工具 | `get_example`（读 `reference/example.md`）、`propbank_lookup` | 去掉 `get_example`；加 `search_annotations`（金标 + example.md）、`search_guidelines`（UMR 指南）；skill.md 里提到 get_example 的两句改成说明这两个工具 |
 
 另外，网页的运行方式和 SkillParseUMR 的命令行 Runner 有这些不同：

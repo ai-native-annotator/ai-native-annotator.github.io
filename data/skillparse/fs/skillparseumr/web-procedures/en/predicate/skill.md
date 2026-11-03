@@ -58,7 +58,10 @@ it belongs to it, not to the governed verb. 没(有) or 不 right before a verb 
 that verb's negation, never a separate `有-03`.
 
 **Look the lemma up with `propbank_lookup` before choosing a sense** (give the
-lemma and up to two alternates), then pick the sense whose argument
+lemma and **every** alternate it could be listed under, all in one call, up to 20:
+the word as written and each other form of it, with and without a particle,
+complement or suffix, the single verb inside a compound, the base form; the result
+names any lemma it did not look up), then pick the sense whose argument
 descriptions fit the participants of this clause. Never invent a sense
 number; a lemma not in PropBank is `<lemma>-01`.
 

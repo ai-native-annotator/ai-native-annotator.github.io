@@ -10,11 +10,12 @@ _spec.loader.exec_module(_impl)
 
 
 def propbank_lookup(lemmas: list[str], language: str) -> dict:
-    """Look up up to three lemmas (the lemma and alternates) in PropBank.
+    """Look up a lemma and every alternate of it in PropBank (at most 20 per call).
 
     language is "en" or "zh". Returns, per lemma, every roleset that exists
     with its argument descriptions, e.g.
     {"rescue": [{"roleset": "rescue-01", "roles": {"ARG0": "rescuer", ...}}]};
-    an empty list means the lemma is not in PropBank.
+    an empty list means the lemma is not in PropBank. Lemmas over the limit are not
+    looked up: they are listed under "_not_looked_up" (call again with them).
     """
     return _impl.propbank_lookup(lemmas, language)

@@ -81,7 +81,8 @@ The sentence and the phrase are given under **Input** at the end.
 
 
 For every event concept (`rescue-01`, `employ-01`, `destroy-01`) **look the
-lemma up with `propbank_lookup`** and use a sense it returned.
+lemma up with `propbank_lookup`**, giving **every** alternate form it could be
+listed under in one call (up to 20), and use a sense it returned.
 
 ## 2. Pronouns and number
 
