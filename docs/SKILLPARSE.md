@@ -275,12 +275,12 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），它跑完派生 `temporal`、`coref` 两个 agent 步骤，三步的输入一样（前五句和这一句的节点表）。`temporal/skill.md`、`coref/skill.md` 由同步脚本从原来的 `document/skill.md` 拆出来：开头说明、各自那一节、Examples、Input；modal 那一节去掉了。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
 
-**modal 规则**（在 output handler 原有的之外补上）：
-- output handler 本来就写 `(root :modal author)`，以及每个有 modstr 的事件 `(author :<modstr> <事件>)`（除非这个事件另有 modal 父节点）；
-- 转述：predicate 的 outside 里给了 `quote`（转述动词）的事件，conceiver 是那个转述动词的 ARG0：写 `(author :full-affirmative <conceiver>)`、`(<conceiver> :<modstr> <事件>)`；节点表里这一行带 `conceiver`、`modstr` 两个字段（`_table`、`_conceiver`），提示词里不显示；
-- 名词短语里带义项号的事件（`event (nominal)`，identity-91 除外）：`(author :full-affirmative <事件>)`，否定的写 `full-negative`。
+**modal 规则**：每个标了 modstr 的事件（predicate 那一步的 modstr）都是某个人的看法：
+- 默认是作者的：`(author :<modstr> <事件>)`，这条 output handler 本来就写（还有 `(root :modal author)`），规则不再写；
+- 转述：predicate 的 outside 里给了 `quote`（转述动词）的事件，是那个转述动词的 ARG0（conceiver）的看法：写 `(author :full-affirmative <conceiver>)`、`(<conceiver> :<modstr> <事件>)`，output handler 就不再给它写作者那条。节点表里这一行带 `conceiver`、`modstr` 两个字段（`_table`、`_conceiver`），提示词里不显示；
+- 没有 modstr 的节点（实体、名词短语里的事件）不写 modal。
 
-用金标 0001、0003、0022 试（句级图用金标的，modal 换成规则的，按概念比）：金标 353 / 145 / 49 条 modal，规则漏 151 / 31 / 8 条、多 27 / 0 / 1 条。漏的主要是：金标给很多实体也写了 `(author :full-affirmative 实体)`；`允许` 这类动词做 conceiver（`unspecified`）；带推测语气的 `neutral-affirmative`、目的里的 `partial-affirmative`。
+用金标 0001、0003、0022 试（句级图用金标载入的，modal 换成规则的，按概念比）：金标 353 / 145 / 49 条 modal，规则漏 157 / 31 / 8 条、多 13 / 0 / 1 条。漏的主要是金标给实体也写的 `(author :full-affirmative 实体)`、`允许` 这类 conceiver、`neutral-affirmative` / `partial-affirmative`；载入的金标树里 outside 没有 `quote`，所以转述那条在这里几乎没起作用。
 
 **引用和变量名**：三步的 source、target 都用节点编号 `"<句号>:<节点编号>[/片段里的变量]"`（如 `3:0.1`、`3:0.1/s3x2`），不是 .umr 的变量。.umr 的变量是 output handler 拼图时统一重新起的：每个节点 `s<句号><概念的第一个英文字母>`，没有英文字母的用 `x`，同一句里已经有了就加 2、3……（`_SentenceGraph._var`，用一个集合记住这一句用过的名字），所以不会重名；不同句的句号不同，也不会撞。文档级的引用在这之后翻译：编号 → 那一步的头节点（合并过的节点 → 合并到的那个），`/变量` → 那一步片段里的那个节点；指不到的关系不写进去。
 
