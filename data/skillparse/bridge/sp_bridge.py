@@ -394,7 +394,7 @@ class RegistryEngine:
         number and text, and a row per graph node with how a relation names it ("3:0.0", or
         "3:0.0/x" for another node of that step's fragment), the full span it covers (the step's
         own text for the step's first node), its concept, event or entity, and the step that
-        built it. A name node is not a row: its words are in its entity's text."""
+        built it ("stop" for a sent_type leaf). A name node is not a row: its words are in its entity's text."""
         sent = self.doc.sents[i]
         tokens = sent.tokenized_text
         joiner = " " if self.doc.lang != "zh" else ""
@@ -427,7 +427,9 @@ class RegistryEngine:
                 else:
                     kind = "entity"
                 rows.append({"node": "%d:%s%s" % (sent.index, n["id"], "" if k == 0 else "/" + v),
-                             "text": text or own, "concept": concept, "kind": kind, "step": n["skill"]})
+                             "text": text or own, "concept": concept, "kind": kind,
+                             # sent_type's graph is a leaf it built as it is (type stop): an entity
+                             "step": "stop" if n["skill"] == "sent_type" else n["skill"]})
         return {"sentence": sent.index, "text": sent.text, "nodes": rows}
 
     def _partial_tree(self, w, i):

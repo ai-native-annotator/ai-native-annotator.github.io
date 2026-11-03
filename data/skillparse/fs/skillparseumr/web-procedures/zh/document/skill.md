@@ -12,8 +12,9 @@ to the node (below); `text` is the full span the node covers (an event's whole
 clause, an entity's whole phrase); `concept` is its concept; `kind` is `event`
 (with its aspect, and `negative` when it is negated), `event (nominal)` for an
 event concept built inside a noun phrase, or `entity`; `step` is the step that
-built it. A node from `predicate` is an **event**; nodes from `np_phrase`,
-`special_entity` and `sent_type` with type `stop` are **entities**.
+built it, `stop` for a leaf that sent_type built as it is (type `stop`). A node
+from `predicate` is an **event**; nodes from `np_phrase`, `special_entity` and
+`stop` are **entities**.
 
 ## How to refer to a node
 

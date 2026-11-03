@@ -352,7 +352,7 @@ sentences:
 | `text` | 它覆盖的 full span 原文：一步的第一个节点是那一步的原文（事件是整个分句，实体是整个短语），片段里的其他节点是自己的 span |
 | `concept` | 概念 |
 | `kind` | predicate 的事件 `event (aspect)`，否定的加 `, negative`；名词短语里带义项号的 `event (nominal)`；其余 `entity` |
-| `step` | 哪个 skill 产出的 |
+| `step` | 哪个 skill 产出的；sent_type 原样留下的叶子（type stop）写 `stop`，是实体 |
 
 修饰词（mod、quant、unit 等）都在表里；`name` 节点不单列（名字在它的实体那一行的 text 里）。去掉的是 sent_type 等没有图的步骤、`tokenized_text`、关系（parent / edge）和步骤的其他字段。写进提示词时（`prompt_value`）每句一节：`### Sentence N`（最后一句标 `(current sentence)`）、原文、一张 Markdown 表。0001 号金标第 3 句：输入从约 2.6 万字符变成约 3,200；第 6 句起从 4 万多变成约 5,000。
 
