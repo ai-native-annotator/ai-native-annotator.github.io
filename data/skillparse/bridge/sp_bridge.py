@@ -454,6 +454,7 @@ class RegistryEngine:
         tokens = sent.tokenized_text
         joiner = " " if self.doc.lang != "zh" else ""
         rows = []
+        by_id = {n["id"]: n for n in steps if n["status"] != "dropped"}
         for n in steps:
             out = n.get("output") if n["status"] == "ok" else None
             g = (out or {}).get("graph") if isinstance(out, dict) else None
@@ -481,11 +482,50 @@ class RegistryEngine:
                         kind += ", negative"
                 else:
                     kind = "entity"
-                rows.append({"node": "%d:%s%s" % (sent.index, ref_id(n), "" if k == 0 else "/" + v),
-                             "text": text or own, "concept": concept, "kind": kind,
-                             # sent_type's graph is a leaf it built as it is (type stop): an entity
-                             "step": "stop" if n["skill"] == "sent_type" else n["skill"]})
+                row = {"node": "%d:%s%s" % (sent.index, ref_id(n), "" if k == 0 else "/" + v),
+                       "text": text or own, "concept": concept, "kind": kind,
+                       # sent_type's graph is a leaf it built as it is (type stop): an entity
+                       "step": "stop" if n["skill"] == "sent_type" else n["skill"]}
+                if n["skill"] == "predicate" and k == 0:
+                    # for the modal rule (modal/modal.py): the event's modal strength, and the
+                    # conceiver of reported content (the ARG0 of its outside `quote` verb)
+                    if out.get("modstr") and out["modstr"] != "none":
+                        row["modstr"] = out["modstr"]
+                    who = self._conceiver(by_id, n)
+                    if who:
+                        row["conceiver"] = "%d:%s" % (sent.index, who)
+                rows.append(row)
         return {"sentence": sent.index, "text": sent.text, "nodes": rows}
+
+    @staticmethod
+    def _participant(by_id, n, role):
+        """The node (its name) a predicate step gives `role`: a placeholder's, or an outside item's."""
+        out = n.get("output") or {}
+        g = out.get("graph") or {}
+        top = ((g.get("nodes") or [{}])[0] or {}).get("var")
+        for src, r, tgt in g.get("edges") or []:
+            if src == top and str(r).lstrip(":") == role:
+                kid = next((c for c in by_id.values() if c.get("parent") == n["id"] and c.get("edge") == tgt), None)
+                if kid is not None:
+                    return ref_id(kid)
+        for x in out.get("outside") or []:
+            if isinstance(x, dict) and x.get("role") == role:
+                ref = x.get("node")
+                if isinstance(ref, str) and step_of(by_id, ref.strip()):
+                    return ref.strip()
+                span = x.get("span")
+                hit = next((c for c in by_id.values() if c["status"] == "ok" and c.get("output", {}) and
+                            (c.get("output") or {}).get("graph") and (c["input"] or {}).get("span") == span), None)
+                if hit is not None:
+                    return ref_id(hit)
+        return None
+
+    def _conceiver(self, by_id, n):
+        """Whose view a predicate step's event is: the ARG0 of the reporting verb it gives as its
+        outside `quote`, or None (the author's)."""
+        verb = self._participant(by_id, n, "quote")
+        step = step_of(by_id, verb) if verb else None
+        return self._participant(by_id, step, "ARG0") if step is not None and step["skill"] == "predicate" else None
 
     def _partial_tree(self, w, i):
         ep = self.eps[w].get(i)
@@ -1209,6 +1249,10 @@ class RegistryEngine:
                 if isinstance(rels, list):
                     n["relations"] = [dict(r, source=step_ref(r.get("source")), target=step_ref(r.get("target")))
                                       if isinstance(r, dict) else r for r in rels]
+            # web: modal, temporal and coref are three steps; the output handler reads the root's
+            if t and t.get("nodes"):
+                t["nodes"][0] = dict(t["nodes"][0], relations=[r for n in t["nodes"] if n.get("status") == "ok"
+                                                              for r in n.get("relations") or []])
         return wt
 
     def render(self, auto_align=True):

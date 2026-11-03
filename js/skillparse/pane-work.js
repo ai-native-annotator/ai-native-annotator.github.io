@@ -151,7 +151,7 @@ function outputTab(d) {
           else toast(t('saved'));
         } }),
         h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.editing = false; render(); } }), err),
-      d.skill === 'document' ? docLegend(d.input, true) : null);
+      Array.isArray(d.input?.sentences) ? docLegend(d.input, true) : null);
   }
   const parts = [];
   if (d.status === 'ok' || d.status === 'error') parts.push(reviewCard(d));
@@ -167,7 +167,7 @@ function outputTab(d) {
   }
   const pm = outputPenman(d.skill, d.output, d.input);
   if (pm) parts.push(h('div', { class: 'note', text: t('penmanTitle') }), h('pre', { class: 'block penman', text: pm }));
-  if (d.skill === 'document') parts.push(docLegend(d.input, false));
+  if (Array.isArray(d.input?.sentences)) parts.push(docLegend(d.input, false));
   const frag = fragmentGraph(d.output);
   if (frag) {
     parts.push(h('details', {}, h('summary', { text: t('fragment') }),

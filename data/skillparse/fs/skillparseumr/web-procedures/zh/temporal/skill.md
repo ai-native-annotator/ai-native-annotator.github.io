@@ -1,7 +1,8 @@
-# Skill: document-level relations for one sentence
+# Skill: document-level temporal relations for one sentence
 
 You are annotating the document level of a Uniform Meaning Representation:
-temporal dependency, modal dependency and coreference. You are given the
+temporal dependency (the modal dependencies are made by rule, coreference by
+another step). You are given the
 current sentence (the **last** one below) and up to five
 sentences before it, each with a table of the nodes of its sentence graph.
 
@@ -81,71 +82,6 @@ For every event of the current sentence give exactly one parent, as
 
 
 
-
-## modal
-
-The author's own view of each event is **not** yours to write: every event's
-`modstr` (from the predicate step) becomes `author` `<modstr>` that event
-automatically, and `root` `modal` `author` is added to every sentence. Write a
-modal relation only when the event is presented through **someone else's**
-view, as
-`{{"group": "modal", "source": conceiver, "relation": label, "target": event}}`:
-
-- a person or organization whose words, belief or report the event is (*X
-  said*, *X believes*, *according to X*, 据X报道): the conceiver is that
-  person's or organization's node; the relation from them replaces the
-  author's for that event;
-- the conceiver itself is a child of `author`: give
-  `author` `full-affirmative` the conceiver's node (it is an entity, so nothing
-  writes it for you);
-- labels: `full-affirmative`, `partial-affirmative`, `neutral-affirmative`,
-  `neutral-negative`, `partial-negative`, `full-negative`, as the conceiver
-  presents the event (a negated event is `full-negative`).
-
-If no event of the sentence is anybody else's view, write no modal relation.
-
-The content of an organization's announcement of its own actions (X宣布收购A，并收购B) is the author's own assertion: write no conceiver relation for X and no `author` link to X.
-
-
-A permission verb (允许, 准许) is the conceiver of the event it permits: source the permission verb, relation `unspecified`, target the permitted event; the one permitted (该台) takes `full-affirmative` the permission verb (source that entity, target the verb). A 'begin' verb (启-02) is not a conceiver: its inner event (播-01) is asserted by the author, so write no modal relation for it.
-
-Exception: an event built inside a noun phrase (a node from `np_phrase` whose
-concept has a sense number, e.g. 报导-01, 活动-01, 好事-00, and any `include-91` / `have-rel-role-91` it builds, which you point at with `/var`; but an `identity-91` that only joins an apposition gets no modal relation) has no modstr, so
-nothing writes its author link. Give it yourself: `author` `full-affirmative`
-that node (or its conceiver's relation, if it is reported).
-
- The event inside a verb + 量 compound (发行量, 销量) is not a clausal event: it gets no modal relation.
-
- An event named inside a noun for a procedure or kind (查证程序, 审批过程) is not asserted to have happened: give it `author` `partial-affirmative`.
-
-
-
-
-## coref
-
-Link an entity or event of the current sentence to the **same** entity or event
-in an earlier sentence: a pronoun to its antecedent, a repeated name, a
-definite description of something already mentioned:
-`{{"group": "coref", "source": earlier node, "relation": "same-entity" or "same-event", "target": current node}}`.
-Do not link two different things of the same kind.
-
- Link each mention to
-the **closest** earlier mention of the same entity (not always the first one),
-and point at the entity node (e.g. `newspaper`), never at its `name` node. Keep
-chains for different entities apart: a newspaper, its parent company, its
-reports and the people writing them are different things.
-
-Before linking, check that the two nodes can be the same thing: an event never corefers with an entity (报导-01 with 文); an abstract noun (目的, 内容) is never `same-entity` with a publication. 他们 is `same-entity` with a publication when it is the publication acting (他们报导, 他们的标语): link it to the publication's chain, never to its editors or staff; a second newspaper node is linked only if it has the same name. One wrong link merges whole chains, so when in doubt leave it out. Also do not link repeated generic or kind mentions (外星人 meaning aliens in general). Repeated mentions of the same named city or place across sentences do form a `same-entity` chain. 该台 / 该公司 refers to the station or company, never to one of its channels. When an earlier tree has two nodes of the same type (two companies), check the name before pointing at one. Be conservative with `same-event`: link two events only when the text clearly retells the very same occurrence. Never link nominal events such as the 发行 of 发行量 across sentences, or figures from different periods.
-
- But do link every new mention of a named person or organization already seen (full name, short name, title + name, pronoun) to its closest earlier mention, however many sentences back: each missed link leaves a mention outside its chain. Choose the label from the nodes. Use `same-event` when either node is an event (a predicate node, or a concept with a sense: 爆炸-01, 袭击-01). Nouns that name an occurrence (演唱会, a named `show`, 比赛, 事件, X案) also corefer with `same-event`, with each other and with event nodes. `same-entity` is for people, things, places and organizations. A plain noun (事件, 此事, X案) that refers back to the incident links to the closest earlier mention of it. The event inside an agent or patient noun (袭击 in 袭击者, 死 in 死者) is linked `same-event` (point at it with `/var`) to the earlier mention of that occurrence, even when the verb differs (身亡). Do not link repeated background states (临近尾声) across sentences. In a document about one work (an episode, film, book), every later mention of it (这集, 本片, 该剧, its title) belongs to one `same-entity` chain with the work's named node (the `show` / `book`). Link each to the closest earlier mention, never to a common noun 集 built inside a description of the work (第N集 of a series).
-
- When an organization has a full name and an alias joined by `identity-91` (X委员会（ABC）), the alias node (identity-91's ARG2, pointed at with `/var`) is the chain's mention: link later mentions (ABC again, 当局 'the authorities') to it, and keep one chain for all of them. A noun with 此 / 该 that sums up an earlier event of the text (此限制 after 不允许X) is `same-event` with that event.
-
-
-
-
-
-Return all of them in `relations`.
 
 ## Examples
 

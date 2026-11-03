@@ -144,6 +144,88 @@ JEV_MODULES = ["jevlib.py", "prompt_loader.py", "event_modifiers.py", "event_mod
 SHARED_TOOLS = ["skillsets/tools/propbank.py"]      # get_example (skillsets/tools/example.py) is not used
 # the site's own tools (search_annotations, search_guidelines), next to propbank_lookup
 WEB_TOOLS = os.path.join(OUT, "web_tools")
+# the document wave in three steps (web): modal by rule (web_skills/modal/modal.py, no model),
+# then temporal and coref, each its own agent skill made from document/skill.md
+WEB_SKILLS = os.path.join(OUT, "web_skills")
+DOCUMENT_SKILLS = [
+    ("    start: document\n", "    start: modal                      # web：modal（规则）→ temporal、coref\n"),
+    ("""  document:                     # TODO: 时间、模态、共指，一个 skill 还是拆开
+    path: document
+    input:
+      sentences: list[dict]           # web：每句一张节点表（见上面 document 这一波）
+    emit:
+      # 每个 {group, source, relation, target}，group 是 temporal / modal / coref。
+      # source、target 用节点编号 "<句号>:<节点 id>"（如 "3:0.2.1"），或常量 author、document-creation-time 等；
+      # output handler 再统一翻译成变量名。
+      relations: list[dict]
+    store: [relations]
+""", """  # web：文档级拆成三步。每步的 relations 都是 {group, source, relation, target}，source、target 用
+  # 节点编号 "<句号>:<节点编号>[/变量]"（如 "3:0.1"），或常量 author、document-creation-time；
+  # output handler 把三步的合在一起，再翻译成 .umr 的变量名
+  modal:                        # 规则（modal/modal.py），不调模型：转述的 conceiver、名词里的事件
+    path: modal
+    kind: rule
+    input:
+      sentences: list[dict]           # 每句一张节点表（见上面 document 这一波）
+    emit:
+      relations: list[dict]
+    store: [relations]
+
+  temporal:                     # 时间依存（document/skill.md 的 temporal 一节）
+    path: temporal
+    input:
+      sentences: list[dict]
+    emit:
+      relations: list[dict]
+    store: [relations]
+
+  coref:                        # 共指（document/skill.md 的 coref 一节）
+    path: coref
+    input:
+      sentences: list[dict]
+    emit:
+      relations: list[dict]
+    store: [relations]
+"""),
+    ("  # document：没有后续\n", """  # web：modal 之后，temporal 和 coref 各跑一次（输入一样）
+  modal:
+    - {run: temporal, input: {sentences: sentences}}
+    - {run: coref, input: {sentences: sentences}}
+"""),
+]
+DOCUMENT_PARTS = {
+    "temporal": ("# Skill: document-level temporal relations for one sentence",
+                 "temporal dependency, modal dependency and coreference",
+                 "temporal dependency (the modal dependencies are made by rule, coreference by\nanother step)"),
+    "coref": ("# Skill: document-level coreference for one sentence",
+              "temporal dependency, modal dependency and coreference",
+              "coreference (the modal dependencies are made by rule, temporal dependency by\nanother step)"),
+}
+
+
+def split_document(dst):
+    """document/skill.md as two skills (web): its opening, the one section (## temporal or
+    ## coref), and its examples and input; the modal section goes (modal/modal.py does it)."""
+    src = os.path.join(dst, "document")
+    with open(os.path.join(src, "skill.md"), encoding="utf-8") as f:
+        md = f.read()
+    cut = {h: md.index("\n## %s\n" % h) for h in ("temporal", "modal", "coref", "Examples")}
+    if not cut["temporal"] < cut["modal"] < cut["coref"] < cut["Examples"]:
+        raise SystemExit("%s: its sections are not temporal, modal, coref, Examples" % src)
+    head, tail = md[:cut["temporal"]], md[cut["Examples"]:]
+    part = {"temporal": md[cut["temporal"]:cut["modal"]], "coref": md[cut["coref"]:cut["Examples"]]}
+    for name, (title, old, new) in DOCUMENT_PARTS.items():
+        first, rest = head.split("\n", 1)
+        if not first.startswith("# Skill:") or rest.count(old) != 1:
+            raise SystemExit("%s: cannot make the %s skill's opening" % (src, name))
+        os.makedirs(os.path.join(dst, name), exist_ok=True)
+        with open(os.path.join(dst, name, "skill.md"), "w", encoding="utf-8") as f:
+            f.write(title + "\n" + rest.replace(old, new) + part[name] + tail)
+    if os.path.isdir(os.path.join(src, "reference")):
+        shutil.copytree(os.path.join(src, "reference"), os.path.join(dst, "temporal", "reference"))
+    shutil.rmtree(src)
+    shutil.copytree(os.path.join(WEB_SKILLS, "modal"), os.path.join(dst, "modal"),
+                    ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
 # gold annotations and the UMR guidelines, which those tools search; outside fs/ (not loaded at
 # start: the tools read them on their first call)
 RESOURCES = os.path.join(OUT, "resources")
@@ -372,13 +454,13 @@ def compose(sp, lang):
     if n != 1:
         raise SystemExit("%s: cannot find discourse's relation" % reg)
     text = drop_reentrancy_wave(text)
-    for old, new in DOCUMENT_INPUT + SENT_TYPE_OUTSIDE:
-        if text.count(old) != 1:
-            raise SystemExit("%s: cannot find %r" % (reg, old[:60]))
-        text = text.replace(old, new)
     shutil.rmtree(os.path.join(dst, "reentrancy"))
     text = drop_antecedent(text)
     shutil.rmtree(os.path.join(dst, "antecedent"))
+    for old, new in DOCUMENT_INPUT + SENT_TYPE_OUTSIDE + DOCUMENT_SKILLS:
+        if text.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (reg, old[:60]))
+        text = text.replace(old, new)
     for skill in sorted(os.listdir(dst)):
         md = os.path.join(dst, skill, "skill.md")
         if not os.path.isfile(md):
@@ -410,6 +492,7 @@ def compose(sp, lang):
         md = md.replace(old, new)
     with open(doc_md, "w", encoding="utf-8") as f:
         f.write(md)
+    split_document(dst)
     patch_jevlib(os.path.join(dst, "jevlib.py"))
     header = ("# web-procedures/%s, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:\n"
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"

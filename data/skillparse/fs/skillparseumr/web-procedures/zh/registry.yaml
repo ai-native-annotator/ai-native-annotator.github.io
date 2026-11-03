@@ -53,7 +53,7 @@ waves:
         span: sentence.span
 
   - name: document
-    start: document
+    start: modal                      # web：modal（规则）→ temporal、coref
     parallel: 20                        # 只读前面几波的结果，各句可以同时跑
     init_input:
       for_each:                         # 每句一个 episode
@@ -142,14 +142,31 @@ skills:
 
   # ---- 整篇的一波 ----
 
-  document:                     # TODO: 时间、模态、共指，一个 skill 还是拆开
-    path: document
+  # web：文档级拆成三步。每步的 relations 都是 {group, source, relation, target}，source、target 用
+  # 节点编号 "<句号>:<节点编号>[/变量]"（如 "3:0.1"），或常量 author、document-creation-time；
+  # output handler 把三步的合在一起，再翻译成 .umr 的变量名
+  modal:                        # 规则（modal/modal.py），不调模型：转述的 conceiver、名词里的事件
+    path: modal
+    kind: rule
     input:
-      sentences: list[dict]           # web：每句一张节点表（见上面 document 这一波）
+      sentences: list[dict]           # 每句一张节点表（见上面 document 这一波）
     emit:
-      # 每个 {group, source, relation, target}，group 是 temporal / modal / coref。
-      # source、target 用节点编号 "<句号>:<节点 id>"（如 "3:0.2.1"），或常量 author、document-creation-time 等；
-      # output handler 再统一翻译成变量名。
+      relations: list[dict]
+    store: [relations]
+
+  temporal:                     # 时间依存（document/skill.md 的 temporal 一节）
+    path: temporal
+    input:
+      sentences: list[dict]
+    emit:
+      relations: list[dict]
+    store: [relations]
+
+  coref:                        # 共指（document/skill.md 的 coref 一节）
+    path: coref
+    input:
+      sentences: list[dict]
+    emit:
       relations: list[dict]
     store: [relations]
 
@@ -196,4 +213,7 @@ dispatcher:
       input: {text: hole.text, span: hole.span}
       edge: hole.var
 
-  # document：没有后续
+  # web：modal 之后，temporal 和 coref 各跑一次（输入一样）
+  modal:
+    - {run: temporal, input: {sentences: sentences}}
+    - {run: coref, input: {sentences: sentences}}

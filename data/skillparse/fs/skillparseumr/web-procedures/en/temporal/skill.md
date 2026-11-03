@@ -1,7 +1,8 @@
-# Skill: document-level relations for one sentence
+# Skill: document-level temporal relations for one sentence
 
 You are annotating the document level of a Uniform Meaning Representation:
-temporal dependency, modal dependency and coreference. You are given the
+temporal dependency (the modal dependencies are made by rule, coreference by
+another step). You are given the
 current sentence (the **last** one below) and up to five
 sentences before it, each with a table of the nodes of its sentence graph.
 
@@ -41,38 +42,6 @@ For every event of the current sentence give exactly one parent, as
   expression is `contained` in that expression's node.
 - a past event with no time expression: `document-creation-time` `before`
   it, or `after`/`overlap` an earlier event that locates it.
-
-## modal
-
-The author's own view of each event is **not** yours to write: every event's
-`modstr` (from the predicate step) becomes `author` `<modstr>` that event
-automatically, and `root` `modal` `author` is added to every sentence. Write a
-modal relation only when the event is presented through **someone else's**
-view, as
-`{{"group": "modal", "source": conceiver, "relation": label, "target": event}}`:
-
-- a person or organization whose words, belief or report the event is (*X
-  said*, *X believes*, *according to X*, 据X报道): the conceiver is that
-  person's or organization's node; the relation from them replaces the
-  author's for that event;
-- the conceiver itself is a child of `author`: give
-  `author` `full-affirmative` the conceiver's node (it is an entity, so nothing
-  writes it for you);
-- labels: `full-affirmative`, `partial-affirmative`, `neutral-affirmative`,
-  `neutral-negative`, `partial-negative`, `full-negative`, as the conceiver
-  presents the event (a negated event is `full-negative`).
-
-If no event of the sentence is anybody else's view, write no modal relation.
-
-## coref
-
-Link an entity or event of the current sentence to the **same** entity or event
-in an earlier sentence: a pronoun to its antecedent, a repeated name, a
-definite description of something already mentioned:
-`{{"group": "coref", "source": earlier node, "relation": "same-entity" or "same-event", "target": current node}}`.
-Do not link two different things of the same kind.
-
-Return all of them in `relations`.
 
 ## Examples
 

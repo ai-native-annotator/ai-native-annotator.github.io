@@ -444,7 +444,14 @@ class Loader:
                     rels = [{"group": g, "source": refs.get(a, a), "relation": r, "target": refs.get(b, b)}
                             for g, a, r, b in self.doc_rel(bs[i]["doc"]) if not (g == "modal" and a == "root")]
                     self.w, self.i, self.ep = "document", i, ep
-                    self.put("0", {"relations": rels})
+                    # web: the modal step (the root), then temporal and coref, each with its group;
+                    # a relation of another group goes with the root
+                    root = next(k for k, x in ep["nodes"].items() if x["parent"] is None)
+                    later = {r.run for r in e.reg.rules(ep["nodes"][root]["skill"])}
+                    st = self.put(root, {"relations": [x for x in rels if x["group"] not in later]})
+                    for kid in st.get("children") or []:
+                        group = ep["nodes"][kid]["skill"]
+                        self.put(kid, {"relations": [x for x in rels if x["group"] == group]})
         finally:
             e.loading = False
             for w, (d, m) in saved.items():

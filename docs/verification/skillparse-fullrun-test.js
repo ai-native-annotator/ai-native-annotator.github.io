@@ -142,12 +142,12 @@ const statusIs = (page, re, timeout = 180000) =>
   const train = fs.readFileSync(await tdl.path(), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   const tSkills = new Set(train.map((r) => r.skill));
   check('training data: one JSON line per confirmed step of both waves', tdl.suggestedFilename() === 'hawksbill.web-zh.train.jsonl'
-    && train.length === total && tSkills.has('sent_type') && tSkills.has('document')
+    && train.length === total && tSkills.has('sent_type') && ['modal', 'temporal', 'coref'].every((k) => tSkills.has(k))
     && new Set(train.map((r) => r.wave)).size === 2, `${train.length} lines for ${total} steps · ${[...tSkills].join(' ')}`);
   check('each line has the step\'s context, input and output, and no skill.md or prompt',
     train.every((r) => r.context && r.input && r.output && r.confirmed && !('prompt' in r) && !JSON.stringify(r).includes('# Output Format'))
     && train.filter((r) => r.wave === 'sentence').every((r) => r.context.sent && r.context.token_sent)
-    && train.filter((r) => r.skill === 'document').every((r) => Array.isArray(r.input.sentences) && r.input.sentences.every((t) => Array.isArray(t.nodes))),
+    && train.filter((r) => r.wave === 'document').every((r) => Array.isArray(r.input.sentences) && r.input.sentences.every((t) => Array.isArray(t.nodes))),
     Object.keys(train[0]).join(','));
   const docInputs = calls.inputs.filter((u) => u.includes('### Sentence'));
   check('the document step reads each sentence\'s text and a table of its nodes, not its trees', docInputs.length > 0

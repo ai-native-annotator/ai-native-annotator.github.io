@@ -271,6 +271,19 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 **outside**：每一项写它指的节点编号，不再写 span：predicate `{role, node, text}`，np_phrase / special_entity `{var, node, text}`（`at` 去掉了，它原来只给已经删掉的 coverage 用）。编号不在表里，当作答案不合格，带着错误让模型重答一次（`_check_outside`）。写 .umr 时，每一项接到它指的那个节点上（`merges`）；没有 node 的项（从 .umr 载入的、以前的工作）仍按 span 接。sent_type 不再输出 outside（registry 里 emit 和 store 都去掉了）。
 
+### 文档级：modal、temporal、coref 三步（web 改过）
+
+document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），它跑完派生 `temporal`、`coref` 两个 agent 步骤，三步的输入一样（前五句和这一句的节点表）。`temporal/skill.md`、`coref/skill.md` 由同步脚本从原来的 `document/skill.md` 拆出来：开头说明、各自那一节、Examples、Input；modal 那一节去掉了。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
+
+**modal 规则**（在 output handler 原有的之外补上）：
+- output handler 本来就写 `(root :modal author)`，以及每个有 modstr 的事件 `(author :<modstr> <事件>)`（除非这个事件另有 modal 父节点）；
+- 转述：predicate 的 outside 里给了 `quote`（转述动词）的事件，conceiver 是那个转述动词的 ARG0：写 `(author :full-affirmative <conceiver>)`、`(<conceiver> :<modstr> <事件>)`；节点表里这一行带 `conceiver`、`modstr` 两个字段（`_table`、`_conceiver`），提示词里不显示；
+- 名词短语里带义项号的事件（`event (nominal)`，identity-91 除外）：`(author :full-affirmative <事件>)`，否定的写 `full-negative`。
+
+用金标 0001、0003、0022 试（句级图用金标的，modal 换成规则的，按概念比）：金标 353 / 145 / 49 条 modal，规则漏 151 / 31 / 8 条、多 27 / 0 / 1 条。漏的主要是：金标给很多实体也写了 `(author :full-affirmative 实体)`；`允许` 这类动词做 conceiver（`unspecified`）；带推测语气的 `neutral-affirmative`、目的里的 `partial-affirmative`。
+
+**引用和变量名**：三步的 source、target 都用节点编号 `"<句号>:<节点编号>[/片段里的变量]"`（如 `3:0.1`、`3:0.1/s3x2`），不是 .umr 的变量。.umr 的变量是 output handler 拼图时统一重新起的：每个节点 `s<句号><概念的第一个英文字母>`，没有英文字母的用 `x`，同一句里已经有了就加 2、3……（`_SentenceGraph._var`，用一个集合记住这一句用过的名字），所以不会重名；不同句的句号不同，也不会撞。文档级的引用在这之后翻译：编号 → 那一步的头节点（合并过的节点 → 合并到的那个），`/变量` → 那一步片段里的那个节点；指不到的关系不写进去。
+
 ## 7. 流程（registry）：两波
 
 两套流程在 `web-procedures/zh/registry.yaml` 和 `web-procedures/en/registry.yaml`，结构一样。
@@ -278,7 +291,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 | wave | for_each | 起点 | 读什么 |
 |---|---|---|---|
 | sentence | 每一句 | `sent_type`（输入整句） | 这一句的文本和 token |
-| document | 每一句 | `document` | 前 5 句和这一句，每句一张节点表（`sentences`，由 sentence 这一波的树生成，要都完成并确认） |
+| document | 每一句 | `modal`（规则）→ `temporal`、`coref` | 前 5 句和这一句，每句一张节点表（`sentences`，由 sentence 这一波的树生成，要都完成并确认） |
 
 sentence 这一波里的流向（dispatcher）：
 
@@ -298,7 +311,9 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 | predicate | agent | Haiku（可查 PropBank） | `predicate/skill.md`、`reference/`、`tools/propbank.py` |
 | np_phrase | agent | Haiku（可查 PropBank） | `np_phrase/…` |
 | special_entity | agent | Haiku | `special_entity/…` |
-| document | agent | Haiku | `document/…` |
+| modal | rule | 程序 | `modal/modal.py` |
+| temporal | agent | Haiku | `temporal/skill.md`、`reference/` |
+| coref | agent | Haiku | `coref/skill.md` |
 
 写在一块外面的参与者（如「Pope wanted to leave」里 leave 的主语）只写在那一步输出的 `outside` 里，不再单独起步骤，写 `.umr` 时按 span 接上（第 8 节）。
 
@@ -452,7 +467,7 @@ sentences:
 | discourse | `relation` 是字符串（不查取值）；`parts` 是列表 | 发回模型重答一次，再错就出错 |
 | predicate | `graph`、`frame` 是对象；`open`、`outside`、`alignment` 是列表；`aspect` ∈ 27 个值；`modstr` ∈ 6 个值；`polarity` ∈ {positive, negative} | 同上 |
 | np_phrase、special_entity | `graph` 是对象；`open`、`outside`、`alignment` 是列表 | 同上 |
-| document | `relations` 是列表 | 同上 |
+| modal、temporal、coref | `relations` 是列表 | 同上 |
 
 只查字段和类型，不查列表里每一项的内容。
 
@@ -487,7 +502,7 @@ sentences:
 
 ## 13. 设置和模型
 
-**工具栏的「模型」菜单**：选 agent 步骤（discourse、predicate、np_phrase、special_entity、document）用哪个模型，从下一步起生效。sent_type 仍然问 Jev。
+**工具栏的「模型」菜单**：选 agent 步骤（discourse、predicate、np_phrase、special_entity、temporal、coref）用哪个模型，从下一步起生效。sent_type 仍然问 Jev。
 
 | 选项 | Anthropic API | OpenRouter | OpenAI |
 |---|---|---|---|
@@ -542,6 +557,7 @@ sentences:
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
 | PropBank | 每个词条一个 XML（中文 24,521 个） | 合并成一个 JSON，`propbank.py` 改成读它，查询结果相同 |
+| 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成；temporal、coref 各一个 agent 步骤（skill.md 从 document 的拆出来） |
 | 步骤编号 | `0`、`0.0`、`0.0.0`…（sent_type 和它派生的一步各占一层） | `0B`、`0`、`0.0B`、`0.0`…（sent_type 带 B，派生的一步用同一个号），长度减半 |
 | outside | 写参与者的 text、span（np_phrase 还有 `at`），写 .umr 时按 span 找节点；sent_type 也可以写 | 写已有节点表里的编号 `node`，写 .umr 时直接接到那个节点；sent_type 不写 |
 | propbank_lookup 一次查几个词 | 最多 3 个（原词加两个备选），多的悄悄丢掉；predicate 的 skill.md 说「up to two alternates」 | 最多 20 个，超出的列在结果的 `_not_looked_up` 里，叫模型再查；predicate、np_phrase 的 skill.md 改成一次给出**所有**备选形式（最多 20 个） |
