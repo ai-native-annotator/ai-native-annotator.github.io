@@ -67,6 +67,11 @@ const statusIs = (page, re, timeout = 180000) =>
   await page.waitForFunction(() => document.querySelector('#modal input[value="umr-load"]')?.checked);
   check('a .umr file with graphs is offered as "load its annotation"', true);
   await page.check('#modal input[value="umr"]');
+  // choosing "annotate again" first and the file after keeps that choice
+  await page.setInputFiles('#modal input[type=file]', umrPath);
+  await page.waitForTimeout(300);
+  check('"annotate again", chosen before the file, is kept when the file is picked',
+    await page.$eval('#modal input[name=import-format]:checked', (e) => e.value) === 'umr');
   await page.click('#modal button:text-is("导入")');
   await page.waitForFunction(() => document.getElementById('doc').value === 'hawksbill'
     && /就绪/.test(document.getElementById('status').textContent), null, { timeout: 60000 });

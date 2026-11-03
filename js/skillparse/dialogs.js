@@ -1,7 +1,7 @@
 /** Settings, import, export, and answering Jev's questions by hand. */
 
 import { h, openModal, closeModal, toast, download, pretty } from './ui.js';
-import { S, SKILLSETS, assembled, loadDocs, open } from './core.js';
+import { S, SKILLSETS, assembled, loadDocs, open, forgetChanges } from './core.js';
 import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, MODEL_DEFAULTS, shapeAnswers } from './models.js';
 import { bundle } from './store.js';
 import { putImport, dropWork, workKey } from './save.js';
@@ -78,9 +78,12 @@ export function openImport() {
     if (!f) return;
     area.value = await f.text();
     name.value = f.name.replace(/\.(txt|umr)$/i, '');
-    // a .umr file, or text with `# :: snt` blocks: loaded when it has graphs, else re-annotated
+    // a .umr file, or text with `# :: snt` blocks: loaded when it has graphs, else re-annotated;
+    // but a choice of the two already made (re-annotate a file that has graphs) is kept
     if (/\.umr$/i.test(f.name) || /^#\s*::\s*snt\d+/m.test(area.value)) {
-      pick(/#\s*sentence level graph:\s*\n\s*\(/.test(area.value) ? 'umr-load' : 'umr');
+      const graphs = /#\s*sentence level graph:\s*\n\s*\(/.test(area.value);
+      if (!chosen().startsWith('umr')) pick(graphs ? 'umr-load' : 'umr');
+      else if (chosen() === 'umr-load' && !graphs) pick('umr');
     } else if (chosen().startsWith('umr')) pick('txt-lines');
   });
   const body = h('div', { style: 'display:grid;gap:8px' },
@@ -100,6 +103,8 @@ export function openImport() {
         err.textContent = e.message;
         return;
       }
+      // the open document of this name is replaced: its unsaved changes must not be kept for it
+      if (S.doc === res.id) await forgetChanges();
       await putImport({ name: res.id, text, fmt: chosen() });
       // work kept for an earlier document of this name is not work on this one
       await Promise.all(SKILLSETS.map((s) => dropWork(workKey(s.id, res.id))));

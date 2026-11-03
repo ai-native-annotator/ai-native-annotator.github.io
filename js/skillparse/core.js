@@ -112,6 +112,14 @@ export async function saveNow() {
   return saving;
 }
 
+/** The open document is being replaced (imported again): its changes not kept yet are dropped. */
+export async function forgetChanges() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  dirty = false;
+  await saving;
+}
+
 /** Sentence i's assembled graph (bridge.graph), cached until the results change. */
 export async function sentenceGraph(i) {
   const key = `${S.skillset}|${S.doc}|${i}|${S.graphStamp}`;
