@@ -130,6 +130,12 @@ async function stepThrough(page, max = 80) {
   await page.click('.tab:text-is("提示词")');
   check("the agent step's prompt is its skill.md, rendered", (await page.textContent('#output')).includes('# Output Format')
     && !!(await page.$('#output .md h1')));
+  await page.click('.tab:text-is("输入")');
+  const inputMd = await page.$eval('#output', (e) => ({ md: !!e.querySelector('.md h2'), text: e.querySelector('.md')?.innerText || '' }));
+  check("the agent step's input is shown as the model gets it, in Markdown (numbered tokens, not JSON)",
+    inputMd.md && /Tokens, each with its number: \[1\]\S/.test(inputMd.text) && !inputMd.text.includes('[[1,'), inputMd.text.slice(0, 160));
+  check('the prompt numbers the tokens as [1]x [2]y, not as a JSON list', calls.inputs.some((u) => /Tokens, each with its number: \[1\]\S+ \[2\]/.test(u))
+    && !calls.inputs.some((u) => u.includes('number: [[1,')));
   await page.click('.tree li:has(.sk:text-is("sent_type"))');
   await page.click('.tab:text-is("问答")');
   const by = await page.$$eval('#output .qa .badge', (e) => [...new Set(e.map((x) => x.textContent))]);

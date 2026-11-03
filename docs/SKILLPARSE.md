@@ -194,7 +194,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 **kind: agent 的提示词**（照 SkillParseUMR `skill_callable.prompt_parts`）：
 - system：`You are an expert annotator of Uniform Meaning Representation (UMR), following the UMR guidelines. Do exactly the one task you are given.`
 - instructions：`# Output Format` + emit 字段列表 + skill.md 里 `## Input` 之前的部分（用输入值 `str.format` 填好）；
-- input：skill.md 从 `## Input` 开始的部分，填好输入；有提示时在最后加一行 `human提示：…`（英文 `Human hint: …`），并在 system 后面加一句：输入最后的 human 提示是人对这一步的纠正，务必遵循，和说明冲突时以提示为准。
+- input：skill.md 从 `## Input` 开始的部分，填好输入（`prompt_value`：字符串原样；`token_sent` 写成 `[1]该 [2]周 …`；document 的节点表写成 Markdown；其余写成 JSON）；页面「输入」页显示的就是这一段，渲染成 Markdown（jev、rule 的步骤按同样的写法列出每个值），下面可以展开原始 JSON；有提示时在最后加一行 `human提示：…`（英文 `Human hint: …`），并在 system 后面加一句：输入最后的 human 提示是人对这一步的纠正，务必遵循，和说明冲突时以提示为准。
 
 **工具**：skill 自己的 `tools/`，然后 skillset 的 `tools/`，再然后上一层的 `tools/`（同名的只取第一个）。现在每个 agent skill 有三个：`propbank_lookup`（读合并后的 PropBank）、`search_annotations`、`search_guidelines`（后两个在 `web-procedures/tools/search.py`，源文件 `data/skillparse/web_tools/search.py`，见下表）。SkillParseUMR 的 `get_example` 去掉了，skill.md 里原来叫模型用它的两句换成了一段说明两个搜索工具的话。模型要调用工具时，页面 `py('tool')` 在 Python 里执行，结果文本交还模型；记录在这一步的「工具调用」里。需要 `RunContext` 的工具得到一个 `deps = {skill_dir, skill, doc_sentences}` 的替身（浏览器里没有 pydantic-ai）。
 

@@ -59,11 +59,16 @@ SENSE = re.compile(r"-\d+$")          # a concept with a sense number (报导-01
 
 
 def prompt_value(v):
-    """An input value as skill.md gets it: a string as it is; the document step's node tables
-    (RegistryEngine._table) as Markdown, a section per sentence, the last one the current; anything
-    else as JSON."""
+    """An input value as skill.md gets it: a string as it is; numbered tokens (token_sent,
+    [[1, "Edmund"], ...]) as `[1]Edmund [2]Pope …` (a token can be "·" or a number, so each number
+    is bracketed); a span [1, 3] as it is; the document step's
+    node tables (RegistryEngine._table) as Markdown, a section per sentence, the last one the
+    current; anything else as JSON."""
     if isinstance(v, str):
         return v
+    if isinstance(v, list) and v and all(isinstance(t, (list, tuple)) and len(t) == 2 and isinstance(t[0], int)
+                                         and not isinstance(t[0], bool) for t in v):
+        return " ".join("[%d]%s" % (n, tok) for n, tok in v)
     if isinstance(v, list) and v and all(isinstance(t, dict) and {"sentence", "text", "nodes"} <= set(t) for t in v):
         cell = lambda x: str(x).replace("|", "\\|").replace("\n", " ")  # noqa: E731
         parts = []
@@ -623,26 +628,45 @@ class RegistryEngine:
             # agent: skill.md as SkillCallable.prompt_parts builds it, the system prompt of
             # scripts/run_experiment.py, the tools skill_callable._load finds; the answer comes back
             # through the output tool (pydantic-ai's final_result), validated against emit
-            with open(os.path.join(skill.path, "skill.md"), encoding="utf-8") as f:
-                md = f.read()
-            values = {k: prompt_value(v) for k, v in inputs.items()}
-            fields = ", ".join('"%s"' % k for k in skill.emit)
-            head = "# Output Format\nYou must produce a JSON object with exactly these fields: %s.\n\n" % fields
-            cut = md.rfind("\n## Input\n")
-            if cut < 0:
-                instructions, user = head + md.format(**values), ""
-            else:
-                instructions, user = head + md[:cut].format(**values), md[cut:].format(**values)
-            system = SYSTEM
-            if node.get("hint"):
-                user = user.rstrip("\n") + "\n\n" + self._hint_label() + node["hint"] + "\n"
-                system = SYSTEM + " " + HINT_RULE
-            node["prompt"] = {"system": system, "instructions": instructions, "input": user}
+            node["prompt"] = self._agent_prompt(skill, inputs, node.get("hint"))
             node["tool_calls"] = []
             node["retried"] = False
             return self._llm_request(node, skill)
         except Exception as e:
             return self._fail(w, ep, node, e)
+
+    def _agent_prompt(self, skill, inputs, hint=None):
+        """{system, instructions, input}: skill.md filled in and cut at "## Input" behind the
+        "# Output Format" line, the hint after the input."""
+        with open(os.path.join(skill.path, "skill.md"), encoding="utf-8") as f:
+            md = f.read()
+        values = {k: prompt_value(v) for k, v in inputs.items()}
+        fields = ", ".join('"%s"' % k for k in skill.emit)
+        head = "# Output Format\nYou must produce a JSON object with exactly these fields: %s.\n\n" % fields
+        cut = md.rfind("\n## Input\n")
+        if cut < 0:
+            instructions, user = head + md.format(**values), ""
+        else:
+            instructions, user = head + md[:cut].format(**values), md[cut:].format(**values)
+        system = SYSTEM
+        if hint:
+            user = user.rstrip("\n") + "\n\n" + self._hint_label() + hint + "\n"
+            system = SYSTEM + " " + HINT_RULE
+        return {"system": system, "instructions": instructions, "input": user}
+
+    def input_markdown(self, w, i, nid):
+        """A step's input as Markdown, for the page: an agent skill's "## Input" as the model gets
+        it; for a jev or rule skill, each value written the same way."""
+        ep, node = self._node(w, i, nid)
+        skill = self.reg.skills[node["skill"]]
+        inputs = self._inputs(ep, node)
+        if skill.kind == "agent":
+            return self._agent_prompt(skill, inputs, node.get("hint"))["input"].strip("\n")
+        lines = ["## Input", ""]
+        for k, v in inputs.items():
+            text = prompt_value(v)
+            lines += ["**%s**:" % k, "", text, ""] if "\n" in text else ["**%s**: %s" % (k, text)]
+        return "\n".join(lines).strip("\n")
 
     def _ask(self, w, i, node, req):
         state = jsonable(req.get("state"))
@@ -930,7 +954,14 @@ class RegistryEngine:
         files = skill_files(skill.path)
         return {**jsonable({k: v for k, v in n.items() if k != "trace"}), "kind": skill.kind,
                 "emit": jsonable(skill.emit), "files": files, "context_keys": list(ep["context"]),
-                "trace": n.get("trace"), "waiting": (w, int(i), nid) in self.gens}
+                "trace": n.get("trace"), "waiting": (w, int(i), nid) in self.gens,
+                "input_md": self._input_md(w, i, nid)}
+
+    def _input_md(self, w, i, nid):
+        try:
+            return self.input_markdown(w, i, nid)
+        except Exception:             # a skill.md being edited may not format: show the JSON
+            return None
 
     def set_window(self, w, var, rng):
         if rng is None:

@@ -182,8 +182,12 @@ function outputTab(d) {
   return h('div', { style: 'display:grid;gap:6px' }, parts);
 }
 
+/** The step's input as the model gets it (Markdown, rendered), and the values as JSON. */
 function inputTab(d) {
-  return h('pre', { class: 'block', text: pretty(d.input) });
+  if (!d.input_md) return h('pre', { class: 'block', text: pretty(d.input) });
+  return h('div', { style: 'display:grid;gap:6px' },
+    renderMarkdown(d.input_md, { lines: true }),
+    h('details', {}, h('summary', { text: t('jsonTitle') }), h('pre', { class: 'block', text: pretty(d.input) })));
 }
 
 function answerLine(q, a) {

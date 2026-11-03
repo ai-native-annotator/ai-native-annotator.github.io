@@ -4,7 +4,8 @@
  * through innerHTML, so a skill file cannot inject markup.
  *
  * With { prompt: true } (a skill.md that goes through str.format), `{{` and `}}` show as the
- * braces the model sees, and `{name}` shows as the slot the Runner fills in.
+ * braces the model sees, and `{name}` shows as the slot the Runner fills in. With
+ * { lines: true } (a filled-in input), every line of a paragraph keeps its line break.
  */
 
 import { h } from './ui.js';
@@ -57,7 +58,7 @@ const joiner = (a, b) => (CJK.test(a.slice(-1)) && CJK.test(b[0]) ? '' : ' ');
 const isRule = (line) => /^ {0,3}([-*_])( *\1){2,} *$/.test(line);
 const isTableSep = (line) => /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(line) && line.includes('-');
 
-function blocks(lines, prompt) {
+function blocks(lines, prompt, keepLines = false) {
   const out = [];
   let i = 0;
   while (i < lines.length) {
@@ -112,7 +113,7 @@ function blocks(lines, prompt) {
     if (/^ {0,3}>/.test(line)) {
       const body = [];
       while (i < lines.length && /^ {0,3}>/.test(lines[i])) body.push(lines[i++].replace(/^ {0,3}> ?/, ''));
-      out.push(h('blockquote', {}, blocks(body, prompt)));
+      out.push(h('blockquote', {}, blocks(body, prompt, keepLines)));
       continue;
     }
 
@@ -152,7 +153,7 @@ function blocks(lines, prompt) {
       const start = ordered ? parseInt(item[2], 10) : 1;
       out.push(h(ordered ? 'ol' : 'ul', { start: ordered && start !== 1 ? start : undefined, class: loose ? 'loose' : undefined },
         items.map((body) => {
-          const kids = blocks(body, prompt);
+          const kids = blocks(body, prompt, keepLines);
           // a tight item's single paragraph is shown inline
           return h('li', {}, !loose && kids[0]?.tagName === 'P' ? [...kids[0].childNodes, ...kids.slice(1)] : kids);
         })));
@@ -168,7 +169,7 @@ function blocks(lines, prompt) {
     // in a prompt, a line that ends in a slot (`Sentence: {sent}`) keeps its line break
     const groups = [[]];
     para.forEach((l, k) => {
-      if (k && prompt && /\{\w*\}\W*$/.test(para[k - 1])) groups.push([]);
+      if (k && (keepLines || (prompt && /\{\w*\}\W*$/.test(para[k - 1])))) groups.push([]);
       groups[groups.length - 1].push(l);
     });
     out.push(h('p', {}, groups.map((g, k) => [k ? h('br') : null, inline(g.reduce((a, l) => a + joiner(a, l) + l), prompt)])));
@@ -177,8 +178,8 @@ function blocks(lines, prompt) {
 }
 
 /** Markdown text as a <div class="md">. */
-export function renderMarkdown(text, { prompt = false } = {}) {
+export function renderMarkdown(text, { prompt = false, lines = false } = {}) {
   let src = String(text).replace(/\r\n?/g, '\n').replace(/\t/g, '    ');
   if (prompt) src = src.replaceAll('{{', OPEN).replaceAll('}}', CLOSE);
-  return h('div', { class: 'md' }, blocks(src.split('\n'), prompt));
+  return h('div', { class: 'md' }, blocks(src.split('\n'), prompt, lines));
 }
