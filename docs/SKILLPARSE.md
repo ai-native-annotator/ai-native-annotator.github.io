@@ -262,6 +262,15 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 ---
 
+
+### 步骤编号和 outside（web 改过）
+
+**编号**：sent_type 的一步是 `<n>B`，它判断完类型后派生出的那一步用 `<n>`：整句的 sent_type 是 `0B`，它派生的 predicate 是 `0`，这个 predicate 的占位是 `0.0B`、`0.1B`，它们派生的步骤是 `0.0`、`0.1`。原来的 `0.0.1.0.2.0.0.0` 现在是 `0.1.2.0`。sent_type 判断成 stop 的叶子本身就是节点，叫 `<n>`（步骤树里也这样显示）。outside 的虚拟节点是 `<步骤>.<k>A`。排序：`0B` < `0` < `0.0B` < `0.0` < `0.0A`（`node_key`；同步时也给 output handler 的 `_key` 和文档级引用的正则打了补丁）。浏览器里按旧编号暂存的工作，恢复时自动换成新编号（`_renumber_old`，document 的引用一起换）。
+
+**已有节点表**：predicate、np_phrase、special_entity（emit 里有 `outside` 的 agent skill）的输入最后加一张表 `Nodes of this sentence so far`：这句话里除了这一步以外的每个节点，`node`（编号）、`text`（full span）、`concept`；还没建的占位也列出来，concept 写 `(not built yet)`（`_known`）。这张表存在这一步的 `known` 里，训练数据里是 `sentence_nodes`。
+
+**outside**：每一项写它指的节点编号，不再写 span：predicate `{role, node, text}`，np_phrase / special_entity `{var, node, text}`（`at` 去掉了，它原来只给已经删掉的 coverage 用）。编号不在表里，当作答案不合格，带着错误让模型重答一次（`_check_outside`）。写 .umr 时，每一项接到它指的那个节点上（`merges`）；没有 node 的项（从 .umr 载入的、以前的工作）仍按 span 接。sent_type 不再输出 outside（registry 里 emit 和 store 都去掉了）。
+
 ## 7. 流程（registry）：两波
 
 两套流程在 `web-procedures/zh/registry.yaml` 和 `web-procedures/en/registry.yaml`，结构一样。
@@ -533,6 +542,8 @@ sentences:
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
 | PropBank | 每个词条一个 XML（中文 24,521 个） | 合并成一个 JSON，`propbank.py` 改成读它，查询结果相同 |
+| 步骤编号 | `0`、`0.0`、`0.0.0`…（sent_type 和它派生的一步各占一层） | `0B`、`0`、`0.0B`、`0.0`…（sent_type 带 B，派生的一步用同一个号），长度减半 |
+| outside | 写参与者的 text、span（np_phrase 还有 `at`），写 .umr 时按 span 找节点；sent_type 也可以写 | 写已有节点表里的编号 `node`，写 .umr 时直接接到那个节点；sent_type 不写 |
 | propbank_lookup 一次查几个词 | 最多 3 个（原词加两个备选），多的悄悄丢掉；predicate 的 skill.md 说「up to two alternates」 | 最多 20 个，超出的列在结果的 `_not_looked_up` 里，叫模型再查；predicate、np_phrase 的 skill.md 改成一次给出**所有**备选形式（最多 20 个） |
 | 工具 | `get_example`（读 `reference/example.md`）、`propbank_lookup` | 去掉 `get_example`；加 `search_annotations`（金标 + example.md）、`search_guidelines`（UMR 指南）；skill.md 里提到 get_example 的两句改成说明这两个工具 |
 

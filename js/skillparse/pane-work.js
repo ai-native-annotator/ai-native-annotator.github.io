@@ -406,7 +406,7 @@ function drawBottom() {
         h('button', { class: 'btn sm primary confirm-next', disabled: busy, text: t('confirmNext'), 'aria-keyshortcuts': 'Enter', onclick: () => confirmAndNext(first.id) }, kbd('Enter')),
         h('button', { class: 'btn sm confirm-only', disabled: busy, text: t('confirm'), onclick: () => confirmNode(first.id) }),
         fix(first),
-        h('span', { class: 'note', text: `${t('awaitTag')}: ${first.id} ${first.skill}` }),
+        h('span', { class: 'note', text: `${t('awaitTag')}: ${first.shown || first.id} ${first.skill}` }),
       ] : first ? [fix(first), h('span', { class: 'note err', text: `${first.id} ${first.skill}: ${t('errorHelp')}` })]
         : h('button', { class: 'btn sm primary run-next', disabled: busy || !ep.nodes.some((n) => n.status === 'pending'), text: t('runNext'), onclick: () => runNext() }),
     ep?.started ? h('button', { class: 'btn sm', disabled: busy, text: t('restart'), onclick: () => startItem() }) : null,
@@ -427,7 +427,7 @@ function drawBottom() {
       n.text ? h('span', { class: 'txt', text: n.text }) : null,
       n.summary ? h('span', { class: 'sum', text: `→ ${n.summary}` }) : null,
       h('span', { class: 'grow' }),
-      h('span', { class: 'id', text: n.id.length > 12 ? `…${n.id.slice(-10)}` : n.id }),
+      h('span', { class: 'id', text: (n.shown || n.id).length > 12 ? `…${(n.shown || n.id).slice(-10)}` : (n.shown || n.id) }),
       st === 'review' ? h('button', { class: 'play confirm', disabled: S.running > 0, text: '✓', title: t('confirm'), onclick: (e) => { e.stopPropagation(); selectNode(n.id).then(() => confirmNode(n.id)); } }) : null,
       n.status === 'pending' && !n.waiting && !live && !wait.length ? h('button', { class: 'play', disabled: S.running > 0, text: '▶', title: t('run'), onclick: (e) => { e.stopPropagation(); selectNode(n.id).then(() => runNode(n.id)); } }) : null,
       n.status !== 'pending' ? h('button', { class: 'play', disabled: S.running > 0, text: '↺', title: t('rerun'), onclick: (e) => { e.stopPropagation(); resetNode(n.id); } }) : null);

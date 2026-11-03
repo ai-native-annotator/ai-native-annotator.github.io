@@ -134,6 +134,11 @@ async function stepThrough(page, max = 80) {
   const inputMd = await page.$eval('#output', (e) => ({ md: !!e.querySelector('.md h2'), text: e.querySelector('.md')?.innerText || '' }));
   check("the agent step's input is shown as the model gets it, in Markdown (numbered tokens, not JSON)",
     inputMd.md && /Tokens, each with its number: \[1\]\S/.test(inputMd.text) && !inputMd.text.includes('[[1,'), inputMd.text.slice(0, 160));
+  const ids = await page.$$eval('.tree li .id', (e) => e.map((x) => x.textContent));
+  check('step ids: a sent_type step is 0B and the step it starts 0 (0.0B, 0.0, ...)', ids[0] === '0B' && ids[1] === '0'
+    && ids.every((x) => /^\d+(\.\d+)*B?$/.test(x)), ids.slice(0, 6).join(' '));
+  check("an agent step with outside gets the sentence's nodes so far (node, text, concept), to name in outside",
+    calls.inputs.some((u) => u.includes('Nodes of this sentence so far') && u.includes('| node | text | concept |')));
   check('the prompt numbers the tokens as [1]x [2]y, not as a JSON list', calls.inputs.some((u) => /Tokens, each with its number: \[1\]\S+ \[2\]/.test(u))
     && !calls.inputs.some((u) => u.includes('number: [[1,')));
   await page.click('.tree li:has(.sk:text-is("sent_type"))');

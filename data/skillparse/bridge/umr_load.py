@@ -357,7 +357,7 @@ class Loader:
         index(top)
         self.e.start(self.w, i)
         self.ep = self.e.eps[self.w][i]
-        self.fill("0", top)
+        self.fill(next(k for k, n in self.ep["nodes"].items() if n["parent"] is None), top)
         # each outside item takes the span and text of the step of the node it stands for, and that
         # node's concept, so that the merge made when the .umr is written joins it to that node
         want = {}
@@ -389,10 +389,12 @@ class Loader:
             elif n["id"] in got:        # the file wrote the same word and concept twice
                 self.merged.append("snt%d %s=%s" % (i + 1, n["id"], got[n["id"]]))
         refs = {}
+        # a sent_type leaf "0.1B" is named "0.1" (sp_bridge.ref_id)
+        name = lambda nid: nid[:-1] if nid.endswith("B") else nid  # noqa: E731
         for var, nid in self.where.items():
-            refs[var] = "%d:%s/%s" % (sent.index, nid, var)
+            refs[var] = "%d:%s/%s" % (sent.index, name(nid), var)
         for var, nid in self.where_inner.items():
-            refs.setdefault(var, "%d:%s/%s" % (sent.index, nid, var))
+            refs.setdefault(var, "%d:%s/%s" % (sent.index, name(nid), var))
         return refs
 
     @staticmethod

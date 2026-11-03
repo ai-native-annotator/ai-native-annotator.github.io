@@ -147,9 +147,12 @@ Some participants are written **outside** the clause's span:
   clause, do not list them in `outside`.
 
 
-Each is `{{"text": ..., "span": [first, last], "role": ...}}`, with the span
-of that participant **exactly as the main clause has it**, so the two can be
-joined into one node. Return `outside: []` when there are none.
+Each is `{{"role": ..., "node": ..., "text": ...}}`: `node` names the
+participant's node in the table **Nodes of this sentence so far** at the end of
+the input (a placeholder whose node is not built yet is listed too), and `text`
+is its words, for reading. Where a rule above says which span to give, point at
+the node with that span. The two are joined into one node. Return `outside: []`
+when there are none.
 
 ## 4. Aspect, modal strength, polarity (always required)
 

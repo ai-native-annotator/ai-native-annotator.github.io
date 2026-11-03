@@ -82,6 +82,9 @@ def prompt_value(v):
     return json.dumps(jsonable(v), ensure_ascii=False)
 
 
+NOT_BUILT = "(not built yet)"
+KNOWN_HEAD = ("Nodes of this sentence so far (an `outside` item names one of them by its `node`; "
+              "a placeholder whose node is not built yet is listed too):")
 HINT_LABEL = {"zh": "human提示：", "en": "Human hint: "}
 # with a hint, the system prompt says it must be followed; in Jev's state the hint's key says so
 HINT_RULE = ('If the input ends with a human hint ("human提示：…" or "Human hint: …"), it is a person\'s '
@@ -119,8 +122,55 @@ def _unconfirmed(n):
     return n["status"] in ("ok", "error") and not n.get("confirmed")
 
 
+# Step ids (web): a sent_type step is "<n>B" and the step it decides on takes "<n>": the root
+# sent_type is "0B", the predicate it starts "0", that predicate's placeholders "0.0B", "0.1B",
+# the steps they start "0.0", "0.1". A sent_type leaf (type stop) is the node itself and is
+# called "<n>" too (ref_id). An antecedent node of an `outside` item is "<step>.<k>A".
+TYPER = "sent_type"
+_ID_PART = re.compile(r"^(\d+)([AB]?)$")
+_SUFFIX = {"B": 0, "": 1, "A": 2}
+
+
 def node_key(node_id):
-    return tuple(int(p) for p in str(node_id).split("."))
+    """Sort key of a step id: "0B" < "0" < "0.0B" < "0.0" < "0.1B"; "0.10" after "0.9"."""
+    out = []
+    for p in str(node_id).split("."):
+        m = _ID_PART.match(p)
+        out += [int(m.group(1)), _SUFFIX[m.group(2)]] if m else [1 << 30, 0]
+    return tuple(out)
+
+
+def under(k, nid):
+    """Whether step k is below step nid (a sent_type "0.1B" has "0.1" and "0.1.*" below it)."""
+    base = nid[:-1] if nid.endswith("B") else nid
+    return (nid.endswith("B") and k == base) or k.startswith(base + ".")
+
+
+def new_id(parent_id, skill, position):
+    """The id of the step a dispatcher rule makes at `position` under step parent_id."""
+    if parent_id is None:
+        base = str(position)
+    elif parent_id.endswith("B"):
+        # the step a sent_type decides on takes its number
+        base = parent_id[:-1] if position == 0 else "%s.%d" % (parent_id[:-1], 100 + position)
+    else:
+        base = "%s.%d" % (parent_id, position)
+    return base + ("B" if skill == TYPER else "")
+
+
+def ref_id(n):
+    """How the node a step stands for is named: a sent_type step "0.1B" stands for "0.1" (its
+    leaf when it is a stop, else the step it starts); any other step by its id."""
+    return n["id"][:-1] if n["skill"] == TYPER and n["id"].endswith("B") else n["id"]
+
+
+def step_of(nodes, ref):
+    """The step a node name stands for, in an episode's nodes: "0.1" is step 0.1, else the sent_type
+    leaf 0.1B."""
+    n = nodes.get(ref)
+    if n is None or n.get("status") == "dropped":
+        n = nodes.get(ref + "B")
+    return n if n is not None and n.get("status") != "dropped" else None
 
 
 def _load_module(path, name):
@@ -431,7 +481,7 @@ class RegistryEngine:
                         kind += ", negative"
                 else:
                     kind = "entity"
-                rows.append({"node": "%d:%s%s" % (sent.index, n["id"], "" if k == 0 else "/" + v),
+                rows.append({"node": "%d:%s%s" % (sent.index, ref_id(n), "" if k == 0 else "/" + v),
                              "text": text or own, "concept": concept, "kind": kind,
                              # sent_type's graph is a leaf it built as it is (type stop): an entity
                              "step": "stop" if n["skill"] == "sent_type" else n["skill"]})
@@ -557,12 +607,15 @@ class RegistryEngine:
             if a["skill"] == skill and a["input"] == inp:
                 return "same skill and input as node %s" % a["id"]
             a = ep["nodes"].get(a["parent"]) if a["parent"] is not None else None
-        nid = "%s.%d" % (parent["id"], position) if parent else str(position)
+        nid = new_id(parent["id"] if parent else None, skill, position)
+        if nid in ep["nodes"]:
+            return "step %s already exists" % nid
         ep["nodes"][nid] = {"id": nid, "skill": skill, "input": jsonable(inp), "parent": parent["id"] if parent else None,
                             "edge": jsonable(edge), "depth": depth, "status": "pending", "output": None,
                             "stored": {}, "error": None, "rounds": [], "prompt": None, "human": False,
                             "children": [], "dropped": [], "rules": [], "machine_output": None,
                             "confirmed": False, "hint": ""}
+        self._made = nid
         return None
 
     def _ep(self, w, i):
@@ -628,16 +681,40 @@ class RegistryEngine:
             # agent: skill.md as SkillCallable.prompt_parts builds it, the system prompt of
             # scripts/run_experiment.py, the tools skill_callable._load finds; the answer comes back
             # through the output tool (pydantic-ai's final_result), validated against emit
-            node["prompt"] = self._agent_prompt(skill, inputs, node.get("hint"))
+            node["known"] = self._known(ep, node) if "outside" in skill.emit else None
+            node["prompt"] = self._agent_prompt(skill, inputs, node.get("hint"), node["known"])
             node["tool_calls"] = []
             node["retried"] = False
             return self._llm_request(node, skill)
         except Exception as e:
             return self._fail(w, ep, node, e)
 
-    def _agent_prompt(self, skill, inputs, hint=None):
+    def _known(self, ep, node):
+        """The nodes of the episode's sentence a step can point at in `outside` (web): every step
+        but this one, by the name of the node it stands for, with its full span and its concept;
+        a placeholder whose node is not built yet is there too."""
+        rows = []
+        for n in sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"])):
+            if n is node or n["status"] == "dropped":
+                continue
+            o = n.get("output") if n["status"] == "ok" else None
+            o = o if isinstance(o, dict) else {}
+            if n["skill"] == TYPER and n["status"] == "ok" and o.get("type") != "stop" and ref_id(n) in ep["nodes"]:
+                continue                    # the step it started has the row
+            g = (o.get("graph") or {}).get("nodes") or [] if isinstance(o.get("graph"), dict) else []
+            if g and isinstance(g[0], dict):
+                concept = str(g[0].get("concept", ""))
+            elif o.get("relation") and o.get("relation") != "none":
+                concept = str(o["relation"])
+            else:
+                concept = NOT_BUILT
+            rows.append({"node": ref_id(n), "text": str((n["input"] or {}).get("text") or ""), "concept": concept})
+        return rows
+
+    def _agent_prompt(self, skill, inputs, hint=None, known=None):
         """{system, instructions, input}: skill.md filled in and cut at "## Input" behind the
-        "# Output Format" line, the hint after the input."""
+        "# Output Format" line, then (web) the table of the sentence's nodes so far when the skill
+        has an `outside`, then the hint."""
         with open(os.path.join(skill.path, "skill.md"), encoding="utf-8") as f:
             md = f.read()
         values = {k: prompt_value(v) for k, v in inputs.items()}
@@ -648,6 +725,11 @@ class RegistryEngine:
             instructions, user = head + md.format(**values), ""
         else:
             instructions, user = head + md[:cut].format(**values), md[cut:].format(**values)
+        if known is not None:
+            cell = lambda x: str(x).replace("|", "\\|").replace("\n", " ")  # noqa: E731
+            table = ["| node | text | concept |", "|---|---|---|"] + [
+                "| %s | %s | %s |" % (cell(r["node"]), cell(r["text"]), cell(r["concept"])) for r in known]
+            user = user.rstrip("\n") + "\n\n" + KNOWN_HEAD + "\n\n" + ("\n".join(table) if known else "(none yet)") + "\n"
         system = SYSTEM
         if hint:
             user = user.rstrip("\n") + "\n\n" + self._hint_label() + hint + "\n"
@@ -661,7 +743,9 @@ class RegistryEngine:
         skill = self.reg.skills[node["skill"]]
         inputs = self._inputs(ep, node)
         if skill.kind == "agent":
-            return self._agent_prompt(skill, inputs, node.get("hint"))["input"].strip("\n")
+            known = (node.get("known") if node["status"] != "pending" and node.get("known") is not None
+                     else self._known(ep, node)) if "outside" in skill.emit else None
+            return self._agent_prompt(skill, inputs, node.get("hint"), known)["input"].strip("\n")
         lines = ["## Input", ""]
         for k, v in inputs.items():
             text = prompt_value(v)
@@ -734,6 +818,7 @@ class RegistryEngine:
         skill = self.reg.skills[node["skill"]]
         try:
             self._check_emit(skill, output)
+            self._check_outside(node, output)
         except Exception as e:
             if not node.get("retried"):
                 node["retried"] = True
@@ -759,6 +844,19 @@ class RegistryEngine:
         node["error"] = "%s: %s" % (type(e).__name__, e)
         node["trace"] = traceback.format_exc()[-3000:]
         return {"done": True, "node": node["id"], "status": "error", "error": node["error"]}
+
+    @staticmethod
+    def _check_outside(node, out):
+        """Each `outside` item names a node of the table the step was given (web)."""
+        known = node.get("known")
+        if known is None or not isinstance(out, dict) or not isinstance(out.get("outside"), list):
+            return
+        names = {r["node"] for r in known}
+        bad = [x for x in out["outside"] if not (isinstance(x, dict) and str(x.get("node", "")).strip() in names)]
+        if bad:
+            raise StepError("each outside item must name a node of the table \"Nodes of this sentence so far\" "
+                            "by its `node` (one of: %s); not %s" % (", ".join(sorted(names, key=node_key)) or "none",
+                                                                  json.dumps(jsonable(bad), ensure_ascii=False)[:300]))
 
     def _check_emit(self, skill, out):
         if not isinstance(out, dict):
@@ -820,17 +918,16 @@ class RegistryEngine:
             if why:
                 node["dropped"].append({"skill": s, "input": jsonable(inp), "reason": why})
             else:
-                node["children"].append("%s.%d" % (node["id"], position))
+                node["children"].append(self._made)
         self._mark_stale(w, ep["index"])
         return {"done": True, "node": node["id"], "status": "ok", "children": node["children"]}
 
     def _descendants(self, ep, nid):
-        pre = nid + "."
-        return [k for k in ep["nodes"] if k.startswith(pre)]
+        return [k for k in ep["nodes"] if under(k, nid)]
 
     def _drop_gens(self, w, i, nid=None):
         for key in list(self.gens):
-            if key[0] == w and key[1] == int(i) and (nid is None or key[2] == nid or key[2].startswith(nid + ".")):
+            if key[0] == w and key[1] == int(i) and (nid is None or key[2] == nid or under(key[2], nid)):
                 del self.gens[key]
 
     def reset(self, w, i, nid):
@@ -919,7 +1016,9 @@ class RegistryEngine:
         nodes = []
         for n in sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"])):
             skill = self.reg.skills[n["skill"]]
-            nodes.append({"id": n["id"], "skill": n["skill"], "kind": skill.kind, "edge": n["edge"],
+            stop = n["skill"] == TYPER and n["status"] == "ok" and (n.get("output") or {}).get("type") == "stop"
+            nodes.append({"id": n["id"], "shown": ref_id(n) if stop else n["id"], "skill": n["skill"],
+                          "kind": skill.kind, "edge": n["edge"],
                           "depth": n["depth"], "status": n["status"], "human": n["human"],
                           "parent": n["parent"], "text": n["input"].get("text") if isinstance(n["input"], dict) else None,
                           "summary": self._summary(n), "waiting": (w, int(i), n["id"]) in self.gens,
@@ -984,18 +1083,20 @@ class RegistryEngine:
         nodes = sorted((n for n in ep["nodes"].values() if n["status"] != "dropped"), key=lambda n: node_key(n["id"]))
         out = [dict(self._node_dict(n), _output=n.get("output") or {}) for n in nodes]
         for n in nodes:
+            # an item names the node it stands for (web: "node", from the table in the input), or
+            # gives its span (a loaded file, or work from before)
             items = [x for x in ((n.get("output") or {}).get("outside") or []) if n["status"] == "ok"
-                     and isinstance(x, dict) and isinstance(x.get("span"), list) and len(x["span"]) == 2]
-            if not items:
-                continue
-            depth = n["id"].count(".") + 1
-            used = [int(k.rsplit(".", 1)[1]) for k in ep["nodes"] if k.startswith(n["id"] + ".") and k.count(".") == depth]
-            base = max(used, default=-1) + 1
+                     and isinstance(x, dict) and (isinstance(x.get("node"), str)
+                                                  or (isinstance(x.get("span"), list) and len(x["span"]) == 2))]
             for k, item in enumerate(items):
-                out.append({"id": "%s.%d" % (n["id"], base + k), "skill": "antecedent", "parent": n["id"],
-                            "input": {"text": item.get("text", ""), "span": list(item["span"])},
+                span = item.get("span")
+                if not (isinstance(span, list) and len(span) == 2):
+                    target = step_of(ep["nodes"], item["node"])
+                    span = list((target or {}).get("input", {}).get("span") or [0, 0])
+                out.append({"id": "%s.%dA" % (n["id"], k), "skill": "antecedent", "parent": n["id"],
+                            "input": {"text": item.get("text", ""), "span": list(span)},
                             "edge": item.get("role") if n["skill"] == "predicate" else item.get("var"),
-                            "depth": n["depth"] + 1, "status": "ok", "span": list(item["span"]),
+                            "depth": n["depth"] + 1, "status": "ok", "span": list(span),
                             "_output": {}, "_item": item})
         out.sort(key=lambda x: node_key(x["id"]))
         return out
@@ -1007,7 +1108,9 @@ class RegistryEngine:
           - two nodes with the same span and the same concept are one (the later is merged into
             the first that is not its ancestor); a node is a step that writes a concept
             (predicate, np_phrase, special_entity, a sent_type leaf), its span is its input's;
-          - a participant written outside a piece (an item of a step's `outside`) is the first
+          - a participant written outside a piece (an item of a step's `outside`) is the node
+            the item names (web: its "node", from the table of the sentence's nodes in the
+            step's input); an item with no node (a loaded file, earlier work) is the first
             node with its span, else the first whose head (its alignment, or a leaf's node) has
             it, never one it is inside of; when the item names the concept it stands for (one
             loaded from a file does), the node's concept must be that one too, and it may be one
@@ -1054,8 +1157,18 @@ class RegistryEngine:
             by_span.setdefault(tuple(span), []).append((n["id"], c))
             if head_of(n):
                 by_head.setdefault(head_of(n), []).append((n["id"], c))
+        by_id = {n["id"]: n for n in ok}
         for n in ok:
             if n["skill"] != "antecedent":
+                continue
+            ref = n["_item"].get("node")
+            if isinstance(ref, str) and ref.strip():
+                # named by its node: that node, whatever its span (web)
+                target = step_of(by_id, ref.strip())
+                if target is not None and target["skill"] != "antecedent" and target["id"] != n["parent"]:
+                    out.append({"node": n["id"], "into": target["id"]})
+                    continue
+            if not n["input"].get("span") or list(n["input"]["span"]) == [0, 0]:
                 continue
             span = tuple(n["input"]["span"])
             want = _concept_key(n["_item"]["concept"]) if n["_item"].get("concept") else None
@@ -1079,6 +1192,23 @@ class RegistryEngine:
             sentence.append({"nodes": [{k: v for k, v in n.items() if not k.startswith("_")} for n in nodes]}
                             if nodes else None)
         wt["sentence"], wt["reentrancy"] = sentence, merges
+        # a document relation names a sentence leaf "3:0.1" (ref_id); its step is 0.1B
+        ids = [{n["id"] for n in (t or {}).get("nodes") or []} for t in sentence]
+
+        def step_ref(x):
+            m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+)(/\S+)?\s*", str(x))
+            if not m or not 0 < int(m.group(1)) <= len(ids):
+                return x
+            have = ids[int(m.group(1)) - 1]
+            if m.group(2) not in have and m.group(2) + "B" in have:
+                return "%s:%sB%s" % (m.group(1), m.group(2), m.group(3) or "")
+            return x
+        for t in wt.get("document") or []:
+            for n in (t or {}).get("nodes") or []:
+                rels = n.get("relations")
+                if isinstance(rels, list):
+                    n["relations"] = [dict(r, source=step_ref(r.get("source")), target=step_ref(r.get("target")))
+                                      if isinstance(r, dict) else r for r in rels]
         return wt
 
     def render(self, auto_align=True):
@@ -1162,6 +1292,8 @@ class RegistryEngine:
                         rec["model"] = n["model"]
                     if n.get("hint"):
                         rec["hint"] = n["hint"]
+                    if n.get("known") is not None:
+                        rec["sentence_nodes"] = n["known"]   # the table of the sentence's nodes it was given
                     machine = n.get("machine_output")
                     if n["human"] and machine is not None and machine != n["output"]:
                         rec["model_output"] = machine      # what the model wrote before the person's edit
@@ -1197,8 +1329,42 @@ class RegistryEngine:
                     if n["parent"] is None:
                         n["input"] = None
                 eps[w][str(i)] = pack(ep)
-        return {"version": 2, "skillset": self.sid, "doc": self.doc.doc_id,
+        return {"version": 3, "skillset": self.sid, "doc": self.doc.doc_id,
                 "windows": [[w, v, r] for (w, v), r in self.windows.items()], "texts": texts, "eps": eps}
+
+    def _renumber_old(self):
+        """Work kept before the step ids changed (version < 3: "0", "0.0", "0.0.0", ...): every
+        step gets its id as _make gives it now ("0B", "0", "0.0B", ...), and the document
+        relations name the new nodes."""
+        names = {}                      # (sentence number, old id) -> the node's name now
+        for w in self.order:
+            for i, ep in self.eps[w].items():
+                old = ep.get("nodes") or {}
+                ids, new = {}, {}
+                for oid in sorted(old, key=node_key):
+                    n = old[oid]
+                    pid = ids.get(n["parent"]) if n.get("parent") is not None else None
+                    nid = new_id(pid, n["skill"], int(str(oid).rsplit(".", 1)[-1]))
+                    ids[oid] = nid
+                    new[nid] = dict(n, id=nid, parent=pid)
+                for n in new.values():
+                    n["children"] = [ids[c] for c in n.get("children") or [] if c in ids]
+                ep["nodes"] = new
+                if w == "sentence" and i < len(self.doc.sents):
+                    for oid, nid in ids.items():
+                        names[(self.doc.sents[i].index, oid)] = ref_id(new[nid])
+
+        def fix(x):
+            m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+)(/\S+)?\s*", str(x))
+            key = (int(m.group(1)), m.group(2)) if m else None
+            return "%s:%s%s" % (m.group(1), names[key], m.group(3) or "") if key in names else x
+        for ep in self.eps.get("document", {}).values():
+            for n in ep["nodes"].values():
+                for field in ("output", "machine_output", "stored"):
+                    o = n.get(field)
+                    if isinstance(o, dict) and isinstance(o.get("relations"), list):
+                        o["relations"] = [dict(r, source=fix(r.get("source")), target=fix(r.get("target")))
+                                          if isinstance(r, dict) else r for r in o["relations"]]
 
     def restore(self, state):
         """Put a snapshot back. A step that was running when it was taken is pending again (the
@@ -1226,7 +1392,7 @@ class RegistryEngine:
                 # a step of a skill the procedure no longer has (antecedent) goes, with what is under it
                 gone = [k for k, n in ep.get("nodes", {}).items() if n.get("skill") not in self.reg.skills]
                 for k in gone:
-                    for j in [j for j in ep["nodes"] if j == k or j.startswith(k + ".")]:
+                    for j in [j for j in ep["nodes"] if j == k or under(j, k)]:
                         ep["nodes"].pop(j, None)
                 for n in ep.get("nodes", {}).values():
                     n["children"] = [c for c in n.get("children") or [] if c in ep["nodes"]]
@@ -1234,6 +1400,8 @@ class RegistryEngine:
                         n["status"] = "pending"
                 ep["missing"] = [tuple(x) for x in ep.get("missing") or []]
                 self.eps[w][int(i)] = ep
+        if int(state.get("version") or 0) < 3:
+            self._renumber_old()
         for w in self.order:
             for i, ep in self.eps[w].items():
                 if ep.get("error"):

@@ -165,7 +165,7 @@ def _doc_graph(n, relations, graphs, modal=()):
     with the document skill's modal relations."""
     def ref(x):
         """The variable a reference stands for, a constant as is, or None."""
-        m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+)(?:/(\S+))?\s*", str(x))
+        m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+[AB]?)(?:/(\S+))?\s*", str(x))
         if not m:
             return str(x)
         if int(m.group(1)) not in graphs:
@@ -591,7 +591,13 @@ class _SentenceGraph:
 
 def _key(node_id):
     """Sort key of a node id: "0.10" comes after "0.9"."""
-    return tuple(int(p) for p in str(node_id).split("."))
+    # web: a part can end in B (a sent_type step) or A (an outside item's antecedent node):
+    # "0B" < "0" < "0.0B" < "0.0" < "0.0A"
+    out = []
+    for p in str(node_id).split("."):
+        m = re.match(r"^(\d+)([AB]?)$", p)
+        out += [int(m.group(1)), {"B": 0, "": 1, "A": 2}[m.group(2)]] if m else [1 << 30, 0]
+    return tuple(out)
 
 
 def _align(span):

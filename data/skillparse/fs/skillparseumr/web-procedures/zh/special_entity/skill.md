@@ -190,9 +190,10 @@ with that ordinal: `(t / temporal-quantity :unit (y / 年) :ord (o / ordinal-ent
   ..., "span": [first, last]}}` joined by an edge.
 - `outside`: almost always `[]`. Only if a node of the entity takes a
   participant that is written elsewhere in this sentence and not in the piece,
-  give it as `{{"var": "y1", "text": ..., "span": [first, last]}}`, its var
-  used in `edges` like a placeholder; `text` and `span` are the participant's
-  **head word only**. It is joined to the node that already stands for it.
+  give it as `{{"var": "y1", "node": ..., "text": ...}}`, its var
+  used in `edges` like a placeholder; `node` names the participant's node in the
+  table **Nodes of this sentence so far** at the end of the input, and `text` is
+  its words. It is joined to that node.
 - `alignment`: the span of the whole piece: the numbers of its first and last
   token as listed in Tokens, both included (one token: [4, 4]).
 

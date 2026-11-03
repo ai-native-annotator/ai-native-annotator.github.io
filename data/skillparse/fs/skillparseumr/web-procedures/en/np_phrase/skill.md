@@ -103,15 +103,14 @@ the node that already stands for it (a reentrancy).
 - a conjunct or modifier written outside the phrase but meant for it.
 
 A pronoun whose referent is not in this sentence stays a pronoun node
-(section 2). Each item is `{{"var": "y1", "text": ..., "span": [first, last],
-"at": [first, last]}}`:
+(section 2). Each item is `{{"var": "y1", "node": ..., "text": ...}}`:
 
 - `var`: your own variable, used in `edges` like a placeholder:
   `["t", "possessor", "y1"]`. It can hang on any node of the fragment;
-- `text`, `span`: the participant's **head word only**, where it is written
-  outside the phrase: for 新成立的那家公司 just 公司, for 作家张伟 just 张伟;
-- `at`: the span of the pronoun inside the phrase that stands for it (其,
-  他的); leave it out when nothing in the phrase stands for it.
+- `node`: the participant's node in the table **Nodes of this sentence so far**
+  at the end of the input (a placeholder whose node is not built yet is listed
+  too); where a rule says which span to give, point at the node with that span;
+- `text`: its words, for reading.
 
 `outside: []` when there are none.
 

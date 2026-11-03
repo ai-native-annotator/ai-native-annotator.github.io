@@ -2,13 +2,13 @@
 # skillsets/umr-tree, with sent_type from experiment/decision-orchestration/umr-en-v11/versions/V12 (kind: jev, and jevlib.py, prompt_loader.py, event_modifiers.py, event_modifiers.yaml it imports).
 # Every other model skill is kind: agent: its skill.md, answered by Haiku.
 # Left out on the web: coverage, antecedent (outside stays in the step) and the reentrancy wave
-# (nodes with the same span and concept, and outside participants by span, are
+# (nodes with the same span and concept, and each outside participant with the node it names, are
 # merged when the .umr is written). discourse's relation is any string (not checked against a list).
 # jevlib.py cuts a Chinese piece only at punctuation (no jieba).
 # umr-tree skillset. 语法说明见 skillsets/REGISTRY.md。
 #
 # 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时合并：span 和概念都一样的节点是同一个，
-# outside 里的参与者接到同 span（或中心词同 span）的节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
+# outside 里的每个参与者按它写的节点编号（node）接到那个节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
 #   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图
 #
@@ -16,12 +16,12 @@
 #   sent_type ─┬─ discourse ──┬─ 有关系：每块 → sent_type
 #              │              └─ 没关系：整段 → predicate
 #              ├─ predicate ──┬─ 每个 open（占位） → sent_type
-#              │              └─ 每个从句外的参与者：写在 outside 里，写 .umr 时按 span 接上
+#              │              └─ 每个从句外的参与者：写在 outside 里（写节点编号），写 .umr 时接到那个节点上
 #              ├─ np_phrase ──┬─ 每个 open → sent_type
 #              │              └─ 每个短语外的参与者：写在 outside 里（如 其同类 的 其）
 #              ├─ special_entity ─┬─ 每个 open → sent_type（一般没有）
 #              │                  └─ 每个外面的参与者：写在 outside 里（一般没有）
-#              └─ stop（叶子，自带一个小图）── 外面的参与者写在 outside 里
+#              └─ stop（叶子，自带一个小图）── web：sent_type 不写 outside
 #
 # 产出图的 skill（predicate、np_phrase、special_entity，以及 stop 时的 sent_type）都写一个
 # 图片段 graph = {nodes, edges, attrs}，还没展开的部分写成占位变量，列在 open 里。
@@ -81,8 +81,7 @@ skills:
     emit:
       type: [discourse, predicate, np_phrase, special_entity, stop]
       graph: dict               # type 是 stop 时：这个叶子的图片段（一个或几个节点）；其他 type 写 {}
-      outside: list[dict]       # type 是 stop 时：这个叶子要的、写在这一块外面的参与者，每个 {var, text, span}；其他 type 写 []
-    store: [type, graph, outside]
+    store: [type, graph]              # web：sent_type 不写 outside
 
   discourse:
     path: discourse
@@ -159,7 +158,7 @@ skills:
 # 每条规则都会检查，命中的都执行（不是 if/elif）。
 dispatcher:
 
-  # 按类型分发；text 和 span 原样往下传。stop：没有后续（outside 写 .umr 时按 span 接上）
+  # 按类型分发；text 和 span 原样往下传。stop：没有后续
   sent_type:
     - {when: {sent_type_emit.type: discourse},      run: discourse,      input: {text: text, span: span}}
     - {when: {sent_type_emit.type: predicate},      run: predicate,      input: {text: text, span: span}}

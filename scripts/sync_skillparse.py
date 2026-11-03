@@ -62,7 +62,7 @@ REENTRANCY_WAVE = [
 #               并把 antecedent 并到同 span（或中心词同 span）的节点上
 #   document    每句一个 episode，看补过重入的这句和它前五句，产出这句的文档级图""",
      """# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时合并：span 和概念都一样的节点是同一个，
-# outside 里的参与者接到同 span（或中心词同 span）的节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
+# outside 里的每个参与者按它写的节点编号（node）接到那个节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
 #   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图"""),
     ("        trees:                          # 和 sents 一一对应，reentrancy 补过的树\n          window: worktree.reentrancy",
@@ -76,12 +76,12 @@ REENTRANCY_WAVE = [
 # no antecedent step either (web): a participant written outside a piece stays in the step's
 # `outside`, and is joined to the node with its span when the .umr is written
 ANTECEDENT = [
-    ("每个从句外的参与者 → antecedent（规则，写 .umr 时按 span 合并）", "每个从句外的参与者：写在 outside 里，写 .umr 时按 span 接上"),
+    ("每个从句外的参与者 → antecedent（规则，写 .umr 时按 span 合并）", "每个从句外的参与者：写在 outside 里（写节点编号），写 .umr 时接到那个节点上"),
     ("每个短语外的参与者 → antecedent（如 其同类 的 其）", "每个短语外的参与者：写在 outside 里（如 其同类 的 其）"),
     ("每个外面的参与者 → antecedent（一般没有）", "每个外面的参与者：写在 outside 里（一般没有）"),
-    ("── 每个外面的参与者 → antecedent", "── 外面的参与者写在 outside 里"),
+    ("── 每个外面的参与者 → antecedent", "── web：sent_type 不写 outside"),
     ("  # 按类型分发；text 和 span 原样往下传。stop：只为 outside 起 antecedent",
-     "  # 按类型分发；text 和 span 原样往下传。stop：没有后续（outside 写 .umr 时按 span 接上）"),
+     "  # 按类型分发；text 和 span 原样往下传。stop：没有后续"),
     ("  # antecedent / document：没有后续", "  # document：没有后续"),
 ]
 # discourse's relation is not checked against a list of values (web): any string
@@ -164,6 +164,61 @@ few keywords: words of the text, concepts (`have-org-role-91`), roles (`:ARG1-of
 returns whole gold sentence annotations, and the worked examples of this procedure's
 skills, that contain them. To check a rule, call `search_guidelines` with keywords: it
 returns the matching sections of the UMR guidelines."""
+# step ids on the web: "0B" for a sent_type step, "0" for the step it starts ("0.1.2" instead of
+# "0.0.1.0.2.0"), "<step>.<k>A" for an outside item's antecedent node (sp_bridge.py, node_key);
+# the output handler sorts and resolves them
+OUTPUT_HANDLER = "src/output_handler/umroutputhandler.py"
+OUTPUT_HANDLER_IDS = [
+    ('    return tuple(int(p) for p in str(node_id).split("."))\n',
+     '    # web: a part can end in B (a sent_type step) or A (an outside item\'s antecedent node):\n'
+     '    # "0B" < "0" < "0.0B" < "0.0" < "0.0A"\n'
+     '    out = []\n'
+     '    for p in str(node_id).split("."):\n'
+     '        m = re.match(r"^(\\d+)([AB]?)$", p)\n'
+     '        out += [int(m.group(1)), {"B": 0, "": 1, "A": 2}[m.group(2)]] if m else [1 << 30, 0]\n'
+     '    return tuple(out)\n'),
+    (r'r"\s*(\d+)\s*:\s*([\d.]+)(?:/(\S+))?\s*"', r'r"\s*(\d+)\s*:\s*([\d.]+[AB]?)(?:/(\S+))?\s*"'),
+]
+# sent_type writes no `outside` (web): a leaf that needs a participant from elsewhere is not a
+# leaf; the participant is a node the steps join to by its name
+SENT_TYPE_OUTSIDE = [
+    ("      outside: list[dict]       # type 是 stop 时：这个叶子要的、写在这一块外面的参与者，每个 {var, text, span}；其他 type 写 []\n"
+     "    store: [type, graph, outside]\n",
+     "    store: [type, graph]              # web：sent_type 不写 outside\n"),
+]
+# outside names the participant's node, from the table of the sentence's nodes the bridge adds to
+# the input, instead of giving its span (and `at` is gone): {skill: [(old, new)]}, the same in zh and en
+OUTSIDE_FORMAT = {
+    "predicate": [(
+        'Each is `{{"text": ..., "span": [first, last], "role": ...}}`, with the span\n'
+        'of that participant **exactly as the main clause has it**, so the two can be\n'
+        'joined into one node. Return `outside: []` when there are none.',
+        'Each is `{{"role": ..., "node": ..., "text": ...}}`: `node` names the\n'
+        'participant\'s node in the table **Nodes of this sentence so far** at the end of\n'
+        'the input (a placeholder whose node is not built yet is listed too), and `text`\n'
+        'is its words, for reading. Where a rule above says which span to give, point at\n'
+        'the node with that span. The two are joined into one node. Return `outside: []`\n'
+        'when there are none.')],
+    "np_phrase": [
+        ('Each item is `{{"var": "y1", "text": ..., "span": [first, last],\n"at": [first, last]}}`:',
+         'Each item is `{{"var": "y1", "node": ..., "text": ...}}`:'),
+        ('- `text`, `span`: the participant\'s **head word only**, where it is written\n'
+         '  outside the phrase: for 新成立的那家公司 just 公司, for 作家张伟 just 张伟;\n'
+         '- `at`: the span of the pronoun inside the phrase that stands for it (其,\n'
+         '  他的); leave it out when nothing in the phrase stands for it.',
+         '- `node`: the participant\'s node in the table **Nodes of this sentence so far**\n'
+         '  at the end of the input (a placeholder whose node is not built yet is listed\n'
+         '  too); where a rule says which span to give, point at the node with that span;\n'
+         '- `text`: its words, for reading.')],
+    "special_entity": [(
+        'give it as `{{"var": "y1", "text": ..., "span": [first, last]}}`, its var\n'
+        '  used in `edges` like a placeholder; `text` and `span` are the participant\'s\n'
+        '  **head word only**. It is joined to the node that already stands for it.',
+        'give it as `{{"var": "y1", "node": ..., "text": ...}}`, its var\n'
+        '  used in `edges` like a placeholder; `node` names the participant\'s node in the\n'
+        '  table **Nodes of this sentence so far** at the end of the input, and `text` is\n'
+        '  its words. It is joined to that node.')],
+}
 # propbank_lookup: what the predicate and np_phrase skills are told to look up (every alternate
 # of the lemma, not "up to two"), {skill: (old, new)}
 PROPBANK_ASK = {
@@ -317,7 +372,7 @@ def compose(sp, lang):
     if n != 1:
         raise SystemExit("%s: cannot find discourse's relation" % reg)
     text = drop_reentrancy_wave(text)
-    for old, new in DOCUMENT_INPUT:
+    for old, new in DOCUMENT_INPUT + SENT_TYPE_OUTSIDE:
         if text.count(old) != 1:
             raise SystemExit("%s: cannot find %r" % (reg, old[:60]))
         text = text.replace(old, new)
@@ -335,6 +390,10 @@ def compose(sp, lang):
             raise SystemExit("%s: cannot replace what it says about get_example" % md)
         for old in EXAMPLES_OLD:
             body = body.replace(old, EXAMPLES_NEW)
+        for old, new in OUTSIDE_FORMAT.get(skill, []):
+            if body.count(old) != 1:
+                raise SystemExit("%s: cannot find %r" % (md, old[:60]))
+            body = body.replace(old, new)
         if skill in PROPBANK_ASK:
             old, new = PROPBANK_ASK[skill]
             if body.count(old) != 1:
@@ -356,7 +415,7 @@ def compose(sp, lang):
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"
               "# Every other model skill is kind: agent: its skill.md, answered by Haiku.\n"
               "# Left out on the web: %s, antecedent (outside stays in the step) and the reentrancy wave\n"
-              "# (nodes with the same span and concept, and outside participants by span, are\n"
+              "# (nodes with the same span and concept, and each outside participant with the node it names, are\n"
               "# merged when the .umr is written). discourse's relation is any string (not checked against a list).\n"
               "# jevlib.py cuts a Chinese piece only at punctuation (no jieba).\n"
               % (lang, agent, JEV_SKILL, jev, ", ".join(JEV_MODULES), ", ".join(DROP_SKILLS)))
@@ -547,6 +606,15 @@ def main(sp, mp, penman_whl=None):
             shutil.rmtree(d)
     for rel in SP_FILES:
         copy(sp, rel, os.path.join(FS, "skillparseumr"))
+    oh = os.path.join(FS, "skillparseumr", OUTPUT_HANDLER)
+    with open(oh, encoding="utf-8") as f:
+        text = f.read()
+    for old, new in OUTPUT_HANDLER_IDS:
+        if text.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (oh, old[:60]))
+        text = text.replace(old, new)
+    with open(oh, "w", encoding="utf-8") as f:
+        f.write(text)
     for lang in PROCEDURES:
         compose(sp, lang)
     for rel in SHARED_TOOLS:
