@@ -1,51 +1,25 @@
-# document — worked example
+# temporal — worked examples
+
+## A date, a chain and a cause
 
 Sentences:
 
-1. `Maria wanted to leave early, but her brother refused.`
-2. `She left anyway on Friday.` (the current sentence)
+1. `2007年7月，该台开始播出普通话节目。`
+2. `节目受到欢迎，收视率随后上升。` (the current sentence)
 
-Relevant nodes of sentence 2's tree (node ids are paths from the root):
-`0.0` predicate `leave-11`, `0.0.0.0` sent_type stop `person` (*She*),
-`0.0.0.1.0` special_entity date (*on Friday*).
-Earlier: sentence 1 has `0.0.0` (*Maria*, special_entity) and `0.0.0.0.1.0` the
-predicate `leave-11` of *to leave early*.
+Nodes of sentence 2: `2:0` and (the two clauses), `2:0.0` 受到-01 (受到欢迎), `2:0.0.1`
+欢迎-01, `2:0.1` 上升-02 (收视率随后上升). Sentence 1 has `1:0` 开始-01 and `1:0.0` its date.
 
 ```json
 {"relations": [
-  {"group": "temporal", "source": "document-creation-time", "relation": "depends-on", "target": "2:0.0.0.1.0"},
-  {"group": "temporal", "source": "2:0.0.0.1.0", "relation": "overlap", "target": "2:0.0"},
-  {"group": "coref", "source": "1:0.0.0", "relation": "same-entity", "target": "2:0.0.0.0"}
+  {"group": "temporal", "source": "1:0", "relation": "after", "target": "2:0.0"},
+  {"group": "temporal", "source": "2:0.0", "relation": "overlap", "target": "2:0.0.1"},
+  {"group": "temporal", "source": "2:0.0", "relation": "after", "target": "2:0.1"}
 ]}
 ```
 
-- *on Friday* is a time expression relative to the document date: anchored to
-  the document creation time with `depends-on` (an absolute past date such as
-  *in 1998* would be `document-creation-time` `before` it), and the leaving is
-  `overlap` it.
-- No modal relation: the leaving is the author's own statement, and its
-  `modstr` (full-affirmative) becomes `author` `full-affirmative` by itself.
-- *She* is Maria: `same-entity`, from the earlier node to the current one.
-
-## A reported view
-
-Sentences:
-
-1. `The museum announced on Monday that the old wing will close next year.`
-   (the current sentence)
-
-Relevant nodes: `0.0` predicate `announce-01`, `0.0.0` special_entity
-`museum` (*The museum*), `0.0.2.0` predicate `close-01` (*will close*).
-
-```json
-{"relations": [
-  {"group": "modal", "source": "author", "relation": "full-affirmative", "target": "1:0.0.0"},
-  {"group": "modal", "source": "1:0.0.0", "relation": "partial-affirmative", "target": "1:0.0.2.0"}
-]}
-```
-
-- The announcing is the author's own statement: nothing to write, its modstr
-  does it.
-- The closing is what the museum says: the museum is its conceiver
-  (`partial-affirmative`: a plan for the future), and the museum itself is a
-  child of `author`.
+- The main event 受到 has no date of its own: it comes after the broadcasting begins in the
+  sentence before (`after`, that event the parent).
+- 欢迎 is an event built inside the clause: it chains to 受到 with `overlap`.
+- 随后 orders 上升 after 受到: the earlier event is the source of `after`.
+- Every event of sentence 2 has exactly one parent; `and` is not an event.

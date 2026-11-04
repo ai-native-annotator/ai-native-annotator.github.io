@@ -107,45 +107,12 @@ DOCUMENT_INPUT = [
 """, """      sentences: list[dict]           # web：每句一张节点表（见上面 document 这一波）
 """),
 ]
-DOCUMENT_MD = [
-    ("""current sentence (the **last** item of the lists below) and up to five
-sentences before it, each with the tree its sentence graph was built from.""",
-     """current sentence (the **last** one below) and up to five
-sentences before it, each with a table of the nodes of its sentence graph."""),
-    ("""The input is under **Input** at the end: the language; the sentences (each
-has `index`, its sentence number, and `text`), the last one being the current
-sentence; and the trees, in the same order. Each tree is the output of the
-reentrancy step; the sentence's own tree is under `nodes[0].input.tree.nodes`.
-A node is `{{"id", "skill", "input": {{"text", "span"}}, "parent", "edge", "graph", ...}}`;
-`graph` is the node's fragment (its first node is the node's own concept). A
-node from `predicate` is an **event**; nodes from `np_phrase`,
-`special_entity` and `sent_type` with type `stop` are **entities**.""",
-     """The input is under **Input** at the end: the language, then the sentences in
-order, the last one being the current sentence. Each sentence has its number,
-its text and a table with a row per node of its graph: `node` is how you refer
-to the node (below); `text` is the full span the node covers (an event's whole
-clause, an entity's whole phrase); `concept` is its concept; `kind` is `event`
-(with its aspect, and `negative` when it is negated), `event (nominal)` for an
-event concept built inside a noun phrase, or `entity`; `step` is the step that
-built it, `stop` for a leaf that sent_type built as it is (type `stop`). A node
-from `predicate` is an **event**; nodes from `np_phrase`, `special_entity` and
-`stop` are **entities**."""),
-    ("""the constants `author`, `document-creation-time`.
-""", """the constants `author`, `document-creation-time`. The tables list every node
-you can point at, under `node`.
-"""),
-    ("""Sentences:
-{sents}
-
-Trees:
-{trees}""", """{sentences}"""),
-]
 JEV_MODULES = ["jevlib.py", "prompt_loader.py", "event_modifiers.py", "event_modifiers.yaml"]
 SHARED_TOOLS = ["skillsets/tools/propbank.py"]      # get_example (skillsets/tools/example.py) is not used
 # the site's own tools (search_annotations, search_guidelines), next to propbank_lookup
 WEB_TOOLS = os.path.join(OUT, "web_tools")
 # the document wave in three steps (web): modal by rule (web_skills/modal/modal.py, no model),
-# then temporal and coref, each its own agent skill made from document/skill.md
+# then temporal and coref, the site's own agent skills (web_skills/<lang>/temporal, coref)
 WEB_SKILLS = os.path.join(OUT, "web_skills")
 DOCUMENT_SKILLS = [
     ("    start: document\n", "    start: modal                      # web：modal（规则）→ temporal、coref\n"),
@@ -171,7 +138,7 @@ DOCUMENT_SKILLS = [
       relations: list[dict]
     store: [relations]
 
-  temporal:                     # 时间依存（document/skill.md 的 temporal 一节）
+  temporal:                     # 时间依存（本站的 skill：web_skills/<lang>/temporal）
     path: temporal
     input:
       sentences: list[dict]
@@ -179,7 +146,7 @@ DOCUMENT_SKILLS = [
       relations: list[dict]
     store: [relations]
 
-  coref:                        # 共指（document/skill.md 的 coref 一节）
+  coref:                        # 共指（本站的 skill：web_skills/<lang>/coref）
     path: coref
     input:
       sentences: list[dict]
@@ -193,39 +160,16 @@ DOCUMENT_SKILLS = [
     - {run: coref, input: {sentences: sentences}}
 """),
 ]
-DOCUMENT_PARTS = {
-    "temporal": ("# Skill: document-level temporal relations for one sentence",
-                 "temporal dependency, modal dependency and coreference",
-                 "temporal dependency (the modal dependencies are made by rule, coreference by\nanother step)"),
-    "coref": ("# Skill: document-level coreference for one sentence",
-              "temporal dependency, modal dependency and coreference",
-              "coreference (the modal dependencies are made by rule, temporal dependency by\nanother step)"),
-}
+def document_skills(dst, lang):
+    """The document wave's skills (web): modal (a rule) and the site's own temporal and coref,
+    in place of the procedure's document skill (whose modal section modal.py now does)."""
+    shutil.rmtree(os.path.join(dst, "document"))
+    for name, src in (("modal", os.path.join(WEB_SKILLS, "modal")),
+                      ("temporal", os.path.join(WEB_SKILLS, lang, "temporal")),
+                      ("coref", os.path.join(WEB_SKILLS, lang, "coref"))):
+        shutil.copytree(src, os.path.join(dst, name), ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
 
 
-def split_document(dst):
-    """document/skill.md as two skills (web): its opening, the one section (## temporal or
-    ## coref), and its examples and input; the modal section goes (modal/modal.py does it)."""
-    src = os.path.join(dst, "document")
-    with open(os.path.join(src, "skill.md"), encoding="utf-8") as f:
-        md = f.read()
-    cut = {h: md.index("\n## %s\n" % h) for h in ("temporal", "modal", "coref", "Examples")}
-    if not cut["temporal"] < cut["modal"] < cut["coref"] < cut["Examples"]:
-        raise SystemExit("%s: its sections are not temporal, modal, coref, Examples" % src)
-    head, tail = md[:cut["temporal"]], md[cut["Examples"]:]
-    part = {"temporal": md[cut["temporal"]:cut["modal"]], "coref": md[cut["coref"]:cut["Examples"]]}
-    for name, (title, old, new) in DOCUMENT_PARTS.items():
-        first, rest = head.split("\n", 1)
-        if not first.startswith("# Skill:") or rest.count(old) != 1:
-            raise SystemExit("%s: cannot make the %s skill's opening" % (src, name))
-        os.makedirs(os.path.join(dst, name), exist_ok=True)
-        with open(os.path.join(dst, name, "skill.md"), "w", encoding="utf-8") as f:
-            f.write(title + "\n" + rest.replace(old, new) + part[name] + tail)
-    if os.path.isdir(os.path.join(src, "reference")):
-        shutil.copytree(os.path.join(src, "reference"), os.path.join(dst, "temporal", "reference"))
-    shutil.rmtree(src)
-    shutil.copytree(os.path.join(WEB_SKILLS, "modal"), os.path.join(dst, "modal"),
-                    ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
 # gold annotations and the UMR guidelines, which those tools search; outside fs/ (not loaded at
 # start: the tools read them on their first call)
 RESOURCES = os.path.join(OUT, "resources")
@@ -483,16 +427,7 @@ def compose(sp, lang):
             body = body.replace(old, new)
         with open(md, "w", encoding="utf-8") as f:
             f.write(body)
-    doc_md = os.path.join(dst, "document", "skill.md")
-    with open(doc_md, encoding="utf-8") as f:
-        md = f.read()
-    for old, new in DOCUMENT_MD:
-        if md.count(old) != 1:
-            raise SystemExit("%s: cannot find %r" % (doc_md, old[:60]))
-        md = md.replace(old, new)
-    with open(doc_md, "w", encoding="utf-8") as f:
-        f.write(md)
-    split_document(dst)
+    document_skills(dst, lang)
     patch_jevlib(os.path.join(dst, "jevlib.py"))
     header = ("# web-procedures/%s, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:\n"
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"

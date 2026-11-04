@@ -273,7 +273,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 ### 文档级：modal、temporal、coref 三步（web 改过）
 
-document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），它跑完派生 `temporal`、`coref` 两个 agent 步骤，三步的输入一样（前五句和这一句的节点表）。`temporal/skill.md`、`coref/skill.md` 由同步脚本从原来的 `document/skill.md` 拆出来：开头说明、各自那一节、Examples、Input；modal 那一节去掉了。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
+document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），它跑完派生 `temporal`、`coref` 两个 agent 步骤，三步的输入一样（前五句和这一句的节点表）。`temporal`、`coref` 是本站自己写的 skill（`data/skillparse/web_skills/<lang>/temporal`、`coref`，同步时复制进 `web-procedures/<lang>/`，原来的 `document/` 不再用）：由原来 `document/skill.md` 的 temporal、coref 两节精简、按主题重排而来（中文 temporal 9.2 KB → 6.0 KB，coref 5.7 KB → 4.0 KB），规则内容保留；开头写明两条要求：**写全**（temporal：这一句的每个事件和时间表达都有且只有一个父节点；coref：这一句里每个提到过的东西都连到最近的前一次提及），**只管这一句**（target 一定是这一句的节点，source 是这一句、前面几句的节点或常量）。各自有一个 `reference/example.md`，用现在的节点编号。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
 
 **modal 规则**（`modal/modal.py`）：照 UMR 标注工具（umr-tool.cs.brandeis.edu，jinzhao3611/umr-annotation-tool 的 `modal_converter.py`，依据 "UMR Simplified Modal Annotation to Modal Dependency Structure"）的转换规则，只是不读整句图，而读节点表里 predicate 那一行的 `modstr` 和 `roles`（`_roles`：quote、purpose、condition、modal-predicate，以及 ARG0 / actor / experiencer / causer）。E、M、S、C 是事件，E′ 等是它们的 modstr（没有就是 unspecified）：
 
@@ -319,8 +319,8 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 | np_phrase | agent | Haiku（可查 PropBank） | `np_phrase/…` |
 | special_entity | agent | Haiku | `special_entity/…` |
 | modal | rule | 程序 | `modal/modal.py` |
-| temporal | agent | Haiku | `temporal/skill.md`、`reference/` |
-| coref | agent | Haiku | `coref/skill.md` |
+| temporal | agent | Haiku | `temporal/skill.md`、`reference/`（本站写的） |
+| coref | agent | Haiku | `coref/skill.md`、`reference/`（本站写的） |
 
 写在一块外面的参与者（如「Pope wanted to leave」里 leave 的主语）只写在那一步输出的 `outside` 里，不再单独起步骤，写 `.umr` 时按 span 接上（第 8 节）。
 
@@ -564,7 +564,7 @@ sentences:
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
 | PropBank | 每个词条一个 XML（中文 24,521 个） | 合并成一个 JSON，`propbank.py` 改成读它，查询结果相同 |
-| 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成；temporal、coref 各一个 agent 步骤（skill.md 从 document 的拆出来） |
+| 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成（照 umr-tool 的转换）；temporal、coref 各一个 agent 步骤（本站写的 skill.md，由 document 的两节精简而来） |
 | 步骤编号 | `0`、`0.0`、`0.0.0`…（sent_type 和它派生的一步各占一层） | `0B`、`0`、`0.0B`、`0.0`…（sent_type 带 B，派生的一步用同一个号），长度减半 |
 | outside | 写参与者的 text、span（np_phrase 还有 `at`），写 .umr 时按 span 找节点；sent_type 也可以写 | 写已有节点表里的编号 `node`，写 .umr 时直接接到那个节点；sent_type 不写 |
 | propbank_lookup 一次查几个词 | 最多 3 个（原词加两个备选），多的悄悄丢掉；predicate 的 skill.md 说「up to two alternates」 | 最多 20 个，超出的列在结果的 `_not_looked_up` 里，叫模型再查；predicate、np_phrase 的 skill.md 改成一次给出**所有**备选形式（最多 20 个） |

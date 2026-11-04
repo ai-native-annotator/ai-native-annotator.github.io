@@ -1,44 +1,34 @@
-# Skill: document-level coreference for one sentence
+# Skill: coreference of one sentence
 
-You are annotating the document level of a Uniform Meaning Representation:
-coreference (the modal dependencies are made by rule, temporal dependency by
-another step). You are given the
-current sentence (the **last** one below) and up to five
-sentences before it, each with a table of the nodes of its sentence graph.
+You annotate the **coreference** of the current sentence (the last one in the input) for a
+Uniform Meaning Representation document. Modal dependencies are made by rule and temporal
+dependencies by another step: write neither.
 
-The input is under **Input** at the end: the language, then the sentences in
-order, the last one being the current sentence. Each sentence has its number,
-its text and a table with a row per node of its graph: `node` is how you refer
-to the node (below); `text` is the full span the node covers (an event's whole
-clause, an entity's whole phrase); `concept` is its concept; `kind` is `event`
-(with its aspect, and `negative` when it is negated), `event (nominal)` for an
-event concept built inside a noun phrase, or `entity`; `step` is the step that
-built it, `stop` for a leaf that sent_type built as it is (type `stop`). A node
-from `predicate` is an **event**; nodes from `np_phrase`, `special_entity` and
-`stop` are **entities**.
+The input (under **Input** at the end) gives the language and the current sentence with up to
+five sentences before it. Each sentence has its number, its text and a table of its nodes:
+`node` (how you name it), `text` (the full span it covers), `concept`, `kind` (`event`,
+`event (nominal)` or `entity`) and `step` (the step that built it; `stop` is a leaf, an entity).
 
-## How to refer to a node
+## What to write
 
-`"<sentence number>:<node id>"`, e.g. `"3:0.2.1"` is node `0.2.1` of sentence 3
-(a node id is its path from the root): it stands for the first node of that
-tree node's graph. To point at another node inside the graph, add its var:
-`"3:0.2.1/r"`. Or one of
-the constants `author`, `document-creation-time`. The tables list every node
-you can point at, under `node`.
+Each link is
+`{{"group": "coref", "source": earlier mention, "relation": "same-entity" or "same-event", "target": current mention}}`.
 
-Give relations **only for the current sentence's nodes** (one side of each
-relation must be a node of the current sentence); the other side can be a
-constant or a node of an earlier sentence.
+- **Complete**: every mention in the current sentence of something already mentioned (in an
+  earlier sentence of the input, or earlier in this sentence as a node of its own) is linked to
+  its **closest** earlier mention: pronouns, repeated names (full, short, title + name),
+  definite descriptions, a noun that sums up an earlier event (*the attack*, *this decision*).
+- **Only this sentence and its context**: the target is always a node of the current sentence;
+  the source is a node of the current sentence or of an earlier sentence in the input. Name nodes
+  exactly as the tables do (`"3:0.1"`, `"3:0.1/x"` for another node of that step's fragment).
+- **Point at the entity**, never at its `name` node. A plural pronoun for a group links to the
+  group's node (an organization, the `and` of people), never to one member.
+- `same-event` when either node is an event (a predicate's node, a concept with a sense, a noun
+  naming an occurrence); otherwise `same-entity`.
 
-## coref
-
-Link an entity or event of the current sentence to the **same** entity or event
-in an earlier sentence: a pronoun to its antecedent, a repeated name, a
-definite description of something already mentioned:
-`{{"group": "coref", "source": earlier node, "relation": "same-entity" or "same-event", "target": current node}}`.
-Do not link two different things of the same kind.
-
-Return all of them in `relations`.
+Do not link two different things of one kind (a company and its parent, a newspaper and its
+reporters), an event with an entity, or generic mentions (*aliens* in general); `same-event` only
+for the very same occurrence retold.
 
 ## Examples
 

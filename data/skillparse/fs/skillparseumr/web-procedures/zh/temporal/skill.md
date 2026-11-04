@@ -1,87 +1,82 @@
-# Skill: document-level temporal relations for one sentence
+# Skill: temporal relations of one sentence
 
-You are annotating the document level of a Uniform Meaning Representation:
-temporal dependency (the modal dependencies are made by rule, coreference by
-another step). You are given the
-current sentence (the **last** one below) and up to five
-sentences before it, each with a table of the nodes of its sentence graph.
+You annotate the **temporal dependencies** of the current sentence (the last one in the input)
+for a Uniform Meaning Representation document. Modal dependencies are made by rule and
+coreference by another step: write neither.
 
-The input is under **Input** at the end: the language, then the sentences in
-order, the last one being the current sentence. Each sentence has its number,
-its text and a table with a row per node of its graph: `node` is how you refer
-to the node (below); `text` is the full span the node covers (an event's whole
-clause, an entity's whole phrase); `concept` is its concept; `kind` is `event`
-(with its aspect, and `negative` when it is negated), `event (nominal)` for an
-event concept built inside a noun phrase, or `entity`; `step` is the step that
-built it, `stop` for a leaf that sent_type built as it is (type `stop`). A node
-from `predicate` is an **event**; nodes from `np_phrase`, `special_entity` and
-`stop` are **entities**.
+The input (under **Input** at the end) gives the language and the current sentence with up to
+five sentences before it. Each sentence has its number, its text and a table of its nodes:
+`node` (how you name it), `text` (the full span it covers: an event's whole clause, an entity's
+whole phrase), `concept`, `kind` (`event` with its aspect and `negative` when negated,
+`event (nominal)` for an event built inside a noun phrase, or `entity`) and `step` (the step
+that built it; `stop` is a leaf, an entity).
 
-## How to refer to a node
+## What to write
 
-`"<sentence number>:<node id>"`, e.g. `"3:0.2.1"` is node `0.2.1` of sentence 3
-(a node id is its path from the root): it stands for the first node of that
-tree node's graph. To point at another node inside the graph, add its var:
-`"3:0.2.1/r"`. Or one of
-the constants `author`, `document-creation-time`. The tables list every node
-you can point at, under `node`.
+Each relation is
+`{{"group": "temporal", "source": parent, "relation": label, "target": child}}`, read as "the
+child is <label> the parent": `before`, `after`, `overlap`, `contained`, `depends-on`. So
+`(A :after B)` means B happened after A, and the earlier of two events is the source of `after`.
 
-Give relations **only for the current sentence's nodes** (one side of each
-relation must be a node of the current sentence); the other side can be a
-constant or a node of an earlier sentence.
+- **Complete**: every event and every time expression of the current sentence gets exactly one
+  parent. Leaving one out is an error.
+- **Only this sentence and its context**: the child is always a node of the current sentence;
+  the parent is a node of the current sentence, a node of an earlier sentence in the input, or
+  `document-creation-time`. Name nodes exactly as the tables do (`"3:0.1"`, `"3:0.1/x"` for
+  another node of that step's fragment).
 
-## temporal
+## Time expressions
 
-For every event of the current sentence give exactly one parent, as
-`{{"group": "temporal", "source": parent, "relation": label, "target": event}}`:
+- An absolute past date (2000, 1979年, 2007年7月): `document-creation-time` `before` it; a future
+  date: `after`; a deictic one (today, last week, 上周): `depends-on`.
+- Only the first absolute date of a sentence is anchored to `document-creation-time`; a later
+  date of the same sentence (a second year, 同年秋季) is ordered from the events instead.
+- An anaphoric 当年 / 当时 / 那时 is `overlap` the earlier date it refers to (that date the
+  parent).
+- 'Now' words (目前, 现在, 如今) are not anchors: the main event takes `document-creation-time`
+  `depends-on` directly. Vague 近年来 / 多年来 get no parent.
 
-- labels: `before`, `after`, `overlap`, `contained`, `depends-on`;
-  read it as "the target is <label> the source".
-- a time expression is anchored to `document-creation-time`: an absolute
-  past date (*2000*, 1979年, 2007年7月) with `before`, a future date with
-  `after`, and only a deictic one (*today*, *last week*) with
-  `depends-on`. 'Now' words (目前, 现在, 如今) are not anchors: the sentence's main event takes `document-creation-time` `depends-on` directly, and the other events of the sentence chain to that event (`overlap`).
-- an event located by an explicit time expression is `overlap` that
-  expression's node (source the date, target the event), also when it holds up
-  to that time (直到X仍…); do not use `contained`.
-- a state or characteristic that results from a neighbouring event or holds
-  around it (成了特色) is `overlap` with that event unless the text orders
-  them.
-- events built inside noun phrases (np_phrase nodes with a sense, such as
-  报导-01 or 看守-01) are events too: give each one a temporal parent.
-- a past event with no time expression: `document-creation-time` `before`
-  it, or `after`/`overlap` an earlier event that locates it.
+## Events
 
-- an event scoped by X以前 / before X: the date is the source and the event the target, label `before`. Use `depends-on` only for deictic times and 'now' sentences; a past state or main event otherwise takes `document-creation-time` `before`.
-- in a sentence describing a publication or institution, anchor its main ongoing activity (发行, 出版) to `document-creation-time`. Hang the sentence's other events (闻名, 报导, 停止) under that activity, with `overlap` or `contained`.
-- an event inside the content of a news item, headline or report (the news says X怀孕) is `overlap` with the sentence's main event, not anchored to `document-creation-time`. The nominal event of a verb + 量 compound (发行量) is also `overlap` with the main event.
-- an event that further describes an event already mentioned in an earlier sentence (the same publication: 刊载 → 刊登) is `overlap` with that earlier event.
+- **The main event.** With an explicit date: `overlap` that date (the date the parent; never
+  `contained`, also for 直到X仍…). Without one: a past event `document-creation-time` `before`;
+  a state describing the present (包括, 有) `document-creation-time` `overlap`. In a sentence
+  about a publication or institution, its main ongoing activity (发行, 出版) is the one anchored,
+  and the sentence's other events (闻名, 报导, 停止) hang under it (`overlap` or `contained`).
+- **A story told in order** (the plot of a film, an episode, a novel): the main event of each
+  sentence takes the main action event of the previous sentence (`after` when it comes next,
+  `overlap` for 同时 / 这时 / 此时), also after 然而 / 不料; never `document-creation-time`, never a
+  state or an abstract `-91` node.
+- **Across sentences**, outside a story: a report, claim, announcement or arrest about an earlier
+  incident is `after` that incident (the content event, not the speech verb); a further statement
+  by the same speaker is `overlap` the previous one; an event retelling an earlier one (刊载 →
+  刊登) is `overlap` it. Anything else new (a finding, a suspicion, a separate past fact) is
+  `document-creation-time` `before`. Relate to the current or the previous sentence, never to an
+  unrelated event far back; an event that is the same event as an earlier mention gets no link
+  to it.
+- **The other events of the sentence chain**: each takes the event just before it (`overlap`
+  unless the text orders them); only the first is anchored. Two events with different dates are
+  ordered relative to each other.
+- **Subordinate time clauses** (X后, X前, X时) are children of the main event, never of
+  `document-creation-time`; for X后 the main event is the parent and the label is `before`.
+- **Cause and result**: a result (deaths, injuries, damage) is `after` its cause (the cause the
+  parent); a cause inside the result's clause (爆炸 in 在爆炸中身亡) is `before` the result.
+  A background event setting the scene is `overlap` the main event; a state that results from or
+  holds around a neighbouring event (成了特色) is `overlap` it.
+- **Reported content**: its events take the reporting verb (`before` for past content), also the
+  content of a news item or headline (X怀孕 in the news); coordinated actions announced by one
+  verb (宣布收购A，并收购B) each take that verb (`overlap`), not the previous conjunct.
+- **Planned, applied for, requested, permitted, intended** (the ARG1 of 计划, 申请, 要求, 允许) and
+  purpose clauses: `overlap` the governing event, never `before` / `after`; so is a requested
+  continuation or halt (要求X不再V).
+- **An event in a relative clause** takes the governing main-clause event.
+- **Events inside noun phrases** (a concept with a sense: 报导-01, 看守-01, 收费-01 in 收费电视) are
+  events: chain them with `overlap` in surface order. The event of a verb + 量 compound (发行量)
+  is `overlap` the main event.
 
-- the main-clause event is the one anchored to `document-creation-time`. An event in a subordinate time clause (X后, X前, X时) is a child of the main event, never of `document-creation-time`. For X后, the source is the main event and the label is `before` (the X event is before it). A stative main predicate that describes the current situation (包括, 有) takes `document-creation-time` `overlap`.
-- relate an event to events of its own sentence or the one just before, never to an unrelated event far back. An event that is `same-event` with an earlier mention gets no extra temporal link to it.
-
-- when a clause has an explicit time expression, that date is the `overlap` parent of the clause's **main** event only. A background event that sets the scene (a meeting nearing its end when the fire broke out) is `overlap` with the main event (source the main event). Results the main event caused (deaths, injuries, damage) take the main event as parent with `after` (source the cause, target the result). A cause adjunct inside a result's clause (爆炸 in 在爆炸中身亡) is a child of that result with `before`. Events in reported content take the reporting verb as parent (`before` for past content).
-- a narrative main event with no time expression is anchored to an earlier event only when the text marks that order: a report, claim, announcement or arrest about that incident is `after` the incident, and a further statement by the same speaker is `overlap` the previous reporting event. Use the content event, not the speech verb. Otherwise (a new finding, a suspicion, a separate past fact) anchor it to `document-creation-time` `before`.
-- direction: `A :after B` means B happened after A. For 'he joined a gang, later became radical', the source is 加入, the relation `after`, the target 变成. An event that clearly came before the confirming or reporting event (left behind, then confirmed) is ordered, not `overlap`.
-- an attributive adjective or a verb-like word inside a compound noun (激进 in 激进分子) gets no temporal parent. Neither does an `identity-91` built for an apposition inside a noun phrase (歌手X), nor a vague relative time phrase (近年来, 多年来): order the events relative to each other instead. In consecutive events the earlier one is the source and the later one the target of `after`. Two events of one sentence with different dates are also ordered relative to each other. A requested continuation or halt (要求X不再V) is `overlap` with the request.
-
-- an event that is planned, applied for, requested, permitted or intended (the ARG1 of 计划, 申请, 允许) and the event of a purpose clause are `overlap` with the governing event (source the governing event), never `after` or `before`.
-- in a sentence with no time expression, chain its events: only the first is anchored to `document-creation-time`; each next event takes the previous one as its parent (`overlap` unless the text orders them).
-
-- in a story told in order (the plot of a film, episode or novel), the main event of each sentence takes the main event of the previous sentence as its parent (`after` when it comes next in the story, `overlap` for 同时 / 这时 / 此时), never `document-creation-time`; this holds also for a 然而 / 不料 sentence. The parent is that sentence's main action event, never a state or an abstract `-91` node inside it.
-- a plural pronoun (他们, 它们) for a group links to the group's entity node (an ethnic-group, an organization, or the `and` of people), never to one person or to a name node.
-
-
-- an anaphoric time word (当年, 当时, 那时) is `overlap` with the earlier date it refers to (source that date), not anchored to `document-creation-time` alone.
-- only the first absolute date of a sentence is anchored to `document-creation-time`; a later date of the same sentence (a second year, 同年秋季) gets no `document-creation-time` link: order its event relative to the earlier events instead.
-- coordinated actions that are the content of an announcing or reporting verb (宣布收购A，并收购B) each take that verb as parent (`overlap`), never the previous conjunct. Other coordinated clauses chain to the event just before them, not all to the first.
-- an event inside a relative clause on an argument takes the governing main-clause event as parent, not `document-creation-time`.
-
-- a noun that only names an application, a restriction or another situation as an argument (申请 as what was approved, 此限制), an event nominal inside an argument noun phrase, and a manner modifier (集中 in 集中发展) get no temporal parent and no modal relation. A verb-like modifier that is an event with a sense (收费-01 in 收费电视) does get one: chain it with `overlap` in surface order, like any other event.
-
-
-
-
+Not events here, so no parent: an attributive adjective or a verb-like word inside a compound
+noun (激进 in 激进分子), an apposition's `identity-91` (歌手X), a noun that only names a situation
+as an argument (申请 as what was approved, 此限制), a manner modifier (集中 in 集中发展).
 
 ## Examples
 

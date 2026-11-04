@@ -154,7 +154,7 @@ skills:
       relations: list[dict]
     store: [relations]
 
-  temporal:                     # 时间依存（document/skill.md 的 temporal 一节）
+  temporal:                     # 时间依存（本站的 skill：web_skills/<lang>/temporal）
     path: temporal
     input:
       sentences: list[dict]
@@ -162,7 +162,7 @@ skills:
       relations: list[dict]
     store: [relations]
 
-  coref:                        # 共指（document/skill.md 的 coref 一节）
+  coref:                        # 共指（本站的 skill：web_skills/<lang>/coref）
     path: coref
     input:
       sentences: list[dict]

@@ -1,60 +1,56 @@
-# Skill: document-level coreference for one sentence
+# Skill: coreference of one sentence
 
-You are annotating the document level of a Uniform Meaning Representation:
-coreference (the modal dependencies are made by rule, temporal dependency by
-another step). You are given the
-current sentence (the **last** one below) and up to five
-sentences before it, each with a table of the nodes of its sentence graph.
+You annotate the **coreference** of the current sentence (the last one in the input) for a
+Uniform Meaning Representation document. Modal dependencies are made by rule and temporal
+dependencies by another step: write neither.
 
-The input is under **Input** at the end: the language, then the sentences in
-order, the last one being the current sentence. Each sentence has its number,
-its text and a table with a row per node of its graph: `node` is how you refer
-to the node (below); `text` is the full span the node covers (an event's whole
-clause, an entity's whole phrase); `concept` is its concept; `kind` is `event`
-(with its aspect, and `negative` when it is negated), `event (nominal)` for an
-event concept built inside a noun phrase, or `entity`; `step` is the step that
-built it, `stop` for a leaf that sent_type built as it is (type `stop`). A node
-from `predicate` is an **event**; nodes from `np_phrase`, `special_entity` and
-`stop` are **entities**.
+The input (under **Input** at the end) gives the language and the current sentence with up to
+five sentences before it. Each sentence has its number, its text and a table of its nodes:
+`node` (how you name it), `text` (the full span it covers), `concept`, `kind` (`event`,
+`event (nominal)` or `entity`) and `step` (the step that built it; `stop` is a leaf, an entity).
 
-## How to refer to a node
+## What to write
 
-`"<sentence number>:<node id>"`, e.g. `"3:0.2.1"` is node `0.2.1` of sentence 3
-(a node id is its path from the root): it stands for the first node of that
-tree node's graph. To point at another node inside the graph, add its var:
-`"3:0.2.1/r"`. Or one of
-the constants `author`, `document-creation-time`. The tables list every node
-you can point at, under `node`.
+Each link is
+`{{"group": "coref", "source": earlier mention, "relation": "same-entity" or "same-event", "target": current mention}}`.
 
-Give relations **only for the current sentence's nodes** (one side of each
-relation must be a node of the current sentence); the other side can be a
-constant or a node of an earlier sentence.
+- **Complete**: every mention in the current sentence of something already mentioned (in an
+  earlier sentence of the input, or earlier in this sentence as a node of its own) is linked to
+  its **closest** earlier mention. Each missed link leaves a mention outside its chain: link
+  every new mention of a named person or organization already seen (full name, short name, title
+  + name, pronoun), however far back in the input.
+- **Only this sentence and its context**: the target is always a node of the current sentence;
+  the source is a node of the current sentence or of an earlier sentence in the input. Name nodes
+  exactly as the tables do (`"3:0.1"`, `"3:0.1/x"` for another node of that step's fragment).
+- **Point at the entity**, never at its `name` node.
+- `same-event` when either node is an event (a predicate's node, a concept with a sense such as
+  爆炸-01, or a noun naming an occurrence: 演唱会, 比赛, 事件, X案, a named `show`); otherwise
+  `same-entity` (people, things, places, organizations, works).
 
-## coref
+## What links
 
-Link an entity or event of the current sentence to the **same** entity or event
-in an earlier sentence: a pronoun to its antecedent, a repeated name, a
-definite description of something already mentioned:
-`{{"group": "coref", "source": earlier node, "relation": "same-entity" or "same-event", "target": current node}}`.
-Do not link two different things of the same kind.
+- A pronoun to its antecedent. A plural 他们 / 它们 for a group links to the group's node (an
+  ethnic group, an organization, the `and` of people), never to one person; 他们 acting as a
+  publication (他们报导, 他们的标语) joins the publication's chain, never its staff.
+- A repeated name, also of a city or place; a definite description (该台 / 该公司 is the station or
+  company, never one of its channels). With two earlier nodes of the same type (two companies),
+  check the name before choosing.
+- A full name and an alias joined by `identity-91` (X委员会（ABC）): the alias (identity-91's ARG2,
+  named with `/var`) is the chain's mention; later mentions (ABC, 当局) link to it.
+- In a document about one work (an episode, film, book), every later mention (这集, 本片, 该剧, its
+  title) joins the work's named node (`show` / `book`), never a common noun 集 inside a
+  description (第N集).
+- A noun that sums up an earlier event (此事, 事件, X案, 此限制 after 不允许X): `same-event` with
+  that event. The event inside an agent or patient noun (袭击 in 袭击者, 死 in 死者, with `/var`):
+  `same-event` with the earlier mention of that occurrence, even with another verb (身亡).
 
- Link each mention to
-the **closest** earlier mention of the same entity (not always the first one),
-and point at the entity node (e.g. `newspaper`), never at its `name` node. Keep
-chains for different entities apart: a newspaper, its parent company, its
-reports and the people writing them are different things.
+## What does not link
 
-Before linking, check that the two nodes can be the same thing: an event never corefers with an entity (报导-01 with 文); an abstract noun (目的, 内容) is never `same-entity` with a publication. 他们 is `same-entity` with a publication when it is the publication acting (他们报导, 他们的标语): link it to the publication's chain, never to its editors or staff; a second newspaper node is linked only if it has the same name. One wrong link merges whole chains, so when in doubt leave it out. Also do not link repeated generic or kind mentions (外星人 meaning aliens in general). Repeated mentions of the same named city or place across sentences do form a `same-entity` chain. 该台 / 该公司 refers to the station or company, never to one of its channels. When an earlier tree has two nodes of the same type (two companies), check the name before pointing at one. Be conservative with `same-event`: link two events only when the text clearly retells the very same occurrence. Never link nominal events such as the 发行 of 发行量 across sentences, or figures from different periods.
-
- But do link every new mention of a named person or organization already seen (full name, short name, title + name, pronoun) to its closest earlier mention, however many sentences back: each missed link leaves a mention outside its chain. Choose the label from the nodes. Use `same-event` when either node is an event (a predicate node, or a concept with a sense: 爆炸-01, 袭击-01). Nouns that name an occurrence (演唱会, a named `show`, 比赛, 事件, X案) also corefer with `same-event`, with each other and with event nodes. `same-entity` is for people, things, places and organizations. A plain noun (事件, 此事, X案) that refers back to the incident links to the closest earlier mention of it. The event inside an agent or patient noun (袭击 in 袭击者, 死 in 死者) is linked `same-event` (point at it with `/var`) to the earlier mention of that occurrence, even when the verb differs (身亡). Do not link repeated background states (临近尾声) across sentences. In a document about one work (an episode, film, book), every later mention of it (这集, 本片, 该剧, its title) belongs to one `same-entity` chain with the work's named node (the `show` / `book`). Link each to the closest earlier mention, never to a common noun 集 built inside a description of the work (第N集 of a series).
-
- When an organization has a full name and an alias joined by `identity-91` (X委员会（ABC）), the alias node (identity-91's ARG2, pointed at with `/var`) is the chain's mention: link later mentions (ABC again, 当局 'the authorities') to it, and keep one chain for all of them. A noun with 此 / 该 that sums up an earlier event of the text (此限制 after 不允许X) is `same-event` with that event.
-
-
-
-
-
-Return all of them in `relations`.
+Two different things of one kind (a newspaper, its parent company, its reports and the people
+writing them); an event with an entity (报导-01 with 文); an abstract noun (目的, 内容) with a
+publication; generic or kind mentions (外星人 meaning aliens in general); repeated background
+states (临近尾声); the nominal 发行 of 发行量, or figures from different periods. `same-event` only
+for the very same occurrence retold.
 
 ## Examples
 
