@@ -862,7 +862,8 @@ class RegistryEngine:
             except Exception as e:
                 res = "%s: %s" % (type(e).__name__, e)
         text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
-        node.setdefault("tool_calls", []).append({"tool": name, "args": args, "result": text[:4000]})
+        # kept for the page as the model got it (a PropBank answer with every example is long)
+        node.setdefault("tool_calls", []).append({"tool": name, "args": args, "result": text[:200000]})
         return text
 
     def complete(self, w, i, nid, output, model=None):

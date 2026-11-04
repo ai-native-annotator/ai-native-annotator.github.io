@@ -52,7 +52,8 @@
 | `data/skillparse/bridge/sp_bridge.py` | Python 一侧：`Session`（文档、文件）和 `RegistryEngine`（一步步跑 registry） |
 | `data/skillparse/bridge/umr_load.py` | 把已有 `.umr` 的标注拆成步骤 |
 | `data/skillparse/fs/skillparseumr/` | SkillParseUMR：`src/`（registry、输入输出模块）、`web-procedures/zh`、`web-procedures/en`（两套流程）、`web-procedures/tools/` |
-| `data/skillparse/fs/modular-parsing/resources/` | PropBank（`chinese-propbank.json`、`english-propbank/…arg-descr.txt`）和 UMR 列表（CSV） |
+| `data/skillparse/fs/modular-parsing/resources/` | UMR 列表（CSV） |
+| `data/skillparse/resources/propbank/zh.json` · `en.json` | PropBank：每个 roleset 的角色和全部例子（`web_tools/propbank.py` 读） |
 | `data/skillparse/web_tools/search.py` | 本站自己的两个工具 `search_annotations`、`search_guidelines`，同步时复制到 `web-procedures/tools/` |
 | `data/skillparse/resources/gold/zh/gold.json` · `gold/en/gold.json` | 金标标注，按语言分开：中文 35 篇 2,278 句（SkillParseUMR `newdata/` 31 篇 + modular-parsing `real-umr-data/chinese` 4 篇），英文 580 篇 31,147 句（SkillParseUMR `newdata/umr_en_normalized/`）；来源写在各自的 `SOURCE.md` |
 | `data/skillparse/resources/guidelines/umr_guidelines.md` | UMR 指南全文（umr4nlp/umr-guidelines `guidelines.md`，取自 SkillParseUMR 固定的副本，sha256 校验） |
@@ -205,6 +206,8 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 数据在 `data/skillparse/resources/`，启动时不加载（英文金标 24.7 MB）：第一次搜索时由 Python 用 Pyodide 的 `open_url` 从 `SP_BASE + "resources/…"` 取来并缓存（本地跑时先看 `$SP_RESOURCES`）。
 
+**PropBank**（`propbank_lookup`，本站写的 `data/skillparse/web_tools/propbank.py`，同步时放到 `web-procedures/tools/` 和 `skillsets/tools/`，SkillParseUMR 自己的几份 propbank.py 不再用）：数据是同步脚本把 modular-parsing 的帧文件合并成的 `data/skillparse/resources/propbank/zh.json`（`chinese-propbank/*.xml`，24,521 个词条，6.0 MB）、`en.json`（`propbank-amr-frames-xml-2018-01-25/*.xml`，按 `<predicate>` 的 lemma 分，5.4 MB），每个 roleset 带全部角色和**全部例子**（中文例句由树库句法树的词拼成，*OP*、*T*-1、*pro* 这些空语类保留；英文例句原样，*trace* 保留），格式 `{lemma: [[roleset id, name, [[n, descr]], [[例子名, 例句, [[论元, 文字]], rel]]]]}`。启动时不加载，第一次查询时取来。工具返回 Markdown：每个词一节 `## 词`（找到的是变体就注明 found as），每个 roleset 一节 `### 吃-01 (名称)`，列出角色，再列每个例子（`Example 1: 例句`，下面每个论元一行，最后 `rel`）；查不到写 `Not in PropBank.`；超过 20 个、没查的词写在最后一行。页面「工具调用」页把同一段 Markdown 渲染出来给人看（工具调用的结果最多存 200,000 字）。jevlib（sent_type）读的是数据（`_rolesets`），不是 Markdown。
+
 **工具模块只加载一次**（`_tools_in` 的 `_TOOL_MODULES`，按文件的路径、修改时间、大小）：每个 agent 步骤和每次工具调用都要找工具，以前每次都重新执行工具文件，模块里的缓存跟着丢掉，于是每次 `propbank_lookup` 都把整个 PropBank 重新解析一遍、每次搜索都把金标重新下载解析一遍。改过工具文件，修改时间变了，会重新加载。几份 `propbank.py`（jevlib 的、predicate 的、共用的）还共用同一份解析好的中文 PropBank（同步时打的补丁）。浏览器里实测（Pyodide）：
 
 | 调用 | 以前 | 现在（第一次 → 之后） |
@@ -315,7 +318,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 |---|---|---|---|
 | sent_type | jev | Jev（封闭问题，由 Python 规则出题、组装） | `sent_type/sent_type.py`、`prompts.yaml`、共用 `jevlib.py` |
 | discourse | agent | Haiku | `discourse/skill.md` |
-| predicate | agent | Haiku（可查 PropBank） | `predicate/skill.md`、`tools/propbank.py` |
+| predicate | agent | Haiku（可查 PropBank） | `predicate/skill.md` |
 | np_phrase | agent | Haiku（可查 PropBank） | `np_phrase/…` |
 | special_entity | agent | Haiku | `special_entity/…` |
 | modal | rule | 程序 | `modal/modal.py` |
@@ -563,7 +566,7 @@ sentences:
 | document 的输入 | `sents` + `trees`（reentrancy 那一波的整棵树） | `sentences`：sentence 那一波生成的每句节点表（编号、full span、概念、类型、skill）；skill.md 讲输入的几段改成说明这张表 |
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
-| PropBank | 每个词条一个 XML（中文 24,521 个） | 合并成一个 JSON，`propbank.py` 改成读它，查询结果相同 |
+| PropBank | 每个词条一个 XML（中文 24,521 个）；英文查 `arg-descr.txt`；`propbank_lookup` 返回 JSON，只有角色 | 中英文各合并成一个 JSON，带全部例子，放在 `resources/propbank/`，第一次查询时取来；本站的 `propbank.py` 读它，返回 Markdown（角色和全部例子）；中文的 roleset 和角色与原来完全相同，英文 `arg-descr.txt` 的 8,733 个 roleset 全都有 |
 | `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉（同步时不复制）；例子从金标里搜 |
 | 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成（照 umr-tool 的转换）；temporal、coref 各一个 agent 步骤（本站写的 skill.md，由 document 的两节精简而来） |
 | 步骤编号 | `0`、`0.0`、`0.0.0`…（sent_type 和它派生的一步各占一层） | `0B`、`0`、`0.0B`、`0.0`…（sent_type 带 B，派生的一步用同一个号），长度减半 |

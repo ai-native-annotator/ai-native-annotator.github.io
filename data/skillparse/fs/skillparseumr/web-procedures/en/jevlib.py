@@ -331,7 +331,7 @@ def join(ws, token_sent, lang):
 
 def rolesets(lemma, lang):
     """PropBank rolesets of a lemma, [] if it has none."""
-    return _propbank.propbank_lookup([lemma], lang).get(lemma, [])
+    return _propbank._rolesets(lemma, lang)      # web: the data (propbank_lookup is Markdown)
 
 
 def roleset_text(r):

@@ -1,132 +1,124 @@
-"""propbank_lookup: the PropBank senses of a lemma, read off disk.
+"""propbank_lookup: the PropBank rolesets of a lemma, with their roles and examples, as Markdown (web).
 
-A word sense is looked up, not recalled. English comes from
-propbank-amr-frame-arg-descr.txt (one line per roleset), Chinese from
-chinese-propbank/<lemma>.xml (one file per lemma).
+The site's PropBank tool, in place of SkillParseUMR's skillsets/tools/propbank.py and the copies
+the procedures keep (scripts/sync_skillparse.py puts this file in both places). The data is the
+frame files merged by the sync script, every roleset with all its examples:
 
-A general tool: it sits in skillsets/tools/, so every skill has it (a copied
-skillset keeps it in its own tools/).
+    resources/propbank/zh.json   chinese-propbank/<lemma>.xml (an example's words come from its
+                                 treebank parse, traces such as *OP* *T*-1 *pro* kept)
+    resources/propbank/en.json   propbank-amr-frames-xml-2018-01-25/<lemma>.xml
 
-The PropBank files are not in this repository. They are found under
-$PROPBANK_DIR, else in resources/ or modular-parsing/resources/ in or next to
-any directory above this file (the repository, or a copied skillset in it).
+    {lemma: [[roleset id, name, [[n, descr], ...], [[name, sentence, [[label, text], ...], rel], ...]], ...]}
+
+They are not loaded when the page starts: the first lookup reads them, from $SP_RESOURCES when
+that folder has them, else from the site ($SP_BASE + "resources/...") in the browser.
+
+    propbank_lookup(lemmas, language)   the tool: Markdown, the same text the page shows
+    _rolesets(lemma, language)          the data: [{"roleset", "name", "roles", "examples"}]
+                                        (jevlib.py reads it: sent_type's questions)
 """
-import functools
 import json
 import os
-import re
-import xml.etree.ElementTree as ET
 
-_CANDIDATES = [os.environ.get("PROPBANK_DIR", "")]
-_d = os.path.dirname(os.path.abspath(__file__))
-while os.path.dirname(_d) != _d:
-    _CANDIDATES += [os.path.join(_d, "resources"), os.path.join(_d, "modular-parsing", "resources")]
-    _d = os.path.dirname(_d)
+LIMIT = 20                      # lemmas a call looks up
 _ZH_PARTICLES = ("了", "着", "过", "起来", "下去", "出来", "上去")
-_EN_SUFFIXES = [("ies", "y"), ("ied", "y"), ("ing", ""), ("ed", ""), ("es", ""), ("s", "")]
+_EN_SUFFIXES = [("ies", "y"), ("ied", "y"), ("ing", ""), ("ed", ""), ("en", ""), ("es", ""), ("s", "")]
+_cache = {}
 
 
-def propbank_lookup(lemmas: list[str], language: str) -> dict:
+def propbank_lookup(lemmas: list[str], language: str) -> str:
     """Look up a lemma and every alternate of it in PropBank (at most 20 per call).
 
-    language is "en" or "zh". Returns, per lemma, every roleset that exists
-    with its argument descriptions, e.g.
-    {"taste": [{"roleset": "taste-01", "roles": {"ARG0": "taster", ...}}]};
-    an empty list means the lemma is not in PropBank. Lemmas over the limit are not
-    looked up: they are listed under "_not_looked_up" (call again with them).
+    language is "en" or "zh". Returns Markdown: per lemma, every roleset with its roles and all
+    its examples (the sentence, then each argument; traces such as *T*-1 are PropBank's own),
+    or "not in PropBank". Lemmas over the limit are not looked up: the last line names them
+    (call again with them).
     """
+    lang = _lang(language)
+    asked = [str(x).strip() for x in (lemmas or []) if isinstance(x, str) and x.strip()]
+    parts = [_markdown(lemma, *_find(lemma, lang)) for lemma in asked[:LIMIT]]
+    if len(asked) > LIMIT:
+        parts.append("Not looked up (only the first %d lemmas of a call are; call again with these): %s"
+                     % (LIMIT, ", ".join(asked[LIMIT:])))
+    return "\n\n".join(parts) if parts else "No lemma given."
+
+
+def _rolesets(lemma, language):
+    """The rolesets of a lemma (or of the first alternate form that has some), as data."""
+    return _find(str(lemma).strip(), _lang(language))[1]
+
+
+# ------------------------------------------------------------------ helpers
+
+def _lang(language):
     # a model may write "Chinese" or "中文" for "zh"
-    language = "zh" if str(language).strip().lower()[:2] in ("zh", "ch", "中文"[:2]) else "en"
-    out = {}
-    lemmas = [l for l in (lemmas or []) if isinstance(l, str) and l.strip()]
-    for lemma in lemmas[:20]:
-        found = []
-        for form in _variants(lemma.strip(), language):
-            found = _lookup(form, language)
-            if found:
-                break
-        out[lemma] = found
-    if len(lemmas) > 20:
-        # web: said, not dropped without a word: a lemma left out is not one missing from PropBank
-        out["_not_looked_up"] = {"lemmas": lemmas[20:],
-                                 "why": "only the first 20 lemmas of a call are looked up; call propbank_lookup again with these"}
-    return out
+    return "zh" if str(language).strip().lower()[:2] in ("zh", "ch", "中文") else "en"
 
 
-def _resources():
-    for path in _CANDIDATES:
-        if path and os.path.isdir(os.path.join(path, "english-propbank")):
-            return path
-    return ""
+def _find(lemma, lang):
+    """(the form found, its rolesets) for the lemma or the first alternate form PropBank has."""
+    data = _data(lang)
+    for form in _variants(lemma, lang):
+        found = data.get(form)
+        if found:
+            return form, [_roleset(r) for r in found]
+    return lemma, []
 
 
-def _variants(lemma, language):
+def _variants(lemma, lang):
     out = [lemma]
-    if language == "zh":
-        for p in _ZH_PARTICLES:
-            if lemma.endswith(p) and len(lemma) > len(p):
-                out.append(lemma[: -len(p)])
+    if lang == "zh":
+        out += [lemma[:-len(p)] for p in _ZH_PARTICLES if lemma.endswith(p) and len(lemma) > len(p)]
     else:
         low = lemma.lower()
-        out.append(low)
+        key = low.replace(" ", "_").replace("-", "_")           # eat up, eat-up -> eat_up
+        out += [low, key]
         for suffix, repl in _EN_SUFFIXES:
-            if low.endswith(suffix) and len(low) > len(suffix) + 2:
-                out.append(low[: -len(suffix)] + repl)
-                out.append(low[: -len(suffix)] + repl + "e")
+            if key.endswith(suffix) and len(key) > len(suffix) + 2:
+                out += [key[: -len(suffix)] + repl, key[: -len(suffix)] + repl + "e"]
     seen = []
     for x in out:
-        if x not in seen:
+        if x and x not in seen:
             seen.append(x)
     return seen
 
 
-def _lookup(lemma, language):
-    return _lookup_zh(lemma) if language == "zh" else _english().get(lemma.lower(), [])
+def _roleset(r):
+    rid, name, roles, examples = (list(r) + [[], []])[:4]
+    return {"roleset": rid.replace("_", "-").replace(".", "-"), "name": name,
+            "roles": {("ARG" + n.upper()): d for n, d in roles if n},
+            "examples": [{"name": e[0], "sentence": e[1], "args": e[2], "rel": e[3]} for e in examples]}
 
 
-@functools.lru_cache(maxsize=1)
-def _english():
-    index = {}
-    path = os.path.join(_resources(), "english-propbank", "propbank-amr-frame-arg-descr.txt")
-    if not os.path.exists(path):
-        return index
-    with open(path, encoding="utf-8", errors="replace") as f:
-        for line in f:
-            m = re.match(r"^(\S+?)-(\d+)\s+(.*)$", line.rstrip())
-            if not m:
-                continue
-            roles = {}
-            for part in re.split(r"\s{2,}", m.group(3).strip()):
-                if ":" in part:
-                    k, _, v = part.partition(":")
-                    roles[k.strip()] = v.strip()
-            index.setdefault(m.group(1), []).append({"roleset": "%s-%s" % (m.group(1), m.group(2)),
-                                                     "roles": roles})
-    return index
+def _markdown(lemma, form, found):
+    head = "## %s" % lemma + (" (found as %s)" % form if found and form != lemma else "")
+    if not found:
+        return head + "\n\nNot in PropBank."
+    out = [head]
+    for r in found:
+        out.append("### %s%s" % (r["roleset"], " (%s)" % r["name"] if r["name"] else ""))
+        out.append("\n".join("- %s: %s" % (k, v) for k, v in r["roles"].items()) or "- (no roles)")
+        for k, e in enumerate(r["examples"], 1):
+            lines = ["Example %d%s: %s" % (k, " (%s)" % e["name"] if e["name"] else "", e["sentence"])]
+            lines += ["- %s: %s" % (label, text) for label, text in e["args"]]
+            if e["rel"]:
+                lines.append("- rel: %s" % e["rel"])
+            out.append("\n".join(lines))
+    return "\n\n".join(out)
 
 
-@functools.lru_cache(maxsize=1)
-def _chinese():
-    # ai-native-annotator.github.io: chinese-propbank/ (24,521 XML files) is one merged file,
-    # chinese-propbank.json ({lemma: [[roleset id, name, [[n, descr], ...]], ...]}, made by
-    # scripts/sync_skillparse.py); the lookup reads it instead of a file per lemma, same answers.
-    # The page loads several copies of this file (jevlib's, the skills' tools/): they share one
-    # parsed copy, kept in sys.modules, so the 24,521 lemmas are read once, not once per copy
-    import sys
-    import types
-    path = os.path.realpath(os.path.join(_resources(), "chinese-propbank.json"))
-    if not os.path.exists(path):
-        return {}
-    shared = sys.modules.setdefault("_merged_propbank", types.ModuleType("_merged_propbank")).__dict__
-    if path not in shared:
-        with open(path, encoding="utf-8") as f:
-            shared[path] = json.load(f)
-    return shared[path]
+def _data(lang):
+    key = "data:" + lang
+    if key not in _cache:
+        _cache[key] = json.loads(_read("propbank/%s.json" % lang))
+    return _cache[key]
 
 
-def _lookup_zh(lemma):
-    out = []
-    for rid, name, roles in _chinese().get(lemma, []):
-        out.append({"roleset": rid.replace(".", "-"), "name": name,
-                    "roles": {"ARG" + n: d for n, d in roles if n}})
-    return out
+def _read(rel):
+    """A resource file's text: from $SP_RESOURCES, else fetched from the site."""
+    local = os.path.join(os.environ.get("SP_RESOURCES", ""), rel)
+    if os.environ.get("SP_RESOURCES") and os.path.isfile(local):
+        with open(local, encoding="utf-8") as f:
+            return f.read()
+    from pyodide.http import open_url    # in the browser: the page's Python runs in Pyodide
+    return open_url(os.environ.get("SP_BASE", "") + "resources/" + rel).read()

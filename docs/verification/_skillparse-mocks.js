@@ -86,7 +86,7 @@ module.exports = function mocks() {
       if (res.includes('sentence level graph') && res.includes('have-org-role-91')) calls.tools.goldRead = true;
       if (res.includes('"examples"')) calls.tools.examplesRead = true;
       if (res.includes('"heading"') && /Aspect/.test(res)) calls.tools.guidelinesRead = true;
-      if (res.includes('"吃-01"')) calls.tools.propbankRead = true;
+      if (res.includes('### 吃-01') && res.includes('Example 1:')) calls.tools.propbankRead = true;
     }
     // the tools in turn, each once per step: gold annotations, the guidelines, then PropBank
     // (the merged Chinese file), as a predicate would

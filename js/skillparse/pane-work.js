@@ -230,7 +230,18 @@ function toolsTab(d) {
   if (!calls.length) return h('div', { class: 'empty', text: t('noTools') });
   return h('div', {}, calls.map((c) => h('div', { class: 'qa' },
     h('div', { class: 'q mono', text: `${c.tool}(${JSON.stringify(c.args)})` }),
-    h('details', {}, h('summary', { text: `${String(c.result).length} chars` }), h('pre', { class: 'block', text: c.result })))));
+    h('details', {}, h('summary', { text: `${String(c.result).length} chars` }), toolResult(c.result)))));
+}
+
+/** A tool's answer as the model got it: Markdown (propbank_lookup) rendered, JSON as it is. */
+function toolResult(text) {
+  const s = String(text ?? '');
+  try {
+    JSON.parse(s);
+    return h('pre', { class: 'block', text: s });
+  } catch {
+    return renderMarkdown(s, { lines: true });
+  }
 }
 
 /** Go to the step that made a variable of the sentence graph (it is a node of the sentence wave). */

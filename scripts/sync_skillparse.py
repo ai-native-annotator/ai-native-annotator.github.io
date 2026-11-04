@@ -108,7 +108,7 @@ DOCUMENT_INPUT = [
 """),
 ]
 JEV_MODULES = ["jevlib.py", "prompt_loader.py", "event_modifiers.py", "event_modifiers.yaml"]
-SHARED_TOOLS = ["skillsets/tools/propbank.py"]      # get_example (skillsets/tools/example.py) is not used
+SHARED_TOOLS = []    # get_example (skillsets/tools/example.py) is not used; propbank.py is the site's (web_tools)
 # the site's own tools (search_annotations, search_guidelines), next to propbank_lookup
 WEB_TOOLS = os.path.join(OUT, "web_tools")
 # the document wave in three steps (web): modal by rule (web_skills/modal/modal.py, no model),
@@ -256,36 +256,21 @@ PROPBANK_ASK = {
                   "**look the\nlemma up with `propbank_lookup`**, giving **every** alternate form it could be\n"
                   "listed under in one call (up to 20), and use a sense it returned."),
 }
-PROPBANK_LIMIT = 20
-PROPBANK_DOC = ('    """Look up up to three lemmas (the lemma and alternates) in PropBank.\n',
-                '    """Look up a lemma and every alternate of it in PropBank (at most %d per call).\n' % PROPBANK_LIMIT)
-PROPBANK_DOC_END = ("    an empty list means the lemma is not in PropBank.\n    \"\"\"",
-                    "    an empty list means the lemma is not in PropBank. Lemmas over the limit are not\n"
-                    "    looked up: they are listed under \"_not_looked_up\" (call again with them).\n    \"\"\"")
-PROPBANK_LOOP = ("""    for lemma in [l for l in (lemmas or []) if isinstance(l, str) and l.strip()][:3]:
-""", """    lemmas = [l for l in (lemmas or []) if isinstance(l, str) and l.strip()]
-    for lemma in lemmas[:%d]:
-""" % PROPBANK_LIMIT)
-PROPBANK_RETURN = ("""        out[lemma] = found
-    return out
-""", """        out[lemma] = found
-    if len(lemmas) > %d:
-        # web: said, not dropped without a word: a lemma left out is not one missing from PropBank
-        out["_not_looked_up"] = {"lemmas": lemmas[%d:],
-                                 "why": "only the first %d lemmas of a call are looked up; call propbank_lookup again with these"}
-    return out
-""" % (PROPBANK_LIMIT, PROPBANK_LIMIT, PROPBANK_LIMIT))
 MP_FILES = [
     "resources/Abstract_predicate_and_rolesets.csv", "resources/All_relations.csv",
     "resources/Attribute_Values.csv", "resources/SP_and_Discourse.csv",
-    "resources/english-propbank/propbank-amr-frame-arg-descr.txt",
 ]
-# a folder of one XML file per lemma -> one merged JSON file next to it
+# PropBank (web): each folder of one XML file per lemma -> one JSON file under resources/propbank/
+# (fetched by the tool on its first lookup, not loaded at start), every roleset with all its
+# examples; the site's web_tools/propbank.py reads it, in place of every copied propbank.py
 PROPBANK = {
-    "resources/chinese-propbank.json": "resources/chinese-propbank",
-    "resources/english-propbank/propbank-amr-frames-xml-2018-01-25.json":
-        "resources/english-propbank/propbank-amr-frames-xml-2018-01-25",
+    "zh": "resources/chinese-propbank",
+    "en": "resources/english-propbank/propbank-amr-frames-xml-2018-01-25",
 }
+PROPBANK_TOOL = "propbank.py"
+# jevlib (sent_type) reads the data, not the tool's Markdown
+JEVLIB_PROPBANK = ("    return _propbank.propbank_lookup([lemma], lang).get(lemma, [])",
+                   "    return _propbank._rolesets(lemma, lang)      # web: the data (propbank_lookup is Markdown)")
 # sample documents: the sentences only (header-only .umr: snt, Index, Words), no gold
 # (both are in the decision-orchestration test sets)
 DOCS = {"chinese_umr-0022": "newdata/chinese_umr-0022.umr",
@@ -299,78 +284,45 @@ def copy(src_root, rel, dest_root):
     shutil.copyfile(os.path.join(src_root, rel), dst)
 
 
+def _label(a):
+    """An example argument's label: ARG0, ARGM-TMP (English n / f), ARGM-LOC (Chinese type)."""
+    if a.get("type"):
+        t = a.get("type")
+        return t[:4].upper() + t[4:].upper() if t.lower().startswith("argm") else t.upper()
+    n, f = (a.get("n") or "").upper(), (a.get("f") or "").upper()
+    return "ARGM-" + f if n == "M" and f else "ARG" + n + ("-" + f if f and n != "M" else "")
+
+
+def _example(ex):
+    """[name, sentence, [[label, text], ...], rel] of one <example>: a Chinese one has a treebank
+    parse (its words, traces too, joined by spaces) and its arguments under <propbank>."""
+    text = (ex.findtext("text") or "").strip()
+    pb = ex.find("propbank")
+    if pb is not None:              # Chinese
+        text = " ".join(w for _, w in re.findall(r"\(([^\s()]+) ([^\s()]+)\)", text))
+        items = list(pb)
+    else:
+        text = " ".join(text.split())
+        items = list(ex)
+    args = [[_label(a), " ".join((a.text or "").split())] for a in items if a.tag == "arg"]
+    rel = " ".join(" ".join((a.text or "").split()) for a in items if a.tag == "rel")
+    return [ex.get("name", ""), text, args, rel]
+
+
 def propbank_json(folder):
-    """{lemma: [[roleset id, name, [[n, descr], ...]], ...]} of one folder of frame files."""
+    """{lemma: [[roleset id, name, [[n, descr], ...], [example, ...]], ...]} of a folder of frame
+    files, lemma as each <predicate> gives it (eat, eat_up)."""
     out = {}
     for f in sorted(os.listdir(folder)):
-        if f.endswith(".xml"):
-            root = ET.parse(os.path.join(folder, f)).getroot()
-            out[f[:-4]] = [[r.get("id", ""), r.get("name", ""), [[x.get("n", ""), x.get("descr", "")]
-                                                                 for x in r.iter("role")]]
-                           for r in root.iter("roleset")]
+        if not f.endswith(".xml"):
+            continue
+        root = ET.parse(os.path.join(folder, f)).getroot()
+        for p in root.iter("predicate"):
+            lemma = p.get("lemma") or f[:-4]
+            out.setdefault(lemma, []).extend(
+                [r.get("id", ""), r.get("name", ""), [[x.get("n", ""), x.get("descr", "")] for x in r.iter("role")],
+                 [_example(e) for e in r.iter("example")]] for r in p.iter("roleset"))
     return out
-
-
-MERGED_LOOKUP = '''@functools.lru_cache(maxsize=1)
-def _chinese():
-    # ai-native-annotator.github.io: chinese-propbank/ (24,521 XML files) is one merged file,
-    # chinese-propbank.json ({lemma: [[roleset id, name, [[n, descr], ...]], ...]}, made by
-    # scripts/sync_skillparse.py); the lookup reads it instead of a file per lemma, same answers.
-    # The page loads several copies of this file (jevlib's, the skills' tools/): they share one
-    # parsed copy, kept in sys.modules, so the 24,521 lemmas are read once, not once per copy
-    import sys
-    import types
-    path = os.path.realpath(os.path.join(_resources(), "chinese-propbank.json"))
-    if not os.path.exists(path):
-        return {}
-    shared = sys.modules.setdefault("_merged_propbank", types.ModuleType("_merged_propbank")).__dict__
-    if path not in shared:
-        with open(path, encoding="utf-8") as f:
-            shared[path] = json.load(f)
-    return shared[path]
-
-
-def _lookup_zh(lemma):
-    out = []
-    for rid, name, roles in _chinese().get(lemma, []):
-        out.append({"roleset": rid.replace(".", "-"), "name": name,
-                    "roles": {"ARG" + n: d for n, d in roles if n}})
-    return out
-'''
-
-
-def patch_propbank(path):
-    """A copied propbank.py, reading the merged Chinese PropBank file (its _lookup_zh is the last
-    function of the file in every copy that reads the files itself; a copy that only delegates to
-    another one, like R42's np_phrase/tools/propbank.py, is left as it is)."""
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    head, sep, _ = text.partition("def _lookup_zh(lemma):")
-    if not sep:
-        if "chinese-propbank" not in text:
-            return
-        raise SystemExit("%s: reads chinese-propbank but has no _lookup_zh to patch" % path)
-    head = head.replace("import functools\n", "import functools\nimport json\n", 1)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(head + MERGED_LOOKUP)
-
-
-def patch_propbank_limit(path):
-    """Every copied propbank.py: up to PROPBANK_LIMIT lemmas a call instead of 3, and the ones over
-    it named in the result. A copy that delegates (np_phrase's) gets only the new docstring."""
-    with open(path, encoding="utf-8") as f:
-        text = f.read()
-    for old, new in (PROPBANK_DOC, PROPBANK_DOC_END):
-        if text.count(old) != 1:
-            raise SystemExit("%s: cannot find %r" % (path, old[:40]))
-        text = text.replace(old, new)
-    if "def _lookup(" in text:
-        for old, new in (PROPBANK_LOOP, PROPBANK_RETURN):
-            if text.count(old) != 1:
-                raise SystemExit("%s: cannot find %r" % (path, old[:40]))
-            text = text.replace(old, new)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(text)
 
 
 def compose(sp, lang):
@@ -537,6 +489,9 @@ def patch_jevlib(path):
     if not re.search(r"\blogging\.", text):
         text = text.replace("import logging\n", "")
     text = re.sub(r"\n{4,}", "\n\n\n", text)
+    if text.count(JEVLIB_PROPBANK[0]) != 1:
+        raise SystemExit("%s: cannot find how it reads PropBank" % path)
+    text = text.replace(*JEVLIB_PROPBANK)
     left = [line for line in text.split("\n") if "jieba" in line and "no jieba" not in line]
     if left:
         raise SystemExit("jevlib.py still uses jieba:\n" + "\n".join(left))
@@ -641,21 +596,31 @@ def main(sp, mp, penman_whl=None):
         dst = os.path.join(FS, "skillparseumr", WEB, "tools", os.path.basename(rel))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copyfile(os.path.join(sp, rel), dst)
+    os.makedirs(os.path.join(FS, "skillparseumr", WEB, "tools"), exist_ok=True)
     for name in sorted(os.listdir(WEB_TOOLS)):
         if name.endswith(".py"):
             shutil.copyfile(os.path.join(WEB_TOOLS, name), os.path.join(FS, "skillparseumr", WEB, "tools", name))
     write_resources(sp, mp)
-    for base, _, names in os.walk(FS):
-        for n in names:
-            if n == "propbank.py":
-                patch_propbank(os.path.join(base, n))
-                patch_propbank_limit(os.path.join(base, n))
+    # one PropBank tool: the site's, where SkillParseUMR keeps its own (jevlib loads skillsets/tools/)
+    # and none in the skills' tools/ (R42's predicate and np_phrase have copies)
+    for base, dirs, names in os.walk(os.path.join(FS, "skillparseumr")):
+        if PROPBANK_TOOL in names and os.path.basename(base) == "tools":
+            os.remove(os.path.join(base, PROPBANK_TOOL))
+            if not os.listdir(base):
+                os.rmdir(base)
+    for where in ("skillsets/tools", WEB + "/tools"):
+        os.makedirs(os.path.join(FS, "skillparseumr", where), exist_ok=True)
+        shutil.copyfile(os.path.join(WEB_TOOLS, PROPBANK_TOOL), os.path.join(FS, "skillparseumr", where, PROPBANK_TOOL))
     for rel in MP_FILES:
         copy(mp, rel, os.path.join(FS, "modular-parsing"))
-    for rel, folder in PROPBANK.items():
-        path = os.path.join(FS, "modular-parsing", rel)
-        with open(path, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.join(RESOURCES, "propbank"), exist_ok=True)
+    for lang, folder in PROPBANK.items():
+        with open(os.path.join(RESOURCES, "propbank", lang + ".json"), "w", encoding="utf-8") as f:
             json.dump(propbank_json(os.path.join(mp, folder)), f, ensure_ascii=False, separators=(",", ":"))
+    with open(os.path.join(RESOURCES, "propbank", "SOURCE.md"), "w", encoding="utf-8") as f:
+        f.write("# propbank\n\nWritten by scripts/sync_skillparse.py from sxndqc/modular-parsing:\n\n"
+                + "".join("- `%s.json`: `%s/*.xml`, every roleset with its roles and all its examples\n" % kv
+                          for kv in PROPBANK.items()))
     write_docs(sp)
     files = []
     for root in (FS, os.path.join(OUT, "bridge"), os.path.join(OUT, "docs")):

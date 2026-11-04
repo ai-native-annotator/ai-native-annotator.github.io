@@ -123,10 +123,13 @@ async function stepThrough(page, max = 80) {
   check('search_annotations works in the page (whole gold sentences from resources/gold/zh, and nothing else)',
     !!calls.tools.goldRead && !calls.tools.examplesRead, JSON.stringify(calls.tools));
   check('search_guidelines works in the page (passages of the UMR guidelines)', !!calls.tools.guidelinesRead, JSON.stringify(calls.tools));
-  check('propbank_lookup works in the page (吃 → 吃-01 from the merged PropBank file)', !!calls.tools.propbankRead, JSON.stringify(calls.tools));
+  check('propbank_lookup works in the page (吃 → 吃-01 with its examples, as Markdown, fetched from resources/propbank)', !!calls.tools.propbankRead, JSON.stringify(calls.tools));
   await page.click('.tree li:has(.sk:text-is("predicate"))');
   await page.click('.tab:text-is("工具调用")');
   check("the agent step's tool calls are shown", (await page.textContent('#output')).includes('search_annotations'));
+  check("propbank_lookup's answer is shown as the model got it, as Markdown (a heading per roleset, its examples)",
+    await page.$$eval('#output .qa .md h3', (e) => e.some((x) => x.textContent === '吃-01'))
+    && (await page.textContent('#output')).includes('Example 1:'));
   await page.click('.tab:text-is("提示词")');
   check("the agent step's prompt is its skill.md, rendered", (await page.textContent('#output')).includes('# Output Format')
     && !!(await page.$('#output .md h1')));

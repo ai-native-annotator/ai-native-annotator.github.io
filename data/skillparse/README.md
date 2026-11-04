@@ -7,10 +7,11 @@ written into the browser's Python (Pyodide) file system under `/sp/`:
 |---|---|---|
 | `fs/skillparseumr/web-procedures/zh/` | sxndqc/SkillParseUMR @ 4534a9f: `experiment/decision-orchestration/umr-zh-frag/versions/R42`, with `sent_type` from `umr-zh-v11/versions/V12` | **the Chinese procedure**: R42's registry, agent skills (`skill.md`, `tools/`; their `reference/example.md` is left out) and rules; `sent_type` is V12's `kind: jev` skill with the modules it imports (`jevlib.py`, `prompt_loader.py`, `event_modifiers.*`) |
 | `fs/skillparseumr/web-procedures/en/` | 〃: `skillsets/umr-tree`, with `sent_type` from `umr-en-v11/versions/V12` | **the English procedure**, composed the same way (decision-orchestration has no English agent version) |
-| `fs/skillparseumr/web-procedures/tools/` | 〃: `skillsets/tools/propbank.py`; this site: `web_tools/search.py` | `propbank_lookup`, `search_annotations`, `search_guidelines`: the general tools, found next to the procedures as `experiment/rsi-zh2/skills/tools` is found next to its versions (upstream's `get_example` is left out, and the skills' sentences that point to it now point to the two search tools) |
+| `fs/skillparseumr/web-procedures/tools/` | this site: `web_tools/propbank.py`, `web_tools/search.py` | `propbank_lookup`, `search_annotations`, `search_guidelines`: the general tools, found next to the procedures as `experiment/rsi-zh2/skills/tools` is found next to its versions (upstream's `get_example` is left out, and the skills' sentences that point to it now point to the two search tools) |
 | `fs/skillparseumr/src/` | 〃 | `registry.py` (REGISTRY.md parser and expressions), the UMR input / output handlers (the output handler writes the `.umr` file and its alignment) |
-| `fs/skillparseumr/skillsets/tools/propbank.py` | 〃 | the PropBank lookup `jevlib.py` loads |
-| `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV), English PropBank arg descriptions, and the PropBank frames: each folder of one XML file per lemma (24,521 Chinese, 5,618 English) merged into one JSON file, `chinese-propbank.json` and `english-propbank/propbank-amr-frames-xml-2018-01-25.json` |
+| `fs/skillparseumr/skillsets/tools/propbank.py` | this site: `web_tools/propbank.py` | the PropBank lookup `jevlib.py` loads (its `_rolesets`) |
+| `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV) |
+| `resources/propbank/zh.json`, `en.json` | 〃: `resources/chinese-propbank/*.xml`, `resources/english-propbank/propbank-amr-frames-xml-2018-01-25/*.xml` | PropBank, each folder of one XML file per lemma merged into one file: every roleset with its roles and all its examples (a Chinese example's words from its treebank parse, traces kept); fetched by `propbank_lookup` on its first call, which answers in Markdown |
 
 `resources/` is not written into the Python file system when the page starts; the search tools
 fetch a file the first time they need it (`SP_BASE` + `resources/…`, through Pyodide's
@@ -52,9 +53,7 @@ it (`js/skillparse/models.js`, `data/skillparse/bridge/sp_bridge.py`):
   (`claude-haiku-5-5`), as chosen in ⚙.
 - `kind: rule`: Python, no model.
 
-Every copied `propbank.py` that reads the Chinese frame files is patched by the sync script to read
-the merged file instead; the answers are identical to the original for every one of the 24,521
-Chinese lemmas.
+SkillParseUMR's `propbank.py` (in `skillsets/tools/` and R42's predicate and np_phrase `tools/`) is replaced by the site's `web_tools/propbank.py`; the Chinese rolesets and roles are the same as the original's for every one of the 24,521 lemmas, and every English roleset of `propbank-amr-frame-arg-descr.txt` (8,733) is there.
 
 pydantic-ai does not run in the browser, and nothing here needs it. Upstream, `src/agent.py` uses it
 for two things: the loop that sends the prompt, runs the tool calls the model asks for and takes the
