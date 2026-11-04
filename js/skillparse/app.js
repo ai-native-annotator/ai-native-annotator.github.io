@@ -20,6 +20,7 @@ import './pane-context.js';
 import './pane-skills.js';
 import './pane-work.js';
 import './pane-ai.js';
+import './timer.js';
 
 function wire() {
   document.getElementById('modal-close').addEventListener('click', closeModal);

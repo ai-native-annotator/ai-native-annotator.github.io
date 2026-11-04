@@ -467,6 +467,10 @@ sentences:
 
 ---
 
+### 10.1 计时（`js/skillparse/timer.js`）
+
+工具栏右边「⏱」显示左边选中的这一句在当前这一波上花的时间。只在页面在前台时计时（`visibilityState` 是 visible，且 `document.hasFocus()`），每秒加到选中的 (wave, 句子) 上；电脑睡眠这类长间隔最多算 5 秒。按「⏱」打开菜单：每句一行，每一波一列，加合计，当前句标出来；可以清零这篇文档的计时。计时存在这个浏览器的 localStorage（`skillparse_time`：`{"<流程>|<文档>": {"<wave>": {"<句子序号>": 毫秒}}}`），每 10 秒和离开页面时写一次。
+
 ## 11. 检查
 
 **输出格式**（`_check_emit`，对应 SkillParseUMR 用 pydantic 按 emit 生成数据模型的校验）：

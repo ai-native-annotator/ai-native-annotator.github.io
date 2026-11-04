@@ -282,3 +282,18 @@ body.busy .status::before { content: ""; display: inline-block; width: 10px; hei
 .doc-legend .legend td { padding: 1px 10px 1px 0; vertical-align: top; }
 .doc-legend .legend code { color: var(--muted); }
 .doc-legend { max-height: 340px; overflow: auto; }
+
+/* the time spent per sentence and wave (timer.js) */
+.timer { font-variant-numeric: tabular-nums; }
+/* the procedure names are long: the toolbar stays on one line */
+#skillset { max-width: 240px; }
+.timer.paused { opacity: .55; }
+.timer-wrap .timer-menu { padding: 8px; min-width: 320px; max-height: 70vh; overflow: auto; }
+.timer-table { border-collapse: collapse; font-size: 12px; margin: 6px 0; width: 100%; }
+.timer-table th, .timer-table td { padding: 2px 8px 2px 0; text-align: left; white-space: nowrap; }
+.timer-table td.t, .timer-table th:not(:nth-child(-n+2)) { text-align: right; font-variant-numeric: tabular-nums; }
+.timer-table tr.current td { background: var(--accent-soft); }
+.timer-table td.now { font-weight: 600; }
+.timer-table tfoot td { border-top: 1px solid var(--line); font-weight: 600; }
+.timer-table td.num { color: var(--muted); }
+.timer-menu .btn { border: 1px solid var(--line); text-align: center; }

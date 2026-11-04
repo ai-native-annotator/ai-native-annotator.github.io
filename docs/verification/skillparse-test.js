@@ -245,6 +245,28 @@ async function stepThrough(page, max = 80) {
   await page.waitForFunction(() => document.querySelector('.win')?.textContent.includes('[0, 1)'));
   check('a context window narrows to the one sentence', true);
 
+  // the time spent per sentence and wave, counted while the page is in front
+  await page.bringToFront();
+  const timeOf = async () => (await page.textContent('#btn-timer')).replace('⏱', '').trim();
+  const t0 = await timeOf();
+  await page.waitForTimeout(2600);
+  const t1 = await timeOf();
+  const secs = (x) => x.split(':').reduce((a, b) => a * 60 + Number(b), 0);
+  check('the timer counts the selected sentence in the selected wave while the page has the focus', secs(t1) >= secs(t0) + 2, `${t0} → ${t1}`);
+  await page.click('#btn-timer');
+  const table = await page.$$eval('#menu-timer .timer-table', (ts) => ts.map((x) => ({
+    head: [...x.querySelectorAll('thead th')].map((c) => c.textContent),
+    rows: x.querySelectorAll('tbody tr').length, current: x.querySelector('tr.current .num')?.textContent })));
+  check('its menu lists every sentence with a column per wave and totals', table.length === 1 && table[0].head.join(',') === ',句子,sentence,document,合计'
+    && table[0].rows >= 2 && table[0].current === '#1', JSON.stringify(table));
+  await page.click('body', { position: { x: 5, y: 600 } });
+  const timesKept = await page.evaluate(() => {
+    window.dispatchEvent(new Event('pagehide'));       // what leaving the page does: the times are written
+    return JSON.parse(localStorage.getItem('skillparse_time') || '{}');
+  });
+  check('the times are kept in this browser, per document and wave', Object.keys(timesKept).some((k) => k.endsWith('|chinese_umr-0022'))
+    && Object.values(timesKept).some((d) => d.sentence && d.document), JSON.stringify(timesKept).slice(0, 160));
+
   await page.click('#btn-export');
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('button[data-export="umr"]')]);
   const umr = fs.readFileSync(await dl.path(), 'utf8');
