@@ -82,6 +82,9 @@ def prompt_value(v):
     return json.dumps(jsonable(v), ensure_ascii=False)
 
 
+# the roles of an event the modal rule reads: what it is the content of, its purpose and
+# condition, its modal predicate, and who could be its conceiver
+MODAL_ROLES = ("quote", "purpose", "condition", "modal-predicate", "modpred", "ARG0", "actor", "experiencer", "causer")
 NOT_BUILT = "(not built yet)"
 KNOWN_HEAD = ("Nodes of this sentence so far (an `outside` item names one of them by its `node`; "
               "a placeholder whose node is not built yet is listed too):")
@@ -487,45 +490,59 @@ class RegistryEngine:
                        # sent_type's graph is a leaf it built as it is (type stop): an entity
                        "step": "stop" if n["skill"] == "sent_type" else n["skill"]}
                 if n["skill"] == "predicate" and k == 0:
-                    # for the modal rule (modal/modal.py): the event's modal strength, and the
-                    # conceiver of reported content (the ARG0 of its outside `quote` verb)
+                    # for the modal rule (modal/modal.py): the event's modal strength, and its
+                    # quote, purpose, condition, modal predicate and participants
                     if out.get("modstr") and out["modstr"] != "none":
                         row["modstr"] = out["modstr"]
-                    who = self._conceiver(by_id, n)
-                    if who:
-                        row["conceiver"] = "%d:%s" % (sent.index, who)
+                    roles = self._roles(by_id, n, sent.index)
+                    if roles:
+                        row["roles"] = roles
                 rows.append(row)
         return {"sentence": sent.index, "text": sent.text, "nodes": rows}
 
     @staticmethod
-    def _participant(by_id, n, role):
-        """The node (its name) a predicate step gives `role`: a placeholder's, or an outside item's."""
-        out = n.get("output") or {}
-        g = out.get("graph") or {}
-        top = ((g.get("nodes") or [{}])[0] or {}).get("var")
+    def _roles(by_id, n, index):
+        """The nodes a predicate step's event has in the roles the modal rule reads (MODAL_ROLES),
+        as "<sentence>:<node>": a placeholder's node, a node inside its fragment, or an outside
+        item's (its node, else the step with its span)."""
+        out = {}
+        o = n.get("output") or {}
+        g = o.get("graph") or {}
+        local = [x.get("var") for x in g.get("nodes") or [] if isinstance(x, dict)]
+        top = local[0] if local else None
         for src, r, tgt in g.get("edges") or []:
-            if src == top and str(r).lstrip(":") == role:
-                kid = next((c for c in by_id.values() if c.get("parent") == n["id"] and c.get("edge") == tgt), None)
-                if kid is not None:
-                    return ref_id(kid)
-        for x in out.get("outside") or []:
-            if isinstance(x, dict) and x.get("role") == role:
-                ref = x.get("node")
-                if isinstance(ref, str) and step_of(by_id, ref.strip()):
-                    return ref.strip()
-                span = x.get("span")
-                hit = next((c for c in by_id.values() if c["status"] == "ok" and c.get("output", {}) and
-                            (c.get("output") or {}).get("graph") and (c["input"] or {}).get("span") == span), None)
-                if hit is not None:
-                    return ref_id(hit)
-        return None
+            r = str(r).lstrip(":")
+            if src != top or r not in MODAL_ROLES or r in out:
+                continue
+            kid = next((c for c in by_id.values() if c.get("parent") == n["id"] and c.get("edge") == tgt), None)
+            if kid is not None:
+                out[r] = "%d:%s" % (index, ref_id(kid))
+            elif tgt in local:
+                out[r] = "%d:%s/%s" % (index, ref_id(n), tgt)
+        for x in o.get("outside") or []:
+            r = str(x.get("role", "")).lstrip(":") if isinstance(x, dict) else ""
+            if r not in MODAL_ROLES or r in out:
+                continue
+            ref = x.get("node")
+            if isinstance(ref, str) and step_of(by_id, ref.strip()):
+                out[r] = "%d:%s" % (index, ref.strip())
+                continue
+            out_r = None
+            for c in by_id.values():
+                co = c.get("output") or {} if c["status"] == "ok" else {}
+                gn = ((co.get("graph") or {}).get("nodes") or [{}])[0] if isinstance(co.get("graph"), dict) else {}
+                if not gn:
+                    continue
+                # the step with the item's span, or whose node is aligned there (a loaded file)
+                if (c["input"] or {}).get("span") == x.get("span"):
+                    out_r = ref_id(c)
+                    break
+                if out_r is None and x.get("span") in (gn.get("span"), co.get("alignment")) and x.get("span") != [0, 0]:
+                    out_r = ref_id(c)
+            if out_r is not None:
+                out[r] = "%d:%s" % (index, out_r)
+        return out
 
-    def _conceiver(self, by_id, n):
-        """Whose view a predicate step's event is: the ARG0 of the reporting verb it gives as its
-        outside `quote`, or None (the author's)."""
-        verb = self._participant(by_id, n, "quote")
-        step = step_of(by_id, verb) if verb else None
-        return self._participant(by_id, step, "ARG0") if step is not None and step["skill"] == "predicate" else None
 
     def _partial_tree(self, w, i):
         ep = self.eps[w].get(i)
@@ -858,6 +875,7 @@ class RegistryEngine:
         skill = self.reg.skills[node["skill"]]
         try:
             self._check_emit(skill, output)
+            self._check_fragment(output)
             self._check_outside(node, output)
         except Exception as e:
             if not node.get("retried"):
@@ -884,6 +902,20 @@ class RegistryEngine:
         node["error"] = "%s: %s" % (type(e).__name__, e)
         node["trace"] = traceback.format_exc()[-3000:]
         return {"done": True, "node": node["id"], "status": "error", "error": node["error"]}
+
+    @staticmethod
+    def _check_fragment(out):
+        """A fragment's variables are its own names for its nodes, placeholders and outside items:
+        each names one thing. (They are renamed when the .umr is written; a document relation
+        names one as "<sentence>:<step>/<var>", so it is told apart from other steps' by the step.)"""
+        if not isinstance(out, dict) or not isinstance(out.get("graph"), dict):
+            return
+        names = [x.get("var") for x in out["graph"].get("nodes") or [] if isinstance(x, dict)]
+        names += [x.get("var") for k in ("open", "outside") for x in out.get(k) or [] if isinstance(x, dict) and x.get("var")]
+        twice = sorted({v for v in names if names.count(v) > 1})
+        if twice:
+            raise StepError("each variable names one node, placeholder or outside item; used more than once: %s"
+                            % ", ".join(map(str, twice)))
 
     @staticmethod
     def _check_outside(node, out):

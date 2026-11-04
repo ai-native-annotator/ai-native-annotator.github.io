@@ -275,14 +275,21 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），它跑完派生 `temporal`、`coref` 两个 agent 步骤，三步的输入一样（前五句和这一句的节点表）。`temporal/skill.md`、`coref/skill.md` 由同步脚本从原来的 `document/skill.md` 拆出来：开头说明、各自那一节、Examples、Input；modal 那一节去掉了。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
 
-**modal 规则**：每个标了 modstr 的事件（predicate 那一步的 modstr）都是某个人的看法：
-- 默认是作者的：`(author :<modstr> <事件>)`，这条 output handler 本来就写（还有 `(root :modal author)`），规则不再写；
-- 转述：predicate 的 outside 里给了 `quote`（转述动词）的事件，是那个转述动词的 ARG0（conceiver）的看法：写 `(author :full-affirmative <conceiver>)`、`(<conceiver> :<modstr> <事件>)`，output handler 就不再给它写作者那条。节点表里这一行带 `conceiver`、`modstr` 两个字段（`_table`、`_conceiver`），提示词里不显示；
-- 没有 modstr 的节点（实体、名词短语里的事件）不写 modal。
+**modal 规则**（`modal/modal.py`）：照 UMR 标注工具（umr-tool.cs.brandeis.edu，jinzhao3611/umr-annotation-tool 的 `modal_converter.py`，依据 "UMR Simplified Modal Annotation to Modal Dependency Structure"）的转换规则，只是不读整句图，而读节点表里 predicate 那一行的 `modstr` 和 `roles`（`_roles`：quote、purpose、condition、modal-predicate，以及 ARG0 / actor / experiencer / causer）。E、M、S、C 是事件，E′ 等是它们的 modstr（没有就是 unspecified）：
 
-用金标 0001、0003、0022 试（句级图用金标载入的，modal 换成规则的，按概念比）：金标 353 / 145 / 49 条 modal，规则漏 157 / 31 / 8 条、多 13 / 0 / 1 条。漏的主要是金标给实体也写的 `(author :full-affirmative 实体)`、`允许` 这类 conceiver、`neutral-affirmative` / `partial-affirmative`；载入的金标树里 outside 没有 `quote`，所以转述那条在这里几乎没起作用。
+| 句级标注 | 文档级 modal |
+|---|---|
+| 只有 modstr | `(author :E′ E)`（output handler 本来就写，连同 `(root :modal author)`） |
+| E `:quote` S（E 是 S 转述的内容） | `(author :S′ S)`、`(author :S′ X)`、`(X :E′ E)`，X 是 S 的 ARG0 / actor / experiencer / causer |
+| E `:modal-predicate` M | `(author :E′ X)`、`(X :full-affirmative M)`、`(M :unspecified E)`，X 是情态动词 M 的施事（工具取的是 E 的，指南的例子是 M 的） |
+| M `:purpose` E | `(author :M′ M)`；M 有施事 X：`(author :E′ X)`、`(X :partial-affirmative purpose)`，否则 `(author :partial-affirmative purpose)`；再 `(purpose :full-affirmative E)` |
+| M `:condition` C | `(author :neutral-affirmative have-condition)`、`(have-condition :C′ C)`、`(have-condition :M′ M)` |
 
-**引用和变量名**：三步的 source、target 都用节点编号 `"<句号>:<节点编号>[/片段里的变量]"`（如 `3:0.1`、`3:0.1/s3x2`），不是 .umr 的变量。.umr 的变量是 output handler 拼图时统一重新起的：每个节点 `s<句号><概念的第一个英文字母>`，没有英文字母的用 `x`，同一句里已经有了就加 2、3……（`_SentenceGraph._var`，用一个集合记住这一句用过的名字），所以不会重名；不同句的句号不同，也不会撞。文档级的引用在这之后翻译：编号 → 那一步的头节点（合并过的节点 → 合并到的那个），`/变量` → 那一步片段里的那个节点；指不到的关系不写进去。
+找不到 conceiver（「据报道」这类没写转述者的）：工具退回到 author，指南第 1 部分 "Pope … was charged with spying" 的例子用一个空的 conceiver（`NULL_CHARGER`）；这里照指南写 `null-conceiver`（工具里给空 conceiver 起的名字）。没有 modstr 的节点（实体、名词短语里的事件、同位语的 identity-91）不写 modal。
+
+用金标 0001、0003、0022 试（句级图用金标载入的，modal 换成规则的，按概念比）：金标 353 / 145 / 49 条，规则漏 178 / 32 / 8、多 84 / 6 / 1。差别多半是金标自己的写法：给实体也写 `(author :full-affirmative 实体)`；转述内容的 conceiver 有时取内容事件自己的 ARG0（0001 第 15 句）；没写转述者时写 author。
+
+**引用和变量名**：片段里的变量是模型在那一步自己起的名字，只在那一步里有效；同一步里每个变量只能指一个节点、占位或 outside 项，重了就当答案不合格让模型重答（`_check_fragment`）。三步的 source、target 都用节点编号 `"<句号>:<节点编号>[/片段里的变量]"`（如 `3:0.1`、`3:0.1/s3x2`），不是 .umr 的变量。.umr 的变量是 output handler 拼图时统一重新起的：每个节点 `s<句号><概念的第一个英文字母>`，没有英文字母的用 `x`，同一句里已经有了就加 2、3……（`_SentenceGraph._var`，用一个集合记住这一句用过的名字），所以不会重名；不同句的句号不同，也不会撞。文档级的引用在这之后翻译：编号 → 那一步的头节点（合并过的节点 → 合并到的那个），`/变量` → 那一步片段里的那个节点；指不到的关系不写进去。
 
 ## 7. 流程（registry）：两波
 
