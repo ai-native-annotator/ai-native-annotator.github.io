@@ -120,8 +120,8 @@ async function stepThrough(page, max = 80) {
   check('sent_type asked Jev', calls.jev > 0, `${calls.jev} requests, ${calls.questions} questions`);
   check('the agent skills went to Haiku with the system prompt and their skill.md', calls.haiku > 0 && calls.heads > 0
     && [...calls.systems].every((x) => x.startsWith('You are an expert annotator of Uniform Meaning Representation')), `${calls.haiku} calls`);
-  check('search_annotations works in the page (whole gold sentences from resources/gold/zh, and example.md sections)',
-    !!calls.tools.goldRead && !!calls.tools.examplesRead, JSON.stringify(calls.tools));
+  check('search_annotations works in the page (whole gold sentences from resources/gold/zh, and nothing else)',
+    !!calls.tools.goldRead && !calls.tools.examplesRead, JSON.stringify(calls.tools));
   check('search_guidelines works in the page (passages of the UMR guidelines)', !!calls.tools.guidelinesRead, JSON.stringify(calls.tools));
   check('propbank_lookup works in the page (吃 → 吃-01 from the merged PropBank file)', !!calls.tools.propbankRead, JSON.stringify(calls.tools));
   await page.click('.tree li:has(.sk:text-is("predicate"))');

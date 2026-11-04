@@ -187,9 +187,8 @@ EXAMPLES_OLD = [
 ]
 EXAMPLES_NEW = """To see how a case is annotated, call `search_annotations` with the language and a
 few keywords: words of the text, concepts (`have-org-role-91`), roles (`:ARG1-of`). It
-returns whole gold sentence annotations, and the worked examples of this procedure's
-skills, that contain them. To check a rule, call `search_guidelines` with keywords: it
-returns the matching sections of the UMR guidelines."""
+returns whole gold sentence annotations that contain them. To check a rule, call
+`search_guidelines` with keywords: it returns the matching sections of the UMR guidelines."""
 # step ids on the web: "0B" for a sent_type step, "0" for the step it starts ("0.1.2" instead of
 # "0.0.1.0.2.0"), "<step>.<k>A" for an outside item's antecedent node (sp_bridge.py, node_key);
 # the output handler sorts and resolves them
@@ -416,6 +415,9 @@ def compose(sp, lang):
             raise SystemExit("%s: cannot replace what it says about get_example" % md)
         for old in EXAMPLES_OLD:
             body = body.replace(old, EXAMPLES_NEW)
+        # web: no reference/example.md (search_annotations searches the gold data only)
+        if os.path.isdir(os.path.join(dst, skill, "reference")):
+            shutil.rmtree(os.path.join(dst, skill, "reference"))
         for old, new in OUTSIDE_FORMAT.get(skill, []):
             if body.count(old) != 1:
                 raise SystemExit("%s: cannot find %r" % (md, old[:60]))

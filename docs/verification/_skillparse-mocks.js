@@ -84,7 +84,7 @@ module.exports = function mocks() {
       const res = body.messages.filter((m) => m.role === 'tool').map((m) => m.content).join('');
       // whole gold sentences, read in the page's Python from resources/gold/zh/gold.json
       if (res.includes('sentence level graph') && res.includes('have-org-role-91')) calls.tools.goldRead = true;
-      if (res.includes('"examples"') && res.includes('"skill"')) calls.tools.examplesRead = true;
+      if (res.includes('"examples"')) calls.tools.examplesRead = true;
       if (res.includes('"heading"') && /Aspect/.test(res)) calls.tools.guidelinesRead = true;
       if (res.includes('"吃-01"')) calls.tools.propbankRead = true;
     }

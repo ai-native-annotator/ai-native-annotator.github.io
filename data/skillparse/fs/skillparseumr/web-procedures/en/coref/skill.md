@@ -34,9 +34,8 @@ for the very same occurrence retold.
 
 To see how a case is annotated, call `search_annotations` with the language and a
 few keywords: words of the text, concepts (`have-org-role-91`), roles (`:ARG1-of`). It
-returns whole gold sentence annotations, and the worked examples of this procedure's
-skills, that contain them. To check a rule, call `search_guidelines` with keywords: it
-returns the matching sections of the UMR guidelines.
+returns whole gold sentence annotations that contain them. To check a rule, call
+`search_guidelines` with keywords: it returns the matching sections of the UMR guidelines.
 
 ## Input
 

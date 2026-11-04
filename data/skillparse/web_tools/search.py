@@ -1,8 +1,7 @@
 """search_annotations and search_guidelines: two tools every agent skill has (web).
 
     search_annotations(language, keywords)  gold UMR annotations of whole sentences that contain the
-                                            keywords, and the worked examples (reference/example.md)
-                                            of the procedure's skills that contain them
+                                            keywords
     search_guidelines(keywords)             the sections of the UMR guidelines that contain them
 
 The data is under data/skillparse/resources/ (built by scripts/sync_skillparse.py):
@@ -27,26 +26,25 @@ _cache = {}
 
 
 def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str], max_results: int = 3) -> dict:
-    """Find how a case is annotated: gold UMR annotations, and this procedure's worked examples.
+    """Find how a case is annotated: gold UMR annotations of whole sentences.
 
     language: "zh" (Chinese) or "en" (English).
     keywords: words or pieces to look for, matched anywhere in a sentence or its annotation:
     words of the text (e.g. "发生", "wanted to"), concepts ("have-org-role-91", "identity-91"),
     roles (":ARG1-of", ":manner"), attribute values (":aspect state"). Sentences with more of the
     keywords come first.
-    max_results: how many gold sentences and how many example sections to return (at most 10).
+    max_results: how many gold sentences to return (at most 10).
 
     Returns {"gold": [{"doc", "sentence_number", "sentence", "annotation"}], where annotation is
     the sentence's whole annotation (words, sentence-level graph, alignment, document-level
-    annotation); "examples": [{"skill", "section", "text"}] from the skills' reference/example.md;
-    "found": how many gold sentences and example sections matched in all}.
+    annotation); "found": how many gold sentences matched in all}.
     """
     lang = _lang(language)
     if lang is None:
-        return {"gold": [], "examples": [], "error": f"language must be zh or en, not {language!r}"}
+        return {"gold": [], "error": f"language must be zh or en, not {language!r}"}
     words = _keywords(keywords)
     if not words:
-        return {"gold": [], "examples": [], "error": "give at least one keyword"}
+        return {"gold": [], "error": "give at least one keyword"}
     n = _count(max_results, 3)
     skip = {_plain(s) for s in ((getattr(ctx, "deps", None) or {}).get("doc_sentences") or [])}
     gold, left_out = [], 0
@@ -59,17 +57,10 @@ def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str]
             continue
         gold.append((hits, len(rec["annotation"]), rec))
     gold.sort(key=lambda x: (-x[0][0], -x[0][1], x[1]))
-    examples = []
-    for skill, section, text in _examples(lang):
-        hits = _hits(text, words)
-        if hits[0]:
-            examples.append((hits, len(text), skill, section, text))
-    examples.sort(key=lambda x: (-x[0][0], -x[0][1], x[1]))
     out = {
         "gold": [{"doc": r["doc"], "sentence_number": r["snt"], "sentence": r["text"],
                   "annotation": _clip(r["annotation"])} for _, _, r in gold[:n]],
-        "examples": [{"skill": s, "section": h, "text": _clip(t)} for _, _, s, h, t in examples[:n]],
-        "found": {"gold": len(gold), "examples": len(examples)},
+        "found": len(gold),
     }
     if left_out:
         out["left_out"] = f"{left_out} matching sentences of the document being annotated are not shown"
@@ -160,25 +151,6 @@ def _gold(lang):
         _cache[key] = [(r, (r["text"] + "\n" + r["annotation"]).lower()) for r in recs]
     return _cache[key]
 
-
-def _examples(lang):
-    """(skill, section heading, text) of every `## ` section of the procedure's reference/example.md files."""
-    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", lang)
-    out = []
-    if not os.path.isdir(root):
-        return out
-    for skill in sorted(os.listdir(root)):
-        path = os.path.join(root, skill, "reference", "example.md")
-        if not os.path.isfile(path):
-            continue
-        with open(path, encoding="utf-8") as f:
-            text = f.read()
-        parts = re.split(r"(?m)^(?=## )", text)
-        for part in parts:
-            head = part.split("\n", 1)[0].lstrip("# ").strip()
-            if part.strip():
-                out.append((skill, head, part.strip()))
-    return out
 
 
 def _guideline_sections():
