@@ -104,7 +104,8 @@ async function boot() {
   console.info('SkillParse Python ready', info);
   // the documents imported in this browser: the page's Python starts with only the samples
   for (const rec of await allImports()) {
-    await py('import_doc', { name: rec.name, text: rec.text, fmt: rec.fmt }).catch((err) => console.warn('re-import', rec.name, err));
+    await py('import_doc', { name: rec.name, text: rec.text, fmt: rec.fmt, ...(rec.lang ? { lang: rec.lang } : {}) })
+      .catch((err) => console.warn('re-import', rec.name, err));
   }
   await loadDocs();
   const params = new URLSearchParams(location.search);

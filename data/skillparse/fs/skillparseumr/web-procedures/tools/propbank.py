@@ -21,6 +21,7 @@ import json
 import os
 
 LIMIT = 20                      # lemmas a call looks up
+PROPBANKS = ("zh", "en")        # the languages there is a PropBank for
 _ZH_PARTICLES = ("了", "着", "过", "起来", "下去", "出来", "上去")
 _EN_SUFFIXES = [("ies", "y"), ("ied", "y"), ("ing", ""), ("ed", ""), ("en", ""), ("es", ""), ("s", "")]
 _cache = {}
@@ -32,9 +33,11 @@ def propbank_lookup(lemmas: list[str], language: str) -> str:
     language is "en" or "zh". Returns Markdown: per lemma, every roleset with its roles and all
     its examples (the sentence, then each argument; traces such as *T*-1 are PropBank's own),
     or "not in PropBank". Lemmas over the limit are not looked up: the last line names them
-    (call again with them).
+    (call again with them). There is no PropBank for another language (Uzbek): nothing.
     """
     lang = _lang(language)
+    if lang not in PROPBANKS:
+        return "There is no PropBank for this language (%s): nothing to look up." % language
     asked = [str(x).strip() for x in (lemmas or []) if isinstance(x, str) and x.strip()]
     parts = [_markdown(lemma, *_find(lemma, lang)) for lemma in asked[:LIMIT]]
     if len(asked) > LIMIT:
@@ -51,12 +54,19 @@ def _rolesets(lemma, language):
 # ------------------------------------------------------------------ helpers
 
 def _lang(language):
-    # a model may write "Chinese" or "中文" for "zh"
-    return "zh" if str(language).strip().lower()[:2] in ("zh", "ch", "中文") else "en"
+    # a model may write "Chinese" or "中文" for "zh", "Uzbek" or "o'zbek" for "uz"
+    low = str(language).strip().lower()
+    if low[:2] in ("zh", "ch", "中文"):
+        return "zh"
+    if low[:2] in ("uz", "o'", "oʻ", "o‘") or low.startswith("ўз"):
+        return "uz"
+    return "en"
 
 
 def _find(lemma, lang):
     """(the form found, its rolesets) for the lemma or the first alternate form PropBank has."""
+    if lang not in PROPBANKS:
+        return lemma, []
     data = _data(lang)
     for form in _variants(lemma, lang):
         found = data.get(form)

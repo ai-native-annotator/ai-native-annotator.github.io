@@ -249,9 +249,13 @@ async function stepThrough(page, max = 80) {
   await page.bringToFront();
   const timeOf = async () => (await page.textContent('#btn-timer')).replace('⏱', '').trim();
   const t0 = await timeOf();
-  await page.waitForTimeout(2600);
-  const t1 = await timeOf();
   const secs = (x) => x.split(':').reduce((a, b) => a * 60 + Number(b), 0);
+  // ticks once a second: two more seconds within ten
+  await page.waitForFunction((start) => {
+    const v = document.getElementById('btn-timer').textContent.replace('⏱', '').trim();
+    return v.split(':').reduce((a, b) => a * 60 + Number(b), 0) >= start + 2;
+  }, secs(t0), { timeout: 10000 }).catch(() => {});
+  const t1 = await timeOf();
   check('the timer counts the selected sentence in the selected wave while the page has the focus', secs(t1) >= secs(t0) + 2, `${t0} → ${t1}`);
   await page.click('#btn-timer');
   const table = await page.$$eval('#menu-timer .timer-table', (ts) => ts.map((x) => ({
@@ -355,6 +359,20 @@ async function stepThrough(page, max = 80) {
   const back = await page.$$eval('.tree li', (els) => els.map((e) => `${e.querySelector('.sk').textContent}${e.querySelector('.st').textContent}`));
   check('the same document opens with every step as it was', (await page.$eval('#doc', (e) => e.value)) === 'english_umr-0008'
     && back.join(' ') === kept.join(' '), `${kept.join(' ')} -> ${back.join(' ')}`);
+
+  // the Uzbek procedure: its sample document opens with it, and a sentence runs
+  await page.selectOption('#doc', 'uzbek_sample');
+  await statusIs(page, /就绪/);
+  check('the Uzbek document opens with the Uzbek procedure (eight skills)', (await page.$eval('#skillset', (e) => e.value)) === 'web-uz'
+    && (await page.$$('.skill')).length === 8);
+  const nInUz = calls.inputs.length;
+  const nJevUz = calls.jevStates.length;
+  await stepThrough(page);
+  const uzSteps = await page.$$eval('.tree li .st', (e) => e.map((x) => x.textContent));
+  const uzIn = calls.inputs.slice(nInUz);
+  check('the Uzbek procedure runs: Jev is told the language, the agent skills get the Uzbek skill.md',
+    uzSteps.length >= 3 && uzSteps.every((x) => x === '✓') && calls.jevStates.slice(nJevUz).some((st) => st.language === 'Uzbek')
+    && uzIn.some((u) => /Language: uz/.test(u)) && uzIn.some((u) => u.includes('(Uzbek)')), `${uzSteps.join('')} · ${uzIn.length} agent calls`);
 
   check('no page errors', errs.length === 0, errs.slice(0, 5).join('\n      '));
   await browser.close();

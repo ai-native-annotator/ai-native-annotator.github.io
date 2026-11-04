@@ -44,7 +44,13 @@ DO = SP + "/experiment/decision-orchestration"
 SKILLSETS = {
     "web-zh": {"path": SP + "/web-procedures/zh/registry.yaml", "lang": "zh"},
     "web-en": {"path": SP + "/web-procedures/en/registry.yaml", "lang": "en"},
+    "web-uz": {"path": SP + "/web-procedures/uz/registry.yaml", "lang": "uz"},
 }
+# languages a document can say it is in (a `# :: lang <code>` line at the top of its .umr); one
+# without the line is zh when it has Chinese characters, else en
+LANGS = ("zh", "en", "uz")
+# Uzbek words keep their apostrophes (o', g', ʻ) and hyphens (2023-yil); punctuation is a token
+UZ_TOKEN = re.compile(r"[\w'ʻʼ‘’`-]+|[^\w\s]")
 # scripts/run_experiment.py: the system prompt every agent skill call gets
 SYSTEM = ("You are an expert annotator of Uniform Meaning Representation (UMR), following the "
           "UMR guidelines. Do exactly the one task you are given.")
@@ -314,16 +320,21 @@ def umr_from_text(text, lang=None):
     lang = lang or U.guess_lang(text)
     blocks = []
     for n, line in enumerate(lines, 1):
-        words = U.tokenize(line, lang)
+        words = UZ_TOKEN.findall(line) if lang == "uz" else U.tokenize(line, lang)
         blocks.append("\n".join([RULE80, "# :: snt%d" % n,
                                  "Index: " + " ".join(str(k + 1) for k in range(len(words))),
                                  "Words: " + " ".join(words), "", "# sentence level graph:", "",
                                  "# alignment:", "", "# document level annotation:", ""]))
-    return "\n\n".join(blocks) + "\n", lang
+    head = "# :: lang %s\n" % lang if lang not in ("zh", "en") else ""
+    return head + "\n\n".join(blocks) + "\n", lang
 
 
 def doc_lang(umr_text):
-    """zh when the sentences (Words: lines, else the whole text) have Chinese characters."""
+    """The language a document says it is in (`# :: lang uz`), else zh when the sentences (Words:
+    lines, else the whole text) have Chinese characters, else en."""
+    said = re.search(r"^#\s*::\s*lang\s+(\w+)\s*$", umr_text, re.M)
+    if said and said.group(1) in LANGS:
+        return said.group(1)
     words = "".join(re.findall(r"^Words:(.*)$", umr_text, re.M)) or umr_text
     return "zh" if re.search(r"[一-鿿]", words) else "en"
 
@@ -1647,6 +1658,9 @@ class Session:
             out = strip_umr(text)
             if not out:
                 raise StepError("no sentences found: a .umr file has `# :: snt1` lines (and Words: lines)")
+            said = lang if lang in LANGS else doc_lang(text)
+            if said not in ("zh", "en"):
+                out = "# :: lang %s\n" % said + out
         else:
             if fmt == "txt-split":
                 lang = lang or U.guess_lang(text)

@@ -1,0 +1,60 @@
+# :: lang uz
+################################################################################
+# :: snt1
+Index: 1 2 3 4 5 6 7 8 9
+Words: Toshkent O'zbekistonning poytaxti va eng katta shahri hisoblanadi .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt2
+Index: 1 2 3 4 5 6 7
+Words: Shahar aholisi uch million kishidan ortiq .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt3
+Index: 1 2 3 4 5 6 7
+Words: Kecha prezident shaharda yangi maktabni ochdi .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt4
+Index: 1 2 3 4 5 6 7 8 9 10
+Words: U o'quvchilar bilan suhbatlashdi va ularga kitoblar sovg'a qildi .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+
+
+################################################################################
+# :: snt5
+Index: 1 2 3 4 5 6 7 8 9 10 11 12
+Words: Maktab direktorining aytishicha , bu yil maktabda ming nafar bola o'qiydi .
+
+# sentence level graph:
+
+# alignment:
+
+# document level annotation:
+

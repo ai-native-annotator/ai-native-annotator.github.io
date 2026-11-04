@@ -72,6 +72,9 @@ export function openImport() {
   });
   const pick = (v) => radios.forEach(([x, r]) => { r.checked = x === v; });
   const chosen = () => radios.find(([, r]) => r.checked)[0];
+  // the document's language: found from the text (Chinese characters or not), or said (Uzbek)
+  const lang = h('select', {}, [['', t('langAuto')], ['zh', '中文'], ['en', 'English'], ['uz', "O'zbekcha"]]
+    .map(([v, label]) => h('option', { value: v, text: label })));
   const err = h('div', { class: 'err' });
   file.addEventListener('change', async () => {
     const f = file.files[0];
@@ -91,6 +94,7 @@ export function openImport() {
     h('fieldset', { class: 'card', style: 'display:grid;gap:4px' }, h('legend', { text: t('importFormat') }), radios.map((x) => x[2])),
     h('label', { text: t('paste') }), area,
     h('label', { class: 'row' }, h('span', { text: t('docName') }), name),
+    h('label', { class: 'row' }, h('span', { text: t('docLang') }), lang),
     err,
     h('div', {}, h('button', { class: 'btn primary', text: t('importGo'), onclick: async () => {
       const text = area.value.trim();
@@ -98,14 +102,14 @@ export function openImport() {
       err.textContent = '';
       let res;
       try {
-        res = await py('import_doc', { name: name.value.trim(), text, fmt: chosen() });
+        res = await py('import_doc', { name: name.value.trim(), text, fmt: chosen(), ...(lang.value ? { lang: lang.value } : {}) });
       } catch (e) {
         err.textContent = e.message;
         return;
       }
       // the open document of this name is replaced: its unsaved changes must not be kept for it
       if (S.doc === res.id) await forgetChanges();
-      await putImport({ name: res.id, text, fmt: chosen() });
+      await putImport({ name: res.id, text, fmt: chosen(), lang: lang.value || null });
       // work kept for an earlier document of this name is not work on this one
       await Promise.all(SKILLSETS.map((s) => dropWork(workKey(s.id, res.id))));
       await loadDocs();

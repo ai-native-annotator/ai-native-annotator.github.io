@@ -21,14 +21,16 @@ from pydantic_ai import RunContext
 MAX_RESULTS = 10
 MAX_TEXT = 6000                 # characters of one returned annotation or section
 CHUNK = 3000                    # a guideline section longer than this is returned in passages
-LANGS = {"zh": "zh", "chinese": "zh", "中文": "zh", "汉语": "zh", "en": "en", "english": "en", "英文": "en", "英语": "en"}
+LANGS = {"zh": "zh", "chinese": "zh", "中文": "zh", "汉语": "zh", "en": "en", "english": "en", "英文": "en", "英语": "en",
+         "uz": "uz", "uzbek": "uz", "o'zbek": "uz", "oʻzbek": "uz", "o'zbekcha": "uz"}
+GOLD = ("zh", "en")             # the languages there is gold data for
 _cache = {}
 
 
 def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str], max_results: int = 3) -> dict:
     """Find how a case is annotated: gold UMR annotations of whole sentences.
 
-    language: "zh" (Chinese) or "en" (English).
+    language: "zh" (Chinese) or "en" (English); there is no gold data for "uz" (Uzbek).
     keywords: words or pieces to look for, matched anywhere in a sentence or its annotation:
     words of the text (e.g. "发生", "wanted to"), concepts ("have-org-role-91", "identity-91"),
     roles (":ARG1-of", ":manner"), attribute values (":aspect state"). Sentences with more of the
@@ -41,7 +43,9 @@ def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str]
     """
     lang = _lang(language)
     if lang is None:
-        return {"gold": [], "error": f"language must be zh or en, not {language!r}"}
+        return {"gold": [], "error": f"language must be zh, en or uz, not {language!r}"}
+    if lang not in GOLD:
+        return {"gold": [], "found": 0, "note": f"there is no gold data for {language!r}"}
     words = _keywords(keywords)
     if not words:
         return {"gold": [], "error": "give at least one keyword"}

@@ -23,6 +23,7 @@ import { t } from './i18n.js';
 export const SKILLSETS = [
   { id: 'web-zh', label: '中文 · sent_type: Jev, 其余: 所选模型 (R42 + V12)', lang: 'zh' },
   { id: 'web-en', label: 'English · sent_type: Jev, rest: the chosen model (umr-tree + V12)', lang: 'en' },
+  { id: 'web-uz', label: "O'zbekcha · sent_type: Jev, rest: the chosen model (from English; no PropBank, no gold)", lang: 'uz' },
 ];
 
 export const S = {

@@ -555,6 +555,82 @@ def write_resources(sp, mp):
                 "(https://github.com/umr4nlp/umr-guidelines/blob/master/guidelines.md), sha256 %s.\n" % digest)
 
 
+# the Uzbek procedure (web): the composed English one (registry, sent_type and its jevlib), with
+# the site's Uzbek skill.md files (web_skills/uz) and jevlib told about Uzbek. There is no Uzbek
+# PropBank and no Uzbek gold: the tools answer nothing for "uz"
+UZ = "uz"
+UZ_FROM = "en"
+UZ_SKILLS = ["discourse", "predicate", "np_phrase", "special_entity", "temporal", "coref"]
+WEB_DOCS = os.path.join(OUT, "web_docs")
+UZ_DOCS = {"uzbek_sample": "uzbek_sample.txt"}       # one sentence per line, tokens split by spaces
+FUNCTION_UZ = """
+va hamda yoki yo lekin ammo biroq balki esa ham chunki agar garchi go'yo deb ki-ku
+bilan uchun haqida kabi singari sari tomon orqali keyin so'ng oldin beri qadar sababli tufayli
+emas edi ekan emish bo'lsa ham-da
+"""
+JEVLIB_UZ = [
+    ('            "language": "Chinese" if lang == "zh" else "English", **more}',
+     '            "language": {"zh": "Chinese", "uz": "Uzbek"}.get(lang, "English"), **more}'),
+    ('    return is_punct(w) or (w.text.lower() in (FUNCTION_ZH if lang == "zh" else FUNCTION_EN))',
+     '    return is_punct(w) or (w.text.lower() in (FUNCTION_ZH if lang == "zh" else FUNCTION_UZ if lang == "uz"\n'
+     '                                              else FUNCTION_EN))'),
+    ('\n\n@dataclass(frozen=True)\nclass Word:',
+     '\n# web: Uzbek conjunctions, postpositions and particles\nFUNCTION_UZ = set("""%s""".split())\n\n\n'
+     '@dataclass(frozen=True)\nclass Word:' % FUNCTION_UZ),
+    ('PRONOUNS = {\n',
+     'PRONOUNS = {\n'
+     '    # web: Uzbek, with the case forms a pronoun takes\n'
+     '    "uz": {**{w: ("person", "1st", "singular") for w in "men meni menga menda mendan mening".split()},\n'
+     '           **{w: ("person", "2nd", "singular") for w in "sen seni senga senda sendan sening".split()},\n'
+     '           **{w: ("person", "3rd", "singular") for w in "u uni unga unda undan uning".split()},\n'
+     '           **{w: ("person", "1st", "plural") for w in "biz bizni bizga bizda bizdan bizning".split()},\n'
+     '           **{w: ("person", "2nd", "plural") for w in "siz sizni sizga sizda sizdan sizning".split()},\n'
+     '           **{w: ("person", "3rd", "plural") for w in "ular ularni ularga ularda ulardan ularning".split()}},\n'),
+]
+
+
+def compose_uz():
+    """web-procedures/uz: the composed English procedure with the Uzbek skill files."""
+    src = os.path.join(FS, "skillparseumr", WEB, UZ_FROM)
+    dst = os.path.join(FS, "skillparseumr", WEB, UZ)
+    shutil.copytree(src, dst, ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
+    for skill in UZ_SKILLS:
+        shutil.copyfile(os.path.join(WEB_SKILLS, UZ, skill, "skill.md"), os.path.join(dst, skill, "skill.md"))
+    reg = os.path.join(dst, "registry.yaml")
+    with open(reg, encoding="utf-8") as f:
+        text = f.read()
+    first = "# web-procedures/%s, composed" % UZ_FROM
+    if not text.startswith(first):
+        raise SystemExit("%s: no header" % reg)
+    text = ("# web-procedures/uz, the Uzbek procedure (web): web-procedures/en below, with the site's Uzbek\n"
+            "# skill.md files (web_skills/uz; Uzbek has no PropBank: an event is its verb stem with the general\n"
+            "# participant roles) and jevlib.py told about Uzbek. No Uzbek gold data.\n"
+            + text.replace(first, "# web-procedures/%s, composed" % UZ, 1))
+    with open(reg, "w", encoding="utf-8") as f:
+        f.write(text)
+    jev = os.path.join(dst, "jevlib.py")
+    with open(jev, encoding="utf-8") as f:
+        text = f.read()
+    for old, new in JEVLIB_UZ:
+        if text.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (jev, old[:60]))
+        text = text.replace(old, new)
+    with open(jev, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def write_uz_docs():
+    """The Uzbek sample documents: header-only .umr files that say their language (`# :: lang uz`)."""
+    for name, rel in UZ_DOCS.items():
+        with open(os.path.join(WEB_DOCS, rel), encoding="utf-8") as f:
+            lines = [line.split() for line in f if line.strip()]
+        blocks = ["\n".join([RULE, "# :: snt%d" % (n + 1), "Index: " + " ".join(str(k + 1) for k in range(len(w))),
+                             "Words: " + " ".join(w), "", "# sentence level graph:", "", "# alignment:", "",
+                             "# document level annotation:", ""]) for n, w in enumerate(lines)]
+        with open(os.path.join(OUT, "docs", name + ".umr"), "w", encoding="utf-8") as f:
+            f.write("# :: lang %s\n" % UZ + "\n\n".join(blocks) + "\n")
+
+
 def write_docs(sp):
     os.makedirs(os.path.join(OUT, "docs"), exist_ok=True)
     for name, rel in DOCS.items():
@@ -592,6 +668,7 @@ def main(sp, mp, penman_whl=None):
         f.write(text)
     for lang in PROCEDURES:
         compose(sp, lang)
+    compose_uz()
     for rel in SHARED_TOOLS:
         dst = os.path.join(FS, "skillparseumr", WEB, "tools", os.path.basename(rel))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -622,6 +699,7 @@ def main(sp, mp, penman_whl=None):
                 + "".join("- `%s.json`: `%s/*.xml`, every roleset with its roles and all its examples\n" % kv
                           for kv in PROPBANK.items()))
     write_docs(sp)
+    write_uz_docs()
     files = []
     for root in (FS, os.path.join(OUT, "bridge"), os.path.join(OUT, "docs")):
         for base, _, names in os.walk(root):

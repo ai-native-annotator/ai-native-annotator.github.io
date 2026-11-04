@@ -294,6 +294,15 @@ document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`
 
 **引用和变量名**：片段里的变量是模型在那一步自己起的名字，只在那一步里有效；同一步里每个变量只能指一个节点、占位或 outside 项，重了就当答案不合格让模型重答（`_check_fragment`）。三步的 source、target 都用节点编号 `"<句号>:<节点编号>[/片段里的变量]"`（如 `3:0.1`、`3:0.1/s3x2`），不是 .umr 的变量。.umr 的变量是 output handler 拼图时统一重新起的：每个节点 `s<句号><概念的第一个英文字母>`，没有英文字母的用 `x`，同一句里已经有了就加 2、3……（`_SentenceGraph._var`，用一个集合记住这一句用过的名字），所以不会重名；不同句的句号不同，也不会撞。文档级的引用在这之后翻译：编号 → 那一步的头节点（合并过的节点 → 合并到的那个），`/变量` → 那一步片段里的那个节点；指不到的关系不写进去。
 
+### 乌兹别克语流程（`web-uz`）
+
+`web-procedures/uz` 由同步脚本做出（`compose_uz`）：拿组好的英文流程（registry、sent_type 和它的 jevlib，两波、modal 规则都一样），换上本站写的乌兹别克语 skill.md（`data/skillparse/web_skills/uz/`：discourse、predicate、np_phrase、special_entity、temporal、coref，以英文版为底，加上中文版里不限于中文的规则，改成乌兹别克语的写法），再给 jevlib 打补丁：Jev 看到的语言是 Uzbek，加上乌兹别克语的虚词表（连词、后置词、语气词）和代词（各个格的形式）。
+
+- **没有 PropBank**：照 UMR 指南 Part 3-2-1-1（Stage 0），动词概念用词干、不带义项号（`ochdi` → `och`），参与者用通用角色（`actor`、`undergoer`、`theme`、`recipient`、`experiencer` 等）；抽象概念（`identity-91`、`have-org-role-92`…）照旧用编号角色；`frame` 写 `{}`。
+- **没有金标**：`propbank_lookup` 对乌兹别克语回答 "There is no PropBank for this language"，`search_annotations` 回答 `{"gold": [], "found": 0, "note": …}`；`search_guidelines` 照常能用。
+- **文档的语言**：`.umr` 开头写 `# :: lang uz`（`doc_lang` 先看这一行，没有就是有汉字为中文、否则英文）。导入框多了「语言」一项（自动 / 中文 / English / O'zbekcha），选了乌兹别克语就写这一行；按行导入时把标点切成单独的词，词里的 `'`、`ʻ`、连字符保留（`O'zbekiston`、`2023-yil`）。
+- **样例文档**：`uzbek_sample`（5 句，`data/skillparse/web_docs/uzbek_sample.txt`）。
+
 ## 7. 流程（registry）：两波
 
 两套流程在 `web-procedures/zh/registry.yaml` 和 `web-procedures/en/registry.yaml`，结构一样。
@@ -570,6 +579,7 @@ sentences:
 | document 的输入 | `sents` + `trees`（reentrancy 那一波的整棵树） | `sentences`：sentence 那一波生成的每句节点表（编号、full span、概念、类型、skill）；skill.md 讲输入的几段改成说明这张表 |
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
+| 乌兹别克语 | — | `web-uz`：英文流程 + 本站写的乌兹别克语 skill.md；没有 PropBank（词干概念 + 通用角色）、没有金标 |
 | PropBank | 每个词条一个 XML（中文 24,521 个）；英文查 `arg-descr.txt`；`propbank_lookup` 返回 JSON，只有角色 | 中英文各合并成一个 JSON，带全部例子，放在 `resources/propbank/`，第一次查询时取来；本站的 `propbank.py` 读它，返回 Markdown（角色和全部例子）；中文的 roleset 和角色与原来完全相同，英文 `arg-descr.txt` 的 8,733 个 roleset 全都有 |
 | `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉（同步时不复制）；例子从金标里搜 |
 | 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成（照 umr-tool 的转换）；temporal、coref 各一个 agent 步骤（本站写的 skill.md，由 document 的两节精简而来） |
