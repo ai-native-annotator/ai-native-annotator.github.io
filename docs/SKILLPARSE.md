@@ -303,6 +303,23 @@ document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`
 - **文档的语言**：`.umr` 开头写 `# :: lang uz`（`doc_lang` 先看这一行，没有就是有汉字为中文、否则英文）。导入框多了「语言」一项（自动 / 中文 / English / O'zbekcha），选了乌兹别克语就写这一行；按行导入时把标点切成单独的词，词里的 `'`、`ʻ`、连字符保留（`O'zbekiston`、`2023-yil`）。
 - **样例文档**：`uzbek_sample`（5 句，`data/skillparse/web_docs/uzbek_sample.txt`）。
 
+### wave 0：一次生成整句（`generate`，web）
+
+每套流程（中文、英文、乌兹别克语）最前面多了一波 `generate`，每句一个 episode，按顺序（`parallel: 1`：每句要看前面五句生成的结果）。它是可选的：文档打开时仍停在 sentence 这一波，照原来一步步标也行。
+
+1. **`umr_generate`**（agent，`web_skills/<lang>/umr_generate/skill.md`）：一次写出这一句的句级图（penman）、每个节点的对齐（`{变量: [首, 尾]}`，页面的 token 编号）和文档级标注（`(s<N>s0 / sentence :temporal … :modal … :coref …)`）。输入是句子、token、句号，以及前五句生成的图和文档级标注（`before`，registry 里 `pick: generated`）。变量以 `s<句号>` 开头，文档级标注用前几句图里的变量名指它们的节点。**模型单独设置**：角色 `generate`，默认 GPT-6.1 Sol（OpenRouter `openai/gpt-6.1-sol`），也可以换成 Opus 5.5；在 generate 这一波时，工具栏的「模型」就是这一波的模型。
+2. **`convert`**（规则，`web_skills/convert/convert.py`）：用 penman 解析图（解析不了、一个变量两个概念、span 超出句子就算出错，让人带提示重跑 umr_generate），检查对齐和文档级标注，`problems` 里列出能载入但可疑的地方。确认它之后，网页（`RegistryEngine._apply_generated` → `umr_load.load_generated`）把它载入 sentence、document 两波：和载入 .umr 文件的同一套办法，每一步标「生成」（算已确认，`origin: generated`）；这一句在这两波原来的步骤会被替换。
+
+**模拟的工具调用**：载入（生成的，或从 .umr 载入的）每一步，凡是有带义项号的概念，都替它调一次 `propbank_lookup`，记在这一步的「工具调用」里，标「转换时模拟的调用」（`_simulate_tools`）。
+
+**检查生成的步骤**：每一步可以
+- **按提示局部修改**（`revise`）：模型拿到这一步的输入、现有输出和提示，只改提示说的地方（主要是连接方式：边和角色、属性、outside），整份输出交回来；占位（`open`）没变时，下面的步骤保留，否则按新输出重做；改完要再确认。任何跑完的步骤都可以这样改，规则步骤也行。
+- **带提示重跑**：照原来的做法，按这一步的 skill 重新解析。
+
+**UMR 文本页**：每个变量都是链接，点它跳到写它的那一步（和图里点框一样）。
+
+**工具调用页**：除了模型的调用和模拟的调用，下面可以自己选一个工具、填 JSON 参数调用（标「人工调用」，`tool(..., manual=True)`），结果和模型看到的一样渲染出来。
+
 ## 7. 流程（registry）：两波
 
 两套流程在 `web-procedures/zh/registry.yaml` 和 `web-procedures/en/registry.yaml`，结构一样。
@@ -579,6 +596,7 @@ sentences:
 | document 的输入 | `sents` + `trees`（reentrancy 那一波的整棵树） | `sentences`：sentence 那一波生成的每句节点表（编号、full span、概念、类型、skill）；skill.md 讲输入的几段改成说明这张表 |
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
+| wave 0 | — | `generate`：`umr_generate`（默认 GPT-6.1 Sol）一次写出整句的图和文档级标注，规则 `convert` 检查后载入后面两波；每步可按提示局部修改 |
 | 乌兹别克语 | — | `web-uz`：英文流程 + 本站写的乌兹别克语 skill.md；没有 PropBank（词干概念 + 通用角色）、没有金标 |
 | PropBank | 每个词条一个 XML（中文 24,521 个）；英文查 `arg-descr.txt`；`propbank_lookup` 返回 JSON，只有角色 | 中英文各合并成一个 JSON，带全部例子，放在 `resources/propbank/`，第一次查询时取来；本站的 `propbank.py` 读它，返回 Markdown（角色和全部例子）；中文的 roleset 和角色与原来完全相同，英文 `arg-descr.txt` 的 8,733 个 roleset 全都有 |
 | `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉（同步时不复制）；例子从金标里搜 |

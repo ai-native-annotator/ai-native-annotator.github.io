@@ -297,3 +297,9 @@ body.busy .status::before { content: ""; display: inline-block; width: 10px; hei
 .timer-table tfoot td { border-top: 1px solid var(--line); font-weight: 600; }
 .timer-table td.num { color: var(--muted); }
 .timer-menu .btn { border: 1px solid var(--line); text-align: center; }
+
+/* wave 0: generated steps; a variable of the UMR text is a link to its step */
+.human-tag.generated { background: #eef7ee; color: #2f6b34; border-color: #cfe5cf; }
+.umr-var { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; }
+.umr-var:hover { color: var(--accent); }
+.tool-form textarea { font-family: var(--mono); }

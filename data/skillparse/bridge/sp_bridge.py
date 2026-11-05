@@ -75,6 +75,11 @@ def prompt_value(v):
     if isinstance(v, list) and v and all(isinstance(t, (list, tuple)) and len(t) == 2 and isinstance(t[0], int)
                                          and not isinstance(t[0], bool) for t in v):
         return " ".join("[%d]%s" % (n, tok) for n, tok in v)
+    if isinstance(v, list) and all(isinstance(t, dict) and {"sentence", "graph", "document"} <= set(t) for t in v):
+        if not v:
+            return "(none: this is the first sentence)"
+        return "\n\n".join("### Sentence %s\n\n%s\n\n```\n%s\n```\n\n```\n%s\n```" % (t["sentence"], t["text"], t["graph"],
+                                                                              t["document"]) for t in v)
     if isinstance(v, list) and v and all(isinstance(t, dict) and {"sentence", "text", "nodes"} <= set(t) for t in v):
         cell = lambda x: str(x).replace("|", "\\|").replace("\n", " ")  # noqa: E731
         parts = []
@@ -91,6 +96,16 @@ def prompt_value(v):
 # the roles of an event the modal rule reads: what it is the content of, its purpose and
 # condition, its modal predicate, and who could be its conceiver
 MODAL_ROLES = ("quote", "purpose", "condition", "modal-predicate", "modpred", "ARG0", "actor", "experiencer", "causer")
+# wave 0 (web): umr_generate writes a sentence's whole graph and document-level annotation, and
+# the rule `convert` checks it and loads it into the sentence and document waves (umr_load)
+GENERATE, CONVERT = "umr_generate", "convert"
+# which model role a skill's calls go to (the page's settings): wave 0's own, else the agent skills'
+ROLE_OF = {GENERATE: "generate"}
+REVISE = ("You are revising the output of one step of a UMR annotation. Keep the output as it is, "
+          "except what the person's hint asks to change: mostly how the nodes are connected (the "
+          "edges and their roles), attributes and outside items. Do not change the placeholders "
+          "in `open` (later steps have annotated them) unless the hint asks for it. Answer with "
+          "the whole revised output.")
 NOT_BUILT = "(not built yet)"
 KNOWN_HEAD = ("Nodes of this sentence so far (an `outside` item names one of them by its `node`; "
               "a placeholder whose node is not built yet is listed too):")
@@ -382,6 +397,7 @@ class RegistryEngine:
         self.modules = {}
         self.loading = False                        # umr_load: a person's tree, made without limits
         self.loaded = None                          # what umr_load reported
+        self.refs = {}                              # sentence index -> {variable: node name} (umr_load)
 
     # -- description
 
@@ -456,7 +472,13 @@ class RegistryEngine:
         if any(n["status"] in ("pending", "running") or _unconfirmed(n) for n in ep["nodes"].values()):
             return None
         nodes = sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"]))
-        return {"nodes": [self._node_dict(n) for n in nodes], "table": self._table(i, nodes)}
+        tree = {"nodes": [self._node_dict(n) for n in nodes], "table": self._table(i, nodes)}
+        made = next((n.get("output") for n in nodes if n["skill"] == CONVERT and n["status"] == "ok"), None)
+        if isinstance(made, dict):
+            sent = self.doc.sents[i]
+            tree["generated"] = {"sentence": sent.index, "text": sent.text, "graph": made.get("graph", ""),
+                                 "document": made.get("document", "")}
+        return tree
 
     def _table(self, i, steps):
         """Sentence i's nodes as the document step reads them (registry: `pick: table`): its
@@ -851,9 +873,10 @@ class RegistryEngine:
         return {"need": "llm", "node": node["id"], "skill": node["skill"], "system": p["system"],
                 "instructions": p["instructions"], "input": p["input"] + (retry or ""),
                 "emit": jsonable(skill.emit), "tools": [tool_spec(t) for t in skill_tools(skill.path)],
-                "retry": bool(retry)}
+                "retry": bool(retry), "role": ROLE_OF.get(node["skill"], "haiku"),
+                "revise": bool(node.get("revising"))}
 
-    def tool(self, w, i, nid, name, args):
+    def tool(self, w, i, nid, name, args, manual=False):
         """Run one tool for an agent node; ctx.deps is {"skill_dir", "skill"} as SkillCallable gives it,
         and the sentences of the open document (search_annotations leaves them out)."""
         ep, node = self._node(w, i, nid)
@@ -874,8 +897,61 @@ class RegistryEngine:
                 res = "%s: %s" % (type(e).__name__, e)
         text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
         # kept for the page as the model got it (a PropBank answer with every example is long)
-        node.setdefault("tool_calls", []).append({"tool": name, "args": args, "result": text[:200000]})
+        call = {"tool": name, "args": args, "result": text[:200000]}
+        if manual:
+            call["manual"] = True              # a person's own query, from the tool-calls tab
+        node.setdefault("tool_calls", []).append(call)
         return text
+
+    def revise(self, w, i, nid, hint):
+        """A local change (web): the model revises the step's finished output by the person's hint,
+        keeping what the hint does not touch. When the placeholders stay the same, the steps
+        under it are kept; otherwise they are made again from the revised output."""
+        ep, node = self._node(w, i, nid)
+        if node["status"] != "ok" or not isinstance(node.get("output"), dict):
+            raise StepError("step %s has no output to revise" % nid)
+        if self.running(w, i):
+            raise StepError("a step of this item is running")
+        skill = self.reg.skills[node["skill"]]
+        hint = str(hint or "").strip()
+        if not hint:
+            raise StepError("a local change needs a hint")
+        inputs = self._inputs(ep, node)
+        if skill.kind == "agent":
+            p = self._agent_prompt(skill, inputs, None, node.get("known"))
+        else:
+            fields = ", ".join('"%s"' % k for k in skill.emit)
+            p = {"system": SYSTEM, "instructions": "# Output Format\nYou must produce a JSON object with exactly "
+                 "these fields: %s.\n" % fields, "input": self.input_markdown(w, i, nid)}
+        user = (p["input"].rstrip("\n") + "\n\n## The current output\n\n```json\n"
+                + json.dumps(jsonable(node["output"]), ensure_ascii=False, indent=1) + "\n```\n\n"
+                + self._hint_label() + hint + "\n")
+        node["revising"] = {"output": node["output"], "hint": hint, "confirmed": node.get("confirmed")}
+        node["status"] = "running"
+        node["prompt"] = {"system": SYSTEM + " " + HINT_RULE + " " + REVISE, "instructions": p["instructions"],
+                          "input": user}
+        node["retried"] = False
+        return self._llm_request(node, skill)
+
+    def _revised(self, w, ep, node, out):
+        """The revised output of a local change: in place when its placeholders are the same."""
+        old = node.pop("revising")["output"]
+        same = [(x.get("var"), x.get("span")) for x in old.get("open") or [] if isinstance(x, dict)] == \
+               [(x.get("var"), x.get("span")) for x in out.get("open") or [] if isinstance(x, dict)]
+        if not same:
+            for k in self._descendants(ep, node["id"]):
+                del ep["nodes"][k]
+            res = self._finish(w, ep, node, out)
+        else:
+            skill = self.reg.skills[node["skill"]]
+            out = self._check_emit(skill, out)
+            node["output"] = node["machine_output"] = out
+            node["stored"] = {k: out[k] for k in skill.store}
+            node["status"], node["error"], node["confirmed"], node["human"] = "ok", None, False, False
+            self._mark_stale(w, ep["index"])
+            res = {"done": True, "node": node["id"], "status": "ok", "children": node["children"]}
+        node["revised"] = True
+        return res
 
     def complete(self, w, i, nid, output, model=None):
         """A model's JSON answer for an agent node (and which model gave it). An answer that does
@@ -897,14 +973,28 @@ class RegistryEngine:
                          % (e, json.dumps(jsonable(output), ensure_ascii=False)[:3000]))
                 return self._llm_request(node, skill, retry)
         try:
+            if node.get("revising"):
+                return self._revised(w, ep, node, output)
             return self._finish(w, ep, node, output)
         except Exception as e:
+            self._unrevise(node)
             return self._fail(w, ep, node, e)
+
+    @staticmethod
+    def _unrevise(node):
+        """A local change that failed leaves the step as it was."""
+        was = node.pop("revising", None)
+        if was:
+            node["output"], node["status"], node["confirmed"] = was["output"], "ok", was["confirmed"]
 
     def fail(self, w, i, nid, error):
         """The page could not get an answer (no key, network, refused): the node is in error."""
         ep, node = self._node(w, i, nid)
         self._drop_gens(w, i, nid)
+        if node.get("revising"):
+            self._unrevise(node)
+            node["revise_error"] = str(error)
+            return self.episode(w, i)
         node["status"] = "error"
         node["error"] = str(error)
         return self.episode(w, i)
@@ -1004,7 +1094,56 @@ class RegistryEngine:
             else:
                 node["children"].append(self._made)
         self._mark_stale(w, ep["index"])
+        if node["skill"] == CONVERT and not self.loading:
+            node["applied"] = self._apply_generated(ep["index"], out)
         return {"done": True, "node": node["id"], "status": "ok", "children": node["children"]}
+
+    def _apply_generated(self, i, out):
+        """Wave 0: sentence i's checked graph into the sentence and document waves (their episodes
+        for the sentence are made again), each step tagged "generated", with the tool calls its
+        skill would make done for it (_simulate_tools)."""
+        import umr_load
+        try:
+            rep = umr_load.load_generated(self, i, out.get("graph", ""), out.get("alignment") or {},
+                                          out.get("document", ""))
+        except Exception as e:
+            return {"steps": 0, "problems": ["%s: %s" % (type(e).__name__, e)]}
+        for w in ("sentence", "document"):
+            if w in self.eps and i in self.eps[w]:
+                self._simulate_tools(w, i)
+        return {"steps": rep["steps"], "problems": rep["problems"][:20]}
+
+    def _simulate_tools(self, w, i):
+        """The tool calls a loaded or generated step's skill would have made, made for it, so that a
+        person checking the step sees them: propbank_lookup for every concept with a sense."""
+        ep = self.eps[w].get(i)
+        if not ep:
+            return
+        for n in ep["nodes"].values():
+            o = n.get("output") if n["status"] == "ok" else None
+            g = (o or {}).get("graph") if isinstance(o, dict) else None
+            if not isinstance(g, dict) or n.get("tool_calls"):
+                continue
+            lemmas = []
+            for x in g.get("nodes") or []:
+                c = str((x or {}).get("concept", ""))
+                if SENSE.search(c) and not re.search(r"-9\d$", c):
+                    lemma = SENSE.sub("", c)
+                    if lemma not in lemmas:
+                        lemmas.append(lemma)
+            if not lemmas:
+                continue
+            skill = self.reg.skills.get(n["skill"])
+            fns = {t.__name__: t for t in skill_tools(skill.path)} if skill else {}
+            if "propbank_lookup" not in fns:
+                continue
+            args = {"lemmas": lemmas, "language": self.doc.lang}
+            try:
+                res = fns["propbank_lookup"](**args)
+            except Exception as e:
+                res = "%s: %s" % (type(e).__name__, e)
+            text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
+            n["tool_calls"] = [{"tool": "propbank_lookup", "args": args, "result": text[:200000], "simulated": True}]
 
     def _descendants(self, ep, nid):
         return [k for k in ep["nodes"] if under(k, nid)]
@@ -1107,7 +1246,7 @@ class RegistryEngine:
                           "parent": n["parent"], "text": n["input"].get("text") if isinstance(n["input"], dict) else None,
                           "summary": self._summary(n), "waiting": (w, int(i), n["id"]) in self.gens,
                           "error": n["error"], "confirmed": bool(n.get("confirmed")), "hint": n.get("hint") or "",
-                          "loaded": bool(n.get("loaded"))})
+                          "loaded": bool(n.get("loaded")), "origin": n.get("origin") or ""})
         return {"wave": w, "index": int(i), "label": label, "started": True, "error": ep["error"],
                 "stale": ep.get("stale", False), "context": jsonable(ep["context"]), "nodes": nodes,
                 "needs": [list(x) for x in ep.get("missing", [])], "count": len(items),
@@ -1138,7 +1277,8 @@ class RegistryEngine:
         return {**jsonable({k: v for k, v in n.items() if k != "trace"}), "kind": skill.kind,
                 "emit": jsonable(skill.emit), "files": files, "context_keys": list(ep["context"]),
                 "trace": n.get("trace"), "waiting": (w, int(i), nid) in self.gens,
-                "input_md": self._input_md(w, i, nid)}
+                "input_md": self._input_md(w, i, nid),
+                "tool_specs": [tool_spec(t) for t in skill_tools(skill.path)]}
 
     def _input_md(self, w, i, nid):
         try:
@@ -1418,7 +1558,8 @@ class RegistryEngine:
                         n["input"] = None
                 eps[w][str(i)] = pack(ep)
         return {"version": 3, "skillset": self.sid, "doc": self.doc.doc_id,
-                "windows": [[w, v, r] for (w, v), r in self.windows.items()], "texts": texts, "eps": eps}
+                "windows": [[w, v, r] for (w, v), r in self.windows.items()], "texts": texts, "eps": eps,
+                "refs": {str(k): v for k, v in self.refs.items()}}
 
     def _renumber_old(self):
         """Work kept before the step ids changed (version < 3: "0", "0.0", "0.0.0", ...): every
@@ -1470,6 +1611,7 @@ class RegistryEngine:
             return x
 
         self.windows = {(w, v): [int(r[0]), int(r[1])] for w, v, r in state.get("windows") or []}
+        self.refs = {int(k): v for k, v in (state.get("refs") or {}).items()}
         self.gens.clear()
         self.eps = {w: {} for w in self.order}
         for w, eps in (state.get("eps") or {}).items():

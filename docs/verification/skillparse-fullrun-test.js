@@ -81,7 +81,8 @@ const statusIs = (page, re, timeout = 180000) =>
   // 2. every sentence runs its next step side by side; each step is confirmed before its sentence goes on
   const settled = () => page.waitForFunction(() => (document.body.dataset.running || '0') === '0', null, { timeout: 120000 });
   const ranOf = (msg) => Number((/运行了 (\d+) 步/.exec(msg) || [])[1]);
-  const waves = await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]));
+  // the classic path: sentence and document, step by step (wave 0 is tested below)
+  const waves = (await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]))).filter((w) => w !== 'generate');
   let total = 0;
   for (const [k, w] of waves.entries()) {
     await page.click(`.wave-tab:has-text("${w}")`);
@@ -205,10 +206,85 @@ const statusIs = (page, re, timeout = 180000) =>
     && /载入了已有标注/.test(document.getElementById('status').textContent), null, { timeout: 60000 });
   check('a file aligned by characters is loaded as it is', /按字对齐，照原样载入/.test(await page.textContent('#status')), await page.textContent('#status'));
 
+  // wave 0: a whole sentence generated at once (umr_generate), checked and loaded by a rule (convert)
+  await page.click('#btn-import');
+  await page.fill('#modal textarea', '玳瑁是海龟。\n它们吃海绵。');
+  await page.fill('#modal input[type=text]', 'w0');
+  await page.check('#modal input[value="txt-lines"]');
+  await page.click('#modal button:text-is("导入")');
+  await page.waitForFunction(() => document.getElementById('doc').value === 'w0'
+    && /就绪/.test(document.getElementById('status').textContent), null, { timeout: 60000 });
+  await page.click('.wave-tab:has-text("generate")');
+  await page.waitForTimeout(300);
+  check("wave 0's model is GPT-6.1 Sol by default", /GPT-6\.1 Sol/.test(await page.$eval('#model-pick', (e) => e.selectedOptions[0].textContent)));
+  const runItem = async (i) => {
+    await page.click(`#context .items li >> nth=${i}`);
+    await page.waitForFunction((x) => document.querySelector('#run-bar strong')?.textContent === `#${x}`, i + 1);
+    await settled();
+    const start = page.locator('#run-bar .run-first, #run-bar .run-next:not([disabled])');
+    if (await start.count()) { await start.first().click(); await settled(); }
+    for (let c = 0; c < 10; c++) {
+      const b = page.locator('#run-bar .confirm-next:not([disabled])');
+      if (!(await b.count())) break;
+      await b.first().click();
+      await settled();
+    }
+  };
+  const genBefore = calls.generated.length;
+  await runItem(0);
+  await runItem(1);
+  const gen = calls.generated.slice(genBefore);
+  check('each sentence is generated once, in order, the second seeing the first', gen.length === 2 && !gen[0].before && gen[1].before
+    && calls.bodies.some((b) => b.model === 'openai/gpt-6.1-sol'), JSON.stringify(gen));
+  await page.click('.wave-tab:has-text("sentence")');
+  await page.waitForTimeout(300);
+  await page.click('#context .items li >> nth=0');
+  await settled();
+  const genTags = await page.$$eval('.tree li .human-tag.generated', (e) => e.length);
+  check('convert loads the sentence wave: every step generated (and confirmed)', genTags >= 2, `${genTags} generated steps`);
+  await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
+  await page.click('.tab:text-is("工具调用")');
+  const toolsText = await page.textContent('#output');
+  check("a generated step's PropBank call is made for it, to look at", /propbank_lookup/.test(toolsText) && toolsText.includes('转换时模拟的调用'), toolsText.slice(0, 120));
+  await page.selectOption('#output .tool-form select', 'search_guidelines');
+  await page.fill('#output .tool-form textarea', '{"keywords": ["aspect"]}');
+  await page.click('#output .tool-call');
+  await page.waitForFunction(() => document.querySelector('#output')?.textContent.includes('人工调用'), null, { timeout: 30000 });
+  check('a person can call a tool with arguments of their own', (await page.textContent('#output')).includes('search_guidelines'));
+  await page.click('.tab:text-is("UMR 文本")');
+  await page.waitForSelector('#output .umr-var', { timeout: 30000 });
+  const umrVars = await page.$$eval('#output .umr-var', (e) => e.map((x) => x.textContent));
+  await page.click('#output .umr-var >> nth=0');
+  await page.waitForTimeout(800);
+  check("the UMR text's variables are links to the steps that made them", umrVars.includes('s1x')
+    && (await page.$eval('.tab[aria-selected="true"]', (e) => e.textContent)) === '图' && !!(await page.$('.tree li[aria-selected="true"]')), umrVars.join(' '));
+  // a local change by a hint keeps the output's form, and the step waits to be confirmed again
+  await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
+  await page.click('.tab:text-is("输出")');
+  await page.click('#output .hint-btn');
+  await page.fill('#output .hint-area', '把 ARG0 改成 ARG1');
+  const nInW0 = calls.inputs.length;
+  await page.click('#output .hint-local');
+  await settled();
+  check('a local change sends the current output and the hint, then waits to be confirmed',
+    calls.inputs.slice(nInW0).some((u) => u.includes('## The current output') && u.includes('human提示：把 ARG0 改成 ARG1'))
+    && !!(await page.$('#output .confirm-card')), String(calls.inputs.length - nInW0));
+  await page.click('#output .review-card button:text-is("✓ 正确，确认")');
+  await settled();
+  await page.click('#btn-export');
+  const [w0dl] = await Promise.all([page.waitForEvent('download'), page.click('button[data-export="umr-raw"]')]);
+  const w0umr = fs.readFileSync(await w0dl.path(), 'utf8');
+  check("the export has wave 0's document-level relations, across sentences", /:coref \(\(s\d+\w* :same-event s\d+\w*\)\)/.test(w0umr)
+    && /document-creation-time :before/.test(w0umr), w0umr.split('# document level annotation:')[2]?.slice(0, 200));
+
   // the imported documents are kept in this browser too
   await page.reload();
-  await page.waitForFunction(() => /就绪|恢复|暂存|载入/.test(document.getElementById('status').textContent)
-    || !!document.querySelector('#modal .restore-yes'), null, { timeout: 180000 });
+  await page.waitForFunction(() => !!document.querySelector('#modal .restore-yes')
+    || (document.querySelectorAll('#doc option').length > 0 && /就绪|恢复|暂存|载入了/.test(document.getElementById('status').textContent)),
+  null, { timeout: 180000 });
+  // the last document (w0) has work kept: go on with it
+  if (await page.$('#modal .restore-yes')) await page.click('#modal .restore-yes');
+  await page.waitForFunction(() => document.querySelectorAll('#doc option').length > 0, null, { timeout: 60000 });
   const docsAfter = await page.$$eval('#doc option', (e) => e.map((x) => x.value));
   check('imported documents are still there after a reload', ['hawksbill', 'hawksbill-gold', 'hawksbill-char', 't-txt-lines', 't-txt-split']
     .every((d) => docsAfter.includes(d)), docsAfter.join(', '));

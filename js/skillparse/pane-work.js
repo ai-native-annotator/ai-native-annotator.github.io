@@ -14,7 +14,8 @@
  */
 
 import { h, clear, pretty, toast, diffView } from './ui.js';
-import { S, onRender, render, selectNode, selectWave, selectItem, runNode, runNext, resetNode, saveOutput, startItem, sentenceGraph, confirmNode, confirmAndNext } from './core.js';
+import { S, SENTENCE_WAVE, onRender, render, selectNode, selectWave, selectItem, runNode, runNext, resetNode, saveOutput, startItem, sentenceGraph, confirmNode, confirmAndNext } from './core.js';
+import { py } from './py.js';
 import { outputPenman, docNodes } from './penman-view.js';
 import { drawGraph, fragmentGraph } from './graph-view.js';
 import { lineDiff, hunks, stable } from './diff.js';
@@ -28,7 +29,8 @@ function tabsFor(d) {
   if (d) {
     out.push('output', 'input');
     if (d.kind === 'jev') out.push('jev');
-    if (d.kind === 'agent') out.push('prompt', 'tools');
+    if (d.kind === 'agent') out.push('prompt');
+    if (d.kind === 'agent' || d.tool_specs?.length || d.tool_calls?.length) out.push('tools');
   }
   out.push('umr');
   return out;
@@ -68,8 +70,11 @@ function reviewCard(d) {
   const busy = S.running > 0;
   const model = d.kind === 'jev' || d.kind === 'agent';
   const unconfirmed = d.status === 'ok' && !d.confirmed;
+  // a finished output can be changed locally by a hint (bridge.revise); a model step can also be
+  // parsed again with the hint (its skill, as before)
+  const local = d.status === 'ok';
   let hintBox = null;
-  if (S.hinting && model) {
+  if (S.hinting && (model || local)) {
     const area = h('textarea', { rows: 3, class: 'hint-area', placeholder: t('hintPlaceholder') });
     area.value = d.hint || '';
     area.addEventListener('keydown', (e) => {
@@ -77,7 +82,7 @@ function reviewCard(d) {
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
-        hintBox.querySelector('.hint-go').click();
+        (hintBox.querySelector('.hint-go') || hintBox.querySelector('.hint-local')).click();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         S.hinting = false;
@@ -85,15 +90,22 @@ function reviewCard(d) {
       }
     });
     hintBox = h('div', { class: 'hint-box' },
-      h('div', { class: 'note', text: t(d.kind === 'jev' ? 'hintWhereJev' : 'hintWhere', { label: hintLabel() }) }),
+      model ? h('div', { class: 'note', text: t(d.kind === 'jev' ? 'hintWhereJev' : 'hintWhere', { label: hintLabel() }) }) : null,
+      local ? h('div', { class: 'note', text: t('localNote') }) : null,
       area,
       h('div', { class: 'row' },
-        h('button', { class: 'btn primary hint-go', disabled: busy, text: t('hintGo'), 'aria-keyshortcuts': 'Enter', onclick: () => {
+        model ? h('button', { class: 'btn primary hint-go', disabled: busy, text: t('hintGo'), 'aria-keyshortcuts': 'Enter', onclick: () => {
           const v = area.value.trim();
           if (!v) { area.focus(); return; }
           S.hinting = false;
           runNode(d.id, { hint: v });
-        } }, kbd('Enter')),
+        } }, kbd('Enter')) : null,
+        local ? h('button', { class: `btn${model ? '' : ' primary'} hint-local`, disabled: busy, text: t('localGo'), onclick: () => {
+          const v = area.value.trim();
+          if (!v) { area.focus(); return; }
+          S.hinting = false;
+          runNode(d.id, { hint: v, revise: true });
+        } }) : null,
         d.hint ? h('button', { class: 'btn', disabled: busy, text: t('hintClear'), onclick: () => { S.hinting = false; runNode(d.id, { hint: '' }); } }) : null,
         h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.hinting = false; render(); } })));
   }
@@ -104,7 +116,7 @@ function reviewCard(d) {
         h('button', { class: 'btn primary', text: t('confirmNext'), disabled: busy, 'aria-keyshortcuts': 'Enter', onclick: () => confirmAndNext(d.id) }, kbd('Enter')),
         h('button', { class: 'btn', text: t('confirm'), disabled: busy, onclick: () => confirmNode(d.id) }),
       ] : d.confirmed && !d.human ? h('span', { class: 'ok-tag', text: `✓ ${t('confirmedTag')}` }) : null,
-      model ? h('button', { class: 'btn hint-btn', 'aria-pressed': String(S.hinting), disabled: busy, text: t('hintRerun'), 'aria-keyshortcuts': 'Tab',
+      model || local ? h('button', { class: 'btn hint-btn', 'aria-pressed': String(S.hinting), disabled: busy, text: t('hintRerun'), 'aria-keyshortcuts': 'Tab',
         onclick: () => { S.hinting = !S.hinting; S.editing = false; render(); focusHint(); } }, kbd('Tab')) : null,
       h('button', { class: 'btn edit-btn', disabled: busy, text: t('editDirect'), onclick: () => { S.editing = true; S.hinting = false; render(); } }),
       h('button', { class: 'btn ghost', disabled: busy, text: t('rerun'), onclick: () => runNode(d.id) })),
@@ -158,9 +170,15 @@ function outputTab(d) {
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
   if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
   if (d.model && d.status !== 'pending') parts.push(h('div', { class: 'note', text: t('madeBy', { model: d.model }) }));
+  if (d.revise_error) parts.push(h('div', { class: 'card warn', text: t('reviseFailed', { e: d.revise_error }) }));
+  if (d.applied) {
+    parts.push(h('div', { class: 'card' }, h('strong', { text: t('convertApplied', { steps: d.applied.steps }) }),
+      d.applied.problems?.length ? h('ul', {}, d.applied.problems.map((x) => h('li', { text: x }))) : null));
+  }
   if (d.loaded) {
-    parts.push(h('div', { class: 'row' }, h('span', { class: 'human-tag loaded', text: t('loadedTag') }),
-      h('span', { class: 'note', text: t('loadedNote') })));
+    const gen = d.origin === 'generated';
+    parts.push(h('div', { class: 'row' }, h('span', { class: `human-tag loaded${gen ? ' generated' : ''}`, text: t(gen ? 'generatedTag' : 'loadedTag') }),
+      h('span', { class: 'note', text: t(gen ? 'generatedNote' : 'loadedNote') })));
   } else if (d.human) {
     parts.push(h('div', { class: 'row' }, h('span', { class: 'human-tag', text: t('humanTag') }),
       h('span', { class: 'note', text: t('human') })));
@@ -227,10 +245,44 @@ function promptTab(d) {
 
 function toolsTab(d) {
   const calls = d.tool_calls || [];
-  if (!calls.length) return h('div', { class: 'empty', text: t('noTools') });
-  return h('div', {}, calls.map((c) => h('div', { class: 'qa' },
-    h('div', { class: 'q mono', text: `${c.tool}(${JSON.stringify(c.args)})` }),
-    h('details', {}, h('summary', { text: `${String(c.result).length} chars` }), toolResult(c.result)))));
+  return h('div', { style: 'display:grid;gap:6px' },
+    calls.length ? calls.map((c) => h('div', { class: 'qa' },
+      h('div', { class: 'q mono' }, `${c.tool}(${JSON.stringify(c.args)}) `,
+        c.simulated ? h('span', { class: 'badge', text: t('toolSimulated') }) : null,
+        c.manual ? h('span', { class: 'badge', text: t('toolByHand') }) : null),
+      h('details', { open: !!c.manual }, h('summary', { text: `${String(c.result).length} chars` }), toolResult(c.result))))
+      : h('div', { class: 'empty', text: t('noTools') }),
+    d.tool_specs?.length ? toolForm(d) : null);
+}
+
+/** An argument's example value: the tool's parameters, as JSON to fill in. */
+function exampleArgs(spec) {
+  const lang = (S.skillset || '').split('-').pop();
+  return Object.fromEntries(Object.entries(spec.parameters?.properties || {}).map(([k, p]) => [k,
+    k === 'language' ? lang : p.type === 'array' ? [] : p.type === 'integer' || p.type === 'number' ? 3 : '']));
+}
+
+/** A person calls one of the step's tools with arguments of their own; the call is kept with the step's. */
+function toolForm(d) {
+  const specs = d.tool_specs;
+  const pick = h('select', {}, specs.map((s) => h('option', { value: s.name, text: s.name })));
+  const args = h('textarea', { rows: 3, class: 'tool-args', spellcheck: 'false' });
+  const err = h('div', { class: 'err' });
+  const fill = () => { args.value = JSON.stringify(exampleArgs(specs.find((s) => s.name === pick.value)), null, 0); };
+  pick.addEventListener('change', fill);
+  fill();
+  return h('div', { class: 'card tool-form' },
+    h('strong', { text: t('toolManual') }),
+    h('div', { class: 'row' }, pick),
+    h('label', { class: 'note', text: t('toolArgs') }), args,
+    h('div', { class: 'row' }, h('button', { class: 'btn primary tool-call', text: t('toolCall'), onclick: async () => {
+      let value;
+      try { value = JSON.parse(args.value || '{}'); } catch (e) { err.textContent = t('badJson', { e: e.message }); return; }
+      err.textContent = '';
+      await py('tool', { w: S.wave, i: S.item, nid: d.id, name: pick.value, args: value, manual: true });
+      S.detail = await py('node', { w: S.wave, i: S.item, nid: d.id });
+      render();
+    } }), err));
 }
 
 /** A tool's answer as the model got it: Markdown (propbank_lookup) rendered, JSON as it is. */
@@ -248,7 +300,7 @@ function toolResult(text) {
 async function goToMaker(g, v) {
   const n = g.nodes.find((x) => x.var === v);
   if (!n?.node) return;
-  const sentenceWave = S.desc.waves[0].name;
+  const sentenceWave = SENTENCE_WAVE;
   const item = S.item;
   if (S.wave !== sentenceWave) {
     await selectWave(sentenceWave);
@@ -269,7 +321,7 @@ function graphPanel(g) {
     const [lo, hi] = n.align.split('-').map(Number);
     for (let k = lo; k <= hi; k++) tokens.querySelector(`[data-k="${k}"]`)?.classList.add('on');
   };
-  const sentenceWave = S.desc.waves[0].name;
+  const sentenceWave = SENTENCE_WAVE;
   const mine = new Set(S.wave === sentenceWave && S.node ? g.nodes.filter((n) => n.node === S.node).map((n) => n.var) : []);
   const parts = [h('div', { class: 'graph-tools' },
     h('strong', { text: t('graphOf', { n: g.index }) }),
@@ -314,9 +366,17 @@ async function umrTab(out) {
     const g = await sentenceGraph(S.item);
     if (S.tab !== 'umr') return;
     const added = new Set(g.nodes.filter((n) => n.auto).map((n) => n.var));
+    const byVar = new Map(g.nodes.map((n) => [n.var, n]));
+    // a variable of this sentence's graph is a link to the step that made it (as a box of the graph)
+    const linked = (ln) => ln.split(/(\bs\d+[A-Za-z]\w*\b)/).map((part) => {
+      const n = byVar.get(part);
+      if (!n) return part;
+      return h('a', { class: 'umr-var', href: '#', title: `${n.concept}${n.words ? ` · ${n.words}` : ''}`,
+        onclick: (e) => { e.preventDefault(); goToMaker(g, part); } }, part);
+    });
     const lines = (g.text || '').split('\n').map((ln) => {
       const m = /^(\S+): \d+-\d+$/.exec(ln);
-      return h('span', { class: m && added.has(m[1]) ? 'align-added' : '', style: 'display:block', text: ln || ' ' });
+      return h('span', { class: m && added.has(m[1]) ? 'align-added' : '', style: 'display:block' }, ln ? linked(ln) : ' ');
     });
     clear(out, h('div', { class: 'note', text: t('umrNote') }), h('pre', { class: 'block' }, lines));
   } catch (err) {
@@ -432,7 +492,7 @@ function drawBottom() {
         : h('span', { class: `st ${st}`, text: STATUS[st] || '?' }),
       n.edge ? h('span', { class: 'edge', text: `:${n.edge}` }) : null,
       h('span', { class: 'sk', text: n.skill }),
-      n.loaded ? h('span', { class: 'human-tag loaded', text: t('loadedTag') })
+      n.loaded ? h('span', { class: `human-tag loaded${n.origin === 'generated' ? ' generated' : ''}`, text: t(n.origin === 'generated' ? 'generatedTag' : 'loadedTag') })
         : n.human ? h('span', { class: 'human-tag', text: t('humanTag') }) : null,
       st === 'review' ? h('span', { class: 'await-tag', text: t('awaitTag') }) : null,
       n.text ? h('span', { class: 'txt', text: n.text }) : null,

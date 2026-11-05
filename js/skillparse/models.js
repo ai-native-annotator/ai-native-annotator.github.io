@@ -18,6 +18,7 @@ const SETTINGS = 'skillparse_settings_v4';
 
 export const ROLES = {
   haiku: 'Haiku: runs every kind: agent skill (its skill.md prompt)',
+  generate: 'Wave 0 (umr_generate): writes a whole sentence\'s UMR at once',
   reflect: 'Reflection (finds skill problems, proposes edits)',
 };
 
@@ -26,6 +27,7 @@ export const PROVIDERS = ['openrouter', 'anthropic', 'openai'];
 /** The model name each provider knows a role's model by (OpenRouter and Anthropic name Haiku differently). */
 export const MODEL_DEFAULTS = {
   haiku: { openrouter: 'anthropic/claude-haiku-5.5', anthropic: 'claude-haiku-5-5', openai: '' },
+  generate: { openrouter: 'openai/gpt-6.1-sol', anthropic: 'claude-opus-5-5', openai: 'gpt-6.1-sol' },
   reflect: { openrouter: 'anthropic/claude-sonnet-5.5', anthropic: 'claude-sonnet-5-5', openai: '' },
 };
 
@@ -75,6 +77,8 @@ const REMIND = 'Call the final_result tool now with your answer.';
 const DEFAULTS = {
   roles: {
     haiku: { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' },
+    // wave 0 writes a whole sentence's graph: a strong model (GPT-6.1 Sol, or Opus 5.5)
+    generate: { provider: 'openrouter', model: 'openai/gpt-6.1-sol' },
     reflect: { provider: 'openrouter', model: 'anthropic/claude-sonnet-5.5' },
   },
   // rsi-batch/run_tests.sh: JEV_URL=https://openrouter.ai/api/v1/systemone JEV_MODEL=typesafe/jev-1.13

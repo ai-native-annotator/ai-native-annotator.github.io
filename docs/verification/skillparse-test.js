@@ -79,16 +79,18 @@ async function stepThrough(page, max = 80) {
 
   await page.goto(`${BASE}/index.html`);
   await statusIs(page, /就绪/);
-  check('Python boots and the Chinese procedure opens', (await page.$$('.skill')).length === 8
+  check('Python boots and the Chinese procedure opens', (await page.$$('.skill')).length === 10
     && (await page.$eval('#skillset', (e) => e.value)) === 'web-zh');
-  check('two waves (sentence, document): re-entrancy is merged by span when the .umr is written',
-    (await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]))).join(',') === 'sentence,document');
+  check('three waves (wave 0 generate, sentence, document); the page opens on the sentence wave',
+    (await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]))).join(',') === 'generate,sentence,document'
+    && /sentence/.test(await page.textContent('.wave-tab[aria-selected="true"]')));
   check('for_each items are picked one at a time (no checkboxes)', (await page.$$('#context .items input[type=checkbox]')).length === 0);
   const badges = await page.$$eval('#skills .skill', (els) => Object.fromEntries(els.map((e) => [
     e.querySelector('.name').textContent, e.querySelector('.by-jev, .by-haiku')?.textContent || ''])));
   check('only sent_type is Jev; every other model skill is Haiku (kind: agent)', badges.sent_type === '→ Jev'
     && ['discourse', 'predicate', 'np_phrase', 'special_entity', 'temporal', 'coref'].every((k) => badges[k] === '→ Haiku')
-    && badges.modal === '' && ['antecedent', 'coverage', 'reentrancy', 'document'].every((k) => !(k in badges)), JSON.stringify(badges));
+    && badges.modal === '' && badges.convert === '' && badges.umr_generate === '→ GPT-6.1 Sol'
+    && ['antecedent', 'coverage', 'reentrancy', 'document'].every((k) => !(k in badges)), JSON.stringify(badges));
 
   // a skill.md opens rendered as Markdown; the edit tab is its source
   await page.click('#skills .skill:has(.name:text-is("predicate")) .file:text-is("skill.md")');
@@ -261,7 +263,7 @@ async function stepThrough(page, max = 80) {
   const table = await page.$$eval('#menu-timer .timer-table', (ts) => ts.map((x) => ({
     head: [...x.querySelectorAll('thead th')].map((c) => c.textContent),
     rows: x.querySelectorAll('tbody tr').length, current: x.querySelector('tr.current .num')?.textContent })));
-  check('its menu lists every sentence with a column per wave and totals', table.length === 1 && table[0].head.join(',') === ',句子,sentence,document,合计'
+  check('its menu lists every sentence with a column per wave and totals', table.length === 1 && table[0].head.join(',') === ',句子,generate,sentence,document,合计'
     && table[0].rows >= 2 && table[0].current === '#1', JSON.stringify(table));
   await page.click('body', { position: { x: 5, y: 600 } });
   const timesKept = await page.evaluate(() => {
@@ -363,8 +365,8 @@ async function stepThrough(page, max = 80) {
   // the Uzbek procedure: its sample document opens with it, and a sentence runs
   await page.selectOption('#doc', 'uzbek_sample');
   await statusIs(page, /就绪/);
-  check('the Uzbek document opens with the Uzbek procedure (eight skills)', (await page.$eval('#skillset', (e) => e.value)) === 'web-uz'
-    && (await page.$$('.skill')).length === 8);
+  check('the Uzbek document opens with the Uzbek procedure (ten skills)', (await page.$eval('#skillset', (e) => e.value)) === 'web-uz'
+    && (await page.$$('.skill')).length === 10);
   const nInUz = calls.inputs.length;
   const nJevUz = calls.jevStates.length;
   await stepThrough(page);

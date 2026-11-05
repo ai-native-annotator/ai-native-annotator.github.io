@@ -160,13 +160,80 @@ DOCUMENT_SKILLS = [
     - {run: coref, input: {sentences: sentences}}
 """),
 ]
+# wave 0 (web): umr_generate writes a sentence's whole graph and document-level annotation at
+# once; the rule convert (web_skills/convert/convert.py) checks it, and the bridge loads it into
+# the sentence and document waves (umr_load.load_generated)
+CONVERT_SKILL = "convert"
+WAVE0 = [
+    ("waves:\n\n  - name: sentence\n", """waves:
+
+  - name: generate                      # web：wave 0，一次生成整句的图和文档级标注，规则检查后转成后面两波的步骤
+    start: umr_generate
+    parallel: 1                         # 每句要看前面几句生成的图：按顺序
+    init_input:
+      for_each:
+        sentence: annotation.sents
+      context:
+        index: sentence.index
+        sent: sentence.text
+        token_sent: sentence.numbered_tokens
+        lang: annotation.lang
+      input:
+        before:                         # 前五句生成的图和文档级标注（这一波确认过的）
+          window: worktree.generate
+          range: [-5, 0]
+          pick: generated
+
+  - name: sentence
+"""),
+    ("skills:\n\n", """skills:
+
+  # ---- wave 0（web）----
+
+  umr_generate:                 # 整句的 UMR 图（penman）、对齐、文档级标注，一次写出；模型默认 GPT-6.1 Sol / Opus 5.5
+    path: umr_generate
+    input:
+      before: list[dict]
+    emit:
+      graph: str                # 句级图，penman
+      alignment: dict           # 变量 → [首, 尾]（Tokens 的编号）
+      document: str             # 文档级标注：(s<N>s0 / sentence :temporal (...) :modal (...) :coref (...))
+    store: [graph, alignment, document]
+
+  convert:                      # 规则（convert/convert.py）：检查 penman、对齐和文档级标注；网页把它载入 sentence、document 两波
+    path: convert
+    kind: rule
+    input:
+      graph: str
+      alignment: dict
+      document: str
+    emit:
+      graph: str
+      alignment: dict
+      document: str
+      problems: list[str]
+    store: [graph, alignment, document]
+
+"""),
+    ("dispatcher:\n\n", """dispatcher:
+
+  # web：wave 0 生成之后，规则检查并转换
+  umr_generate:
+    - {run: convert, input: {graph: umr_generate_emit.graph, alignment: umr_generate_emit.alignment, document: umr_generate_emit.document}}
+
+"""),
+]
+
+
 def document_skills(dst, lang):
     """The document wave's skills (web): modal (a rule) and the site's own temporal and coref,
     in place of the procedure's document skill (whose modal section modal.py now does)."""
     shutil.rmtree(os.path.join(dst, "document"))
     for name, src in (("modal", os.path.join(WEB_SKILLS, "modal")),
                       ("temporal", os.path.join(WEB_SKILLS, lang, "temporal")),
-                      ("coref", os.path.join(WEB_SKILLS, lang, "coref"))):
+                      ("coref", os.path.join(WEB_SKILLS, lang, "coref")),
+                      (CONVERT_SKILL, os.path.join(WEB_SKILLS, CONVERT_SKILL)),
+                      ("umr_generate", os.path.join(WEB_SKILLS, lang, "umr_generate"))):
         shutil.copytree(src, os.path.join(dst, name), ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
 
 
@@ -352,7 +419,7 @@ def compose(sp, lang):
     shutil.rmtree(os.path.join(dst, "reentrancy"))
     text = drop_antecedent(text)
     shutil.rmtree(os.path.join(dst, "antecedent"))
-    for old, new in DOCUMENT_INPUT + SENT_TYPE_OUTSIDE + DOCUMENT_SKILLS:
+    for old, new in DOCUMENT_INPUT + SENT_TYPE_OUTSIDE + DOCUMENT_SKILLS + WAVE0:
         if text.count(old) != 1:
             raise SystemExit("%s: cannot find %r" % (reg, old[:60]))
         text = text.replace(old, new)
@@ -560,7 +627,7 @@ def write_resources(sp, mp):
 # PropBank and no Uzbek gold: the tools answer nothing for "uz"
 UZ = "uz"
 UZ_FROM = "en"
-UZ_SKILLS = ["discourse", "predicate", "np_phrase", "special_entity", "temporal", "coref"]
+UZ_SKILLS = ["discourse", "predicate", "np_phrase", "special_entity", "temporal", "coref", "umr_generate"]
 WEB_DOCS = os.path.join(OUT, "web_docs")
 UZ_DOCS = {"uzbek_sample": "uzbek_sample.txt"}       # one sentence per line, tokens split by spaces
 FUNCTION_UZ = """

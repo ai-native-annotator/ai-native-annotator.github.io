@@ -9,7 +9,7 @@
  */
 
 import { bootPython, onProgress } from './py.js';
-import { S, SKILLSETS, loadDocs, render, setManualAnswerer, setRestoreAsker, status, stop, runNextAll, saveNow } from './core.js';
+import { S, SKILLSETS, loadDocs, render, onRender, setManualAnswerer, setRestoreAsker, status, stop, runNextAll, saveNow } from './core.js';
 import { openSettings, openImport, exportAs, answerByHand, askRestore, fillSelectors, reopen } from './dialogs.js';
 import { allImports, lastOpen } from './save.js';
 import { py } from './py.js';
@@ -28,12 +28,13 @@ function wire() {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('modal').hidden) closeModal(); });
   document.getElementById('btn-settings').addEventListener('click', openSettings);
   document.getElementById('model-pick').addEventListener('change', (e) => {
-    const r = pickModel(e.target.value);
+    const r = pickModel(e.target.value, pickRole());
     fillModels();
     render();
     if (r) toast(t('modelPicked', { model: r.model, via: t(`via.${r.provider}`) }));
   });
   document.addEventListener('settings-changed', fillModels);
+  onRender(() => { if (document.getElementById('model-pick').dataset.role !== pickRole()) fillModels(); });
   document.getElementById('btn-import').addEventListener('click', openImport);
   document.getElementById('btn-stop').addEventListener('click', stop);
   document.getElementById('btn-next-all').addEventListener('click', () => runNextAll().catch(fail));
@@ -71,14 +72,20 @@ function wire() {
 }
 
 /** The toolbar's model menu: which model runs the agent skills from the next step on. */
+/** The model picker is for the wave shown: wave 0's own model (umr_generate), else the agent skills'. */
+const pickRole = () => (S.desc?.waves?.[0]?.name === S.wave && S.wave === 'generate' ? 'generate' : 'haiku');
+const DEFAULT_CHOICE = { haiku: 'haiku', generate: 'sol' };
+
 function fillModels() {
   const sel = document.getElementById('model-pick');
-  const now = currentChoice();
-  const { provider, model } = settings().roles.haiku;
+  const role = pickRole();
+  const now = currentChoice(role);
+  const { provider, model } = settings().roles[role];
   sel.replaceChildren(
-    ...MODEL_CHOICES.map((c) => h('option', { value: c.id, text: c.id === 'haiku' ? `${c.label}（${t('defaultTag')}）` : c.label, selected: now?.id === c.id })),
+    ...MODEL_CHOICES.map((c) => h('option', { value: c.id, text: c.id === DEFAULT_CHOICE[role] ? `${c.label}（${t('defaultTag')}）` : c.label, selected: now?.id === c.id })),
     now ? null : h('option', { value: '', text: `${model}（${provider}）`, selected: true }));
-  sel.title = `${model} · ${t(`via.${provider}`)}`;
+  sel.title = `${t(role === 'generate' ? 'modelPickGen' : 'modelPickTitle')} · ${model} · ${t(`via.${provider}`)}`;
+  sel.dataset.role = role;
 }
 
 function fail(err) {

@@ -22,10 +22,12 @@ function fileChip(path) {
 }
 
 /** Which model a skill calls: Jev for kind: jev (closed questions), the toolbar's model for kind: agent (skill.md). */
-function modelBadge(kind) {
+function modelBadge(kind, skill = '') {
   if (kind === 'jev') return h('span', { class: 'badge by-jev', title: t('jevTitle'), text: '→ Jev' });
   if (kind === 'agent') {
-    const name = currentChoice()?.label.replace(/ [\d.]+$/, '') || settings().roles.haiku.model;
+    // wave 0's umr_generate has a model of its own (GPT-6.1 Sol by default)
+    const role = skill === 'umr_generate' ? 'generate' : 'haiku';
+    const name = currentChoice(role)?.label.replace(/ [\d.]+$/, '') || settings().roles[role].model;
     return h('span', { class: 'badge by-haiku', title: t('haikuTitle'), text: `→ ${name}` });
   }
   return null;
@@ -41,7 +43,7 @@ function draw() {
       const anyEdited = s.files.some((f) => (files[f] || []).length);
       return h('div', { class: `skill${s.name === currentSkill ? ' current' : ''}`, onclick: () => s.files[0] && openEditor(s.files[0]) },
         h('div', {}, h('span', { class: 'name', text: s.name }), h('span', { class: `badge ${s.kind}`, text: t(`kinds.${s.kind}`) }),
-          modelBadge(s.kind),
+          modelBadge(s.kind, s.name),
           s.model ? h('span', { class: 'badge', text: s.model }) : null,
           anyEdited ? h('span', { class: 'badge edited', text: '✎' }) : null),
         s.rules.length ? h('ul', { class: 'rules' }, s.rules.map((r) => h('li', { title: r.text, text: r.short || r.text }))) : null,

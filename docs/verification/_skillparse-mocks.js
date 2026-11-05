@@ -13,7 +13,7 @@
  */
 module.exports = function mocks() {
   const calls = { jev: 0, questions: 0, haiku: 0, reflect: 0, tools: {}, systems: new Set(), heads: 0, skills: new Set(),
-    jevStates: [], inputs: [], delay: 0 };
+    jevStates: [], inputs: [], generated: [], delay: 0 };
   const wait = () => new Promise((r) => setTimeout(r, calls.delay));     // a slow model, when a test wants one
 
   /** Jev: the first option of every choice ("predicate" when it is one), "no" to every yes/no. */
@@ -39,7 +39,23 @@ module.exports = function mocks() {
   }
 
   /** An emit that fits the final_result schema; a skill that writes a graph writes one node. */
-  function emitFor(schema) {
+  /**
+   * Wave 0's umr_generate: a one-node graph on the sentence's first token (an event, so that its
+   * PropBank call is simulated), its alignment, and a document-level annotation that names the
+   * sentence before it too.
+   */
+  function generated(input) {
+    const n = Number((/Sentence number: (\d+)/.exec(input) || [])[1] || 1);
+    const tok = (/\[1\](\S+)/.exec(input) || [])[1] || 'x';
+    const v = `s${n}x`;
+    const coref = n > 1 ? ` :coref ((s${n - 1}x :same-event ${v}))` : '';
+    calls.generated.push({ n, before: /### Sentence \d+/.test(input) });
+    return { graph: `(${v} / ${tok}-01 :aspect state)`, alignment: { [v]: [1, 1] },
+      document: `(s${n}s0 / sentence :temporal ((document-creation-time :before ${v})) :modal ((root :modal author) (author :full-affirmative ${v}))${coref})` };
+  }
+
+  function emitFor(schema, input = '') {
+    if (schema.properties?.document && schema.properties?.graph?.type === 'string') return generated(input);
     const out = {};
     for (const [k, p] of Object.entries(schema.properties || {})) {
       out[k] = p.enum ? p.enum[0] : p.type === 'array' ? [] : p.type === 'object' ? {} : p.type === 'string' ? '' : 0;
@@ -100,7 +116,8 @@ module.exports = function mocks() {
         return reply(route, name, args);
       }
     }
-    return reply(route, 'final_result', emitFor(body.tools.find((t) => t.function.name === 'final_result').function.parameters));
+    return reply(route, 'final_result', emitFor(body.tools.find((t) => t.function.name === 'final_result').function.parameters,
+      body.messages.filter((m) => m.role === 'user').map((m) => m.content).join('\n')));
   }
 
   /** Haiku through the Anthropic API (the Messages API's tool_use blocks). */

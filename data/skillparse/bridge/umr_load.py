@@ -21,6 +21,12 @@ import re
 
 import penman
 
+
+def sp_ref(nid):
+    """How the node of step nid is named (a sent_type leaf "0.1B" is "0.1")."""
+    return nid[:-1] if nid.endswith("B") else nid
+
+
 TOKEN = re.compile(r"[A-Za-z0-9]+|[^\sA-Za-z0-9]")
 SPECIAL = {"date-entity", "date-interval", "ordinal-entity", "percentage-entity", "url-entity"}
 EVENT = re.compile(r"-\d{2}$")
@@ -133,8 +139,9 @@ def discourse_relations():
 
 
 class Loader:
-    def __init__(self, engine):
+    def __init__(self, engine, origin="loaded"):
         self.e = engine
+        self.origin = origin        # "loaded" (a .umr file) or "generated" (wave 0: umr_generate)
         self.problems = []
         self.merged = []            # two steps the file kept apart, one node by span and concept
         self.count = 0
@@ -288,6 +295,7 @@ class Loader:
         r = self.e.set_output(self.w, self.i, nid, output)
         node = self.ep["nodes"][nid]
         node["loaded"] = True
+        node["origin"] = self.origin
         self.count += 1
         if r.get("status") == "error":
             self.problems.append("snt%d %s %s: %s" % (self.i + 1, nid, node["skill"], r.get("error")))
@@ -369,7 +377,7 @@ class Loader:
             target = self.ep["nodes"][self.where[var]]["input"]
             node = self.ep["nodes"][owner]
             item = dict(node["output"]["outside"][k], text=target.get("text", ""), span=list(target["span"]),
-                        concept=self.by_var[var].concept)
+                        concept=self.by_var[var].concept, node=sp_ref(self.where[var]))
             node["output"]["outside"][k] = item
             if "outside" in node["stored"]:
                 node["stored"]["outside"] = node["output"]["outside"]
@@ -408,7 +416,7 @@ class Loader:
                 out.append((group, a, r, b))
         return out
 
-    def run(self, text):
+    def prepare(self):
         e = self.e
         self.lang = e.doc.lang
         sk = e.reg.skills
@@ -418,44 +426,64 @@ class Loader:
         self.relations = (set(listed) if isinstance(listed, list) else discourse_relations()) - {"none"}
         self.aspects = set(sk["predicate"].emit["aspect"])
         self.modstrs = set(sk["predicate"].emit["modstr"])
+
+    def loading(self):
+        """A person's (or a whole generated) tree: no depth or size limit, no loop check."""
+        engine = self.e
+
+        class _Loading:
+            def __enter__(self):
+                self.saved = {w: (wave.max_depth, wave.max_nodes) for w, wave in engine.waves.items()}
+                engine.loading = True
+                for wave in engine.waves.values():
+                    wave.max_depth = wave.max_nodes = None
+
+            def __exit__(self, *exc):
+                engine.loading = False
+                for w, (d, m) in self.saved.items():
+                    engine.waves[w].max_depth, engine.waves[w].max_nodes = d, m
+        return _Loading()
+
+    def document(self, i, doc, refs):
+        """Sentence i's document-level annotation into the document wave: the modal step (the
+        root), then temporal and coref, each with its group (a relation of another group goes
+        with the root). refs: a variable of this or an earlier sentence -> its node name."""
+        e = self.e
+        if "document" not in e.waves:
+            return
+        e.start("document", i)
+        ep = e.eps["document"][i]
+        if ep["error"] or not ep["nodes"]:
+            self.problems.append("snt%d document: %s" % (i + 1, ep["error"] or "no step"))
+            return
+        rels = [{"group": g, "source": refs.get(a, a), "relation": r, "target": refs.get(b, b)}
+                for g, a, r, b in self.doc_rel(doc) if not (g == "modal" and a == "root")]
+        self.w, self.i, self.ep = "document", i, ep
+        root = next(k for k, x in ep["nodes"].items() if x["parent"] is None)
+        later = {r.run for r in e.reg.rules(ep["nodes"][root]["skill"])}
+        st = self.put(root, {"relations": [x for x in rels if x["group"] not in later]})
+        for kid in st.get("children") or []:
+            group = ep["nodes"][kid]["skill"]
+            self.put(kid, {"relations": [x for x in rels if x["group"] == group]})
+
+    def run(self, text):
+        e = self.e
+        self.prepare()
         bs = blocks(text)
         n = min(len(bs), len(e.doc.sents))
-        saved = {w: (wave.max_depth, wave.max_nodes) for w, wave in e.waves.items()}
-        e.loading = True             # a person's tree: no depth or size limit, no loop check
-        for wave in e.waves.values():
-            wave.max_depth = wave.max_nodes = None
         hows, per = set(), {}
-        try:
+        with self.loading():
             for i in range(n):
                 got = self.sentence(i, bs[i])
                 hows.add(self.how)
                 if got:
                     per[i] = got
-            if "document" in e.waves:
-                refs = {}
-                for i in range(n):
-                    refs.update(per.get(i) or {})
-                for i in range(n):
-                    e.start("document", i)
-                    ep = e.eps["document"][i]
-                    if ep["error"] or not ep["nodes"]:
-                        self.problems.append("snt%d document: %s" % (i + 1, ep["error"] or "no step"))
-                        continue
-                    rels = [{"group": g, "source": refs.get(a, a), "relation": r, "target": refs.get(b, b)}
-                            for g, a, r, b in self.doc_rel(bs[i]["doc"]) if not (g == "modal" and a == "root")]
-                    self.w, self.i, self.ep = "document", i, ep
-                    # web: the modal step (the root), then temporal and coref, each with its group;
-                    # a relation of another group goes with the root
-                    root = next(k for k, x in ep["nodes"].items() if x["parent"] is None)
-                    later = {r.run for r in e.reg.rules(ep["nodes"][root]["skill"])}
-                    st = self.put(root, {"relations": [x for x in rels if x["group"] not in later]})
-                    for kid in st.get("children") or []:
-                        group = ep["nodes"][kid]["skill"]
-                        self.put(kid, {"relations": [x for x in rels if x["group"] == group]})
-        finally:
-            e.loading = False
-            for w, (d, m) in saved.items():
-                e.waves[w].max_depth, e.waves[w].max_nodes = d, m
+            refs = {}
+            for i in range(n):
+                refs.update(per.get(i) or {})
+            for i in range(n):
+                self.document(i, bs[i]["doc"], refs)
+        e.refs.update(per)
         how = "word" if "word" in hows else "char" if "char" in hows else "token"
         return {"alignment": how, "converted": how == "word", "sentences": n, "steps": self.count,
                 "merged": len(self.merged),
@@ -464,3 +492,25 @@ class Loader:
 
 def load(engine, text):
     return Loader(engine).run(text)
+
+
+def load_generated(engine, i, graph, alignment, document):
+    """Wave 0's convert: one sentence's generated graph (penman), its alignment ({var: [first,
+    last]}, the page's own tokens) and its document-level annotation, into the sentence and
+    document waves, the way a .umr file's sentence is loaded. A document-level relation may name a
+    variable of an earlier sentence that was generated (or loaded) before. Returns {"steps",
+    "problems", "refs"}."""
+    ld = Loader(engine, origin="generated")
+    ld.prepare()
+    tokens = list(engine.doc.sents[i].tokenized_text)
+    align = {str(v): (int(a), int(b)) for v, (a, b) in (alignment or {}).items()}
+    block = {"words": tokens, "graph": graph, "align": align, "doc": document or ""}
+    with ld.loading():
+        refs = ld.sentence(i, block) or {}
+        engine.refs[i] = refs
+        known = {}
+        for k in sorted(engine.refs):
+            if k <= i:
+                known.update(engine.refs[k])
+        ld.document(i, document or "", known)
+    return {"steps": ld.count, "problems": ld.problems, "refs": refs}

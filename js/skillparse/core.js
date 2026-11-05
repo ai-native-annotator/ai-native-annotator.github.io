@@ -20,6 +20,9 @@ import { toast } from './ui.js';
 import { workKey, getWork, putWork, dropWork, lastOpen } from './save.js';
 import { t } from './i18n.js';
 
+/** The wave whose steps make the sentence graph (wave 0, generate, may come before it). */
+export const SENTENCE_WAVE = 'sentence';
+
 export const SKILLSETS = [
   { id: 'web-zh', label: '中文 · sent_type: Jev, 其余: 所选模型 (R42 + V12)', lang: 'zh' },
   { id: 'web-en', label: 'English · sent_type: Jev, rest: the chosen model (umr-tree + V12)', lang: 'en' },
@@ -178,7 +181,7 @@ export async function open(skillset, doc) {
     if (!res.ok) problems.push(`${path}: ${res.problem}`);
   }
   if (Object.keys(files).length) S.desc = await py('describe');
-  S.wave = S.desc.waves[0].name;
+  S.wave = (S.desc.waves.find((w) => w.name === SENTENCE_WAVE) || S.desc.waves[0]).name;
   S.item = 0;
   // the work kept in this browser for this document and procedure
   const key = workKey(skillset, doc);
@@ -293,8 +296,10 @@ async function withSlot(fn) {
 }
 
 /** Run one node to the end. Returns the bridge's final result. */
-export async function drive(w, i, nid, signal, { hint } = {}) {
-  let r = await py('step', { w, i, nid, ...(hint === undefined ? {} : { hint }) });
+export async function drive(w, i, nid, signal, { hint, revise = false } = {}) {
+  // revise: a local change of the finished output by the hint (bridge.revise), else the step runs
+  let r = revise ? await py('revise', { w, i, nid, hint })
+    : await py('step', { w, i, nid, ...(hint === undefined ? {} : { hint }) });
   const key = `${w}|${i}|${nid}`;
   const since = Date.now();
   // the step is shown at work (tree, item list, output pane) while a model answers it
@@ -309,13 +314,16 @@ export async function drive(w, i, nid, signal, { hint } = {}) {
         const answers = await withSlot(() => jev(r.state, r.questions, { onManual: manualAnswerer, signal }));
         r = await py('answer', { w, i, nid, answers });
       } else if (r.need === 'llm') {
-        working({ kind: 'llm', model: settings().roles.haiku.model, retry: r.retry });
-        status(t('running', { what: `${nid} ${r.skill} · ${settings().roles.haiku.model}${r.retry ? ' · retry' : ''}` }));
+        // the role the bridge names: wave 0's own (umr_generate) or the agent skills'
+        const role = settings().roles[r.role] ? r.role : 'haiku';
+        const model = settings().roles[role].model;
+        working({ kind: 'llm', model, retry: r.retry });
+        status(t('running', { what: `${nid} ${r.skill} · ${model}${r.retry ? ' · retry' : ''}` }));
         const out = await withSlot(() => llm({
-          role: 'haiku', system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
+          role, system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
           schema: emitSchema(r.emit), signal, callTool: (name, args) => py('tool', { w, i, nid, name, args }),
         }));
-        r = await py('complete', { w, i, nid, output: out, model: settings().roles.haiku.model });
+        r = await py('complete', { w, i, nid, output: out, model });
       } else {
         throw new Error(`unknown need ${r.need}`);
       }
@@ -369,10 +377,10 @@ export function stop() {
 }
 
 /** Run (or re-run) one step; `hint` is the person's note that goes in after its input. */
-export async function runNode(nid = S.node, { hint } = {}) {
+export async function runNode(nid = S.node, { hint, revise = false } = {}) {
   return guarded(async (signal) => {
     try {
-      const r = await drive(S.wave, S.item, nid, signal, { hint });
+      const r = await drive(S.wave, S.item, nid, signal, { hint, revise });
       status(r.status === 'error' ? `${t('error')}: ${r.error}` : t('checkStep', { id: nid }));
       return r;
     } catch (err) {
