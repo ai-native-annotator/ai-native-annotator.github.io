@@ -991,6 +991,66 @@ class RegistryEngine:
                                                                     r.get("relation"), r.get("target")))
         return out
 
+    def follow_doc_refs(self, i, step, old, new):
+        """After a step of sentence i changed its output (a local change, a person's edit), the
+        document-level relations that name a node inside it ("<sentence>:<step>/<var>") follow it:
+        a variable the step still has stays; one it no longer has goes to the new node with the same
+        concept and span, else the same concept, else (its first node) the new first node; a node
+        that is gone takes its relations with it. Returns {"changed", "dropped"}."""
+        def nodes(o):
+            g = (o or {}).get("graph") if isinstance(o, dict) else None
+            return [x for x in (g or {}).get("nodes") or [] if isinstance(x, dict) and x.get("var")]
+        before, after = nodes(old), nodes(new)
+        have = {x["var"] for x in after}
+        moved, used = {}, set()
+        for k, x in enumerate(before):
+            v = x["var"]
+            if v in have:
+                continue
+            pick = [y["var"] for y in after if y["var"] not in used and y.get("concept") == x.get("concept")
+                    and y.get("span") == x.get("span")]
+            pick = pick or [y["var"] for y in after if y["var"] not in used and y.get("concept") == x.get("concept")]
+            if len(pick) >= 1:
+                moved[v] = pick[0]
+            elif k == 0 and after:
+                moved[v] = after[0]["var"]
+            else:
+                moved[v] = None
+            if moved[v]:
+                used.add(moved[v])
+        if not moved:
+            return {"changed": 0, "dropped": 0}
+        name = "%d:%s" % (self.doc.sents[int(i)].index, ref_id(step))
+        changed = dropped = 0
+
+        def fix(x):
+            m = re.fullmatch(r"(\d+:[\d.]+)/(\S+)", str(x))
+            if not m or m.group(1) != name or m.group(2) not in moved:
+                return x, False
+            return (None if moved[m.group(2)] is None else "%s/%s" % (name, moved[m.group(2)])), True
+        for dep in (self.eps.get("document") or {}).values():
+            for d in dep["nodes"].values():
+                for field in ("output", "machine_output", "stored"):
+                    o = d.get(field)
+                    if not (isinstance(o, dict) and isinstance(o.get("relations"), list)):
+                        continue
+                    kept = []
+                    for r in o["relations"]:
+                        if not isinstance(r, dict):
+                            kept.append(r)
+                            continue
+                        src, a = fix(r.get("source"))
+                        tgt, b = fix(r.get("target"))
+                        if src is None or tgt is None:
+                            dropped += field == "output"
+                            continue
+                        if a or b:
+                            changed += field == "output"
+                            r = dict(r, source=src, target=tgt)
+                        kept.append(r)
+                    o["relations"] = kept
+        return {"changed": changed, "dropped": dropped}
+
     def _revised(self, w, ep, node, out):
         """The revised output of a local change: in place when its placeholders are the same."""
         old = node["revising"]["output"]
@@ -1011,8 +1071,9 @@ class RegistryEngine:
             self._mark_stale(w, ep["index"])
             res = {"done": True, "node": node["id"], "status": "ok", "children": node["children"]}
         node["revised"] = True
-        # document-level relations that pointed inside this step by a variable it no longer has
-        node["doc_ref_problems"] = self.doc_ref_problems(ep["index"], node["id"]) if w == SENTENCE_WAVE else []
+        # the document-level relations that pointed inside this step follow it
+        if w == SENTENCE_WAVE:
+            node["doc_followed"] = self.follow_doc_refs(ep["index"], node, old, node.get("output"))
         return res
 
     def complete(self, w, i, nid, output, model=None):
@@ -1233,11 +1294,14 @@ class RegistryEngine:
         """A person's output for the node: it replaces the model's, and the subtree is remade from it."""
         ep, node = self._node(w, i, nid)
         machine = node.get("machine_output")
+        old = node.get("output")
         for k in self._descendants(ep, nid):
             del ep["nodes"][k]
         self._drop_gens(w, i, nid)
         res = self._finish(w, ep, node, output, human=True)
         node["machine_output"] = machine
+        if w == SENTENCE_WAVE and not self.loading and node["status"] == "ok":
+            node["doc_followed"] = self.follow_doc_refs(i, node, old, node.get("output"))
         return res
 
     def _mark_stale(self, w, i):

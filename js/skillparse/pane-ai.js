@@ -168,7 +168,10 @@ async function localChange(text) {
   }
   await selectNode(loc.node);
   await runNode(loc.node, { hint: text, revise: true });
-  localDone.set(`${S.skillset}|${S.doc}|${item}`, t('localWhere', { node: loc.node, vars: loc.vars.join(', ') }));
+  // a one-off change (history): the hint is not kept on the step, nor in the box
+  const key = `${S.skillset}|${S.doc}|${item}`;
+  localDrafts.delete(key);
+  localDone.set(key, `${t('localWhere', { node: loc.node, vars: loc.vars.join(', ') })} ${t('docCheck')}`);
   render();
 }
 

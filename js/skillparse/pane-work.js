@@ -170,9 +170,9 @@ function outputTab(d) {
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
   if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
   if (d.model && d.status !== 'pending') parts.push(h('div', { class: 'note', text: t('madeBy', { model: d.model }) }));
-  if (d.doc_ref_problems?.length) {
-    parts.push(h('div', { class: 'card warn' }, h('strong', { text: t('docRefProblems') }),
-      h('ul', {}, d.doc_ref_problems.map((x) => h('li', { text: x })))));
+  if (d.doc_followed && (d.revised || d.human)) {
+    // a change of a step: its document-level relations followed it; one line to say so
+    parts.push(h('div', { class: 'note doc-followed', text: t('docFollowed', { changed: d.doc_followed.changed, dropped: d.doc_followed.dropped }) }));
   }
   if (d.revise_error) parts.push(h('div', { class: 'card warn', text: t('reviseFailed', { e: d.revise_error }) }));
   if (d.applied) {
