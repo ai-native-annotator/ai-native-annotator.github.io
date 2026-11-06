@@ -99,6 +99,7 @@ MODAL_ROLES = ("quote", "purpose", "condition", "modal-predicate", "modpred", "A
 # wave 0 (web): umr_generate writes a sentence's whole graph and document-level annotation, and
 # the rule `convert` checks it and loads it into the sentence and document waves (umr_load)
 GENERATE, CONVERT = "umr_generate", "convert"
+SENTENCE_WAVE = "sentence"
 # which model role a skill's calls go to (the page's settings): wave 0's own, else the agent skills'
 ROLE_OF = {GENERATE: "generate"}
 REVISE = ("You are revising the output of one step of a UMR annotation. Keep the output as it is, "
@@ -925,7 +926,7 @@ class RegistryEngine:
                  "these fields: %s.\n" % fields, "input": self.input_markdown(w, i, nid)}
         user = (p["input"].rstrip("\n") + "\n\n## The current output\n\n```json\n"
                 + json.dumps(jsonable(node["output"]), ensure_ascii=False, indent=1) + "\n```\n\n"
-                + self._hint_label() + hint + "\n")
+                + self._umr_vars_md(w, i, nid) + self._hint_label() + hint + "\n")
         node["revising"] = {"output": node["output"], "hint": hint, "confirmed": node.get("confirmed")}
         node["status"] = "running"
         node["prompt"] = {"system": SYSTEM + " " + HINT_RULE + " " + REVISE, "instructions": p["instructions"],
@@ -933,24 +934,85 @@ class RegistryEngine:
         node["retried"] = False
         return self._llm_request(node, skill)
 
+    def _umr_vars_md(self, w, i, nid):
+        """The sentence's UMR variables (as the .umr names them), against the steps that made them:
+        a person's hint names nodes by those."""
+        if w != SENTENCE_WAVE:
+            return ""
+        try:
+            nodes = self.graph(i, auto_align=False)["nodes"]
+        except Exception:
+            return ""
+        if not nodes:
+            return ""
+        rows = ["| UMR variable | concept | step | its variable in the step |", "|---|---|---|---|"]
+        for n in nodes:
+            mine = " (this step)" if n.get("node") == nid else ""
+            rows.append("| %s | %s | %s%s | %s |" % (n["var"], n["concept"], ref_id({"id": n.get("node") or "",
+                                                                                      "skill": n.get("skill")})
+                                                      if n.get("node") else "", mine, n.get("local") or ""))
+        return ("## The sentence's UMR variables\n\nThe hint names nodes by their UMR variables. In this "
+                "step's output a node of this step is named by its variable in the step; a node of another "
+                "step is reached by an `outside` item naming that step. Keep the variable names of this step.\n\n"
+                + "\n".join(rows) + "\n\n")
+
+    def locate(self, i, hint):
+        """The step a local change by a hint is for (the AI panel): the one that made the first UMR
+        variable of sentence i the hint names. Returns {"wave", "node", "vars": [named variables]}."""
+        nodes = self.graph(int(i), auto_align=False)["nodes"]
+        by_var = {n["var"]: n for n in nodes}
+        named = [v for v in re.findall(r"\bs\d+[a-z]\w*", str(hint or "")) if v in by_var]
+        if not named:
+            raise StepError("name a node by its UMR variable (%s)" % ", ".join(list(by_var)[:6]))
+        first = by_var[named[0]]
+        if not first.get("node"):
+            raise StepError("%s was not made by a step of this sentence" % named[0])
+        return {"wave": SENTENCE_WAVE, "node": first["node"], "vars": named,
+                "steps": sorted({by_var[v]["node"] for v in named if by_var[v].get("node")}, key=node_key)}
+
+    def doc_ref_problems(self, i, nid):
+        """Document-level relations that name a node inside step nid of sentence i by a variable the
+        step no longer has (after a change): "<sentence>:<step>/<var>"."""
+        ep = self.eps.get(SENTENCE_WAVE, {}).get(int(i))
+        step = ep["nodes"].get(nid) if ep else None
+        if not step:
+            return []
+        g = (step.get("output") or {}).get("graph") or {}
+        have = {x.get("var") for x in g.get("nodes") or [] if isinstance(x, dict)}
+        name = "%d:%s" % (self.doc.sents[int(i)].index, ref_id(step))
+        out = []
+        for k, dep in (self.eps.get("document") or {}).items():
+            for d in dep["nodes"].values():
+                for r in ((d.get("output") or {}).get("relations") or []):
+                    for x in (r.get("source"), r.get("target")):
+                        m = re.fullmatch(r"(\d+:[\d.]+)/(\S+)", str(x))
+                        if m and m.group(1) == name and m.group(2) not in have:
+                            out.append("sentence %d %s: %s %s %s" % (int(k) + 1, d["skill"], r.get("source"),
+                                                                    r.get("relation"), r.get("target")))
+        return out
+
     def _revised(self, w, ep, node, out):
         """The revised output of a local change: in place when its placeholders are the same."""
-        old = node.pop("revising")["output"]
+        old = node["revising"]["output"]
         same = [(x.get("var"), x.get("span")) for x in old.get("open") or [] if isinstance(x, dict)] == \
                [(x.get("var"), x.get("span")) for x in out.get("open") or [] if isinstance(x, dict)]
         if not same:
+            node.pop("revising")
             for k in self._descendants(ep, node["id"]):
                 del ep["nodes"][k]
-            res = self._finish(w, ep, node, out)
+            res = self._finish(w, ep, node, out, keep=old)
         else:
             skill = self.reg.skills[node["skill"]]
-            out = self._check_emit(skill, out)
+            out = self._check_emit(skill, out, keep=old)
+            node.pop("revising")
             node["output"] = node["machine_output"] = out
             node["stored"] = {k: out[k] for k in skill.store}
             node["status"], node["error"], node["confirmed"], node["human"] = "ok", None, False, False
             self._mark_stale(w, ep["index"])
             res = {"done": True, "node": node["id"], "status": "ok", "children": node["children"]}
         node["revised"] = True
+        # document-level relations that pointed inside this step by a variable it no longer has
+        node["doc_ref_problems"] = self.doc_ref_problems(ep["index"], node["id"]) if w == SENTENCE_WAVE else []
         return res
 
     def complete(self, w, i, nid, output, model=None):
@@ -962,7 +1024,7 @@ class RegistryEngine:
             node["model"] = str(model)
         skill = self.reg.skills[node["skill"]]
         try:
-            self._check_emit(skill, output)
+            self._check_emit(skill, output, keep=(node.get("revising") or {}).get("output"))
             self._check_fragment(output)
             self._check_outside(node, output)
         except Exception as e:
@@ -1032,7 +1094,7 @@ class RegistryEngine:
                             "by its `node` (one of: %s); not %s" % (", ".join(sorted(names, key=node_key)) or "none",
                                                                   json.dumps(jsonable(bad), ensure_ascii=False)[:300]))
 
-    def _check_emit(self, skill, out):
+    def _check_emit(self, skill, out, keep=None):
         if not isinstance(out, dict):
             raise StepError("the output is not an object")
         missing = [k for k in skill.emit if k not in out]
@@ -1044,6 +1106,8 @@ class RegistryEngine:
             if isinstance(t, list):
                 if self.loading and v == "none":
                     pass            # a loaded file can leave a choice empty (umr_load: modstr)
+                elif keep and keep.get(k) == v:
+                    pass            # a local change keeps a value the step already had
                 elif v not in t:
                     raise StepError("%s = %r is not one of %s" % (k, v, ", ".join(map(str, t))))
             elif t in ("list[str]", "list[int]", "list[float]", "list[dict]") and not isinstance(v, list):
@@ -1055,12 +1119,12 @@ class RegistryEngine:
             clean[k] = v
         return jsonable(clean)
 
-    def _finish(self, w, ep, node, out, human=False):
+    def _finish(self, w, ep, node, out, human=False, keep=None):
         """Store the output and make the children the dispatcher asks for (runner._dispatch)."""
         R = self.R
         skill = self.reg.skills[node["skill"]]
         try:
-            out = self._check_emit(skill, out)
+            out = self._check_emit(skill, out, keep=keep)
         except Exception as e:
             return self._fail(w, ep, node, e)
         if not human:
@@ -1484,7 +1548,7 @@ class RegistryEngine:
             p = prov.get(v) or {}
             res["nodes"].append({"var": v, "concept": concept, "align": a, "auto": v in added,
                                  "words": " ".join(tokens[lo - 1:hi]) if lo > 0 else "",
-                                 "node": p.get("node"), "skill": p.get("skill")})
+                                 "node": p.get("node"), "skill": p.get("skill"), "local": p.get("var")})
         res["edges"] = [{"src": a, "role": r.lstrip(":"), "tgt": b} for a, r, b in g.edges()]
         res["attrs"] = [{"var": a, "role": r.lstrip(":"), "value": str(b)} for a, r, b in g.attributes()]
         return res

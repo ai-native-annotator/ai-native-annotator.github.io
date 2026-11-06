@@ -303,3 +303,4 @@ body.busy .status::before { content: ""; display: inline-block; width: 10px; hei
 .umr-var { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; cursor: pointer; }
 .umr-var:hover { color: var(--accent); }
 .tool-form textarea { font-family: var(--mono); }
+.umr-var.on { background: var(--accent-soft); color: var(--accent); }

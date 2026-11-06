@@ -356,6 +356,8 @@ class _SentenceGraph:
                        if isinstance(m, dict) and str(m.get("node")) in self.nodes
                        and str(m.get("into")) in self.nodes}
         self.used = set()
+        self.reserved = {str(nd.get("var")) for x in nodes for nd in ((fragment_of(x) or {}).get("nodes") or [])
+                         if re.fullmatch(r"s%d[a-z]\w*" % n, str(nd.get("var", "")))}
         self.placed = set()         # tree nodes the walk put in the graph (not merged, not under a merge)
         self.align = []             # (var, "a-b") in creation order
         self.frags = {}             # tree node id -> _Frag
@@ -378,7 +380,7 @@ class _SentenceGraph:
             return None
         local = {}
         for nd in frag["nodes"]:
-            u = _UNode(self._var(nd["concept"]), nd["concept"], _align(nd.get("span")))
+            u = _UNode(self._var(nd["concept"], nd["var"]), nd["concept"], _align(nd.get("span")))
             local[nd["var"]] = u
             self.align.append((u.var, u.align))
         f = _Frag(local, local[frag["nodes"][0]["var"]], frag)
@@ -493,11 +495,14 @@ class _SentenceGraph:
                 f.root.edges.append((NO_ROLE, u))
                 reach(id(u))
 
-    def _var(self, concept):
+    def _var(self, concept, prefer=None):
+        if prefer in self.reserved and prefer not in self.used:
+            self.used.add(prefer)
+            return prefer
         head = next((ch for ch in concept.lower() if ch.isalpha() and ch.isascii()), "x")
         base = f"s{self.n}{head}"
         var, k = base, 1
-        while var in self.used:
+        while var in self.used or var in self.reserved:
             k += 1
             var = f"{base}{k}"
         self.used.add(var)

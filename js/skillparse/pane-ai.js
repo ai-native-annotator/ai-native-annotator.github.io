@@ -11,7 +11,7 @@
  */
 
 import { h, clear, toast, diffView } from './ui.js';
-import { S, onRender, render, nodeKey, runNode, saveOutput, selectNode, assembled } from './core.js';
+import { S, onRender, render, nodeKey, runNode, saveOutput, selectNode, selectWave, selectItem, assembled } from './core.js';
 import { reflect, applyToFiles } from './reflect.js';
 import { openEditor } from './pane-skills.js';
 import { py } from './py.js';
@@ -146,11 +146,55 @@ function proposalView(s) {
       p.target && s.verify.ok === false ? h('button', { class: 'btn sm', text: t('reapply'), onclick: () => saveOutput(p.target) }) : null) : null);
 }
 
+const localDrafts = new Map();     // sentence -> the hint typed for a local change
+const localDone = new Map();       // sentence -> what the last local change changed
+
+/**
+ * A local change asked for by UMR variables: the step that made the first variable the hint
+ * names (bridge.locate) changes its output by the hint (bridge.revise), keeping the rest.
+ */
+async function localChange(text) {
+  const item = S.item;
+  let loc;
+  try {
+    loc = await py('locate', { i: item, hint: text });
+  } catch (err) {
+    toast(err.message.includes('UMR variable') ? t('localNoVar') : err.message, 6000);
+    return;
+  }
+  if (S.wave !== loc.wave) {
+    await selectWave(loc.wave);
+    await selectItem(item);
+  }
+  await selectNode(loc.node);
+  await runNode(loc.node, { hint: text, revise: true });
+  localDone.set(`${S.skillset}|${S.doc}|${item}`, t('localWhere', { node: loc.node, vars: loc.vars.join(', ') }));
+  render();
+}
+
+function localCard() {
+  const key = `${S.skillset}|${S.doc}|${S.item}`;
+  const area = h('textarea', { rows: 3, class: 'local-area', placeholder: t('localPlaceholder'), style: 'font-family:var(--sans);font-size:13px' });
+  area.value = localDrafts.get(key) || '';
+  area.addEventListener('input', () => localDrafts.set(key, area.value));
+  return h('div', { class: 'mode open local-card' },
+    h('div', { class: 'mode-head' }, h('strong', { text: t('localCard') })),
+    h('div', { class: 'note', text: t('localDesc') }), area,
+    h('div', { class: 'row' }, h('button', { class: 'btn primary local-go', disabled: S.running > 0, text: t('localGoAi'), onclick: () => {
+      if (area.value.trim()) localChange(area.value.trim()); else area.focus();
+    } }), localDone.get(key) ? h('span', { class: 'note', text: localDone.get(key) }) : null));
+}
+
 function draw() {
   const el = document.getElementById('ai');
   if (!S.desc) { clear(el); return; }
   const d = S.detail;
-  if (!d) { clear(el, h('div', { class: 'empty', text: t('aiNone') })); return; }
+  if (!d) {
+    const typing = document.activeElement;
+    if (typing?.tagName === 'TEXTAREA' && el.contains(typing)) return;
+    clear(el, localCard(), h('div', { class: 'empty', text: t('aiNone') }));
+    return;
+  }
   const s = slot();
   const k = nodeKey();
   // a redraw while the person types in ③ must not take the cursor away
@@ -181,6 +225,7 @@ function draw() {
       h('button', { class: 'btn', disabled: s.busy, text: t('selfGo'), onclick: () => ask('self') })));
 
   clear(el,
+    localCard(),
     h('div', { class: 'note', style: 'margin-bottom:6px', text: t('aiHead', { node: `#${S.item + 1} · ${d.id} · ${d.skill} (${d.kind})` }) }),
     h('div', { class: 'modes' },
       modeCard(1, t('m1'), t('m1Desc'), m1),

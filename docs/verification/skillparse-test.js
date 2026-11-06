@@ -132,12 +132,11 @@ async function stepThrough(page, max = 80) {
   check("propbank_lookup's answer is shown as the model got it, as Markdown (a heading per roleset, its examples)",
     await page.$$eval('#output .qa .md h3', (e) => e.some((x) => x.textContent === '吃-01'))
     && (await page.textContent('#output')).includes('Example 1:'));
-  await page.click('.tab:text-is("提示词")');
+  await page.click('.tab:text-is("输入与提示词")');
   check("the agent step's prompt is its skill.md, rendered", (await page.textContent('#output')).includes('# Output Format')
     && !!(await page.$('#output .md h1')));
-  await page.click('.tab:text-is("输入")');
   const inputMd = await page.$eval('#output', (e) => ({ md: !!e.querySelector('.md h2'), text: e.querySelector('.md')?.innerText || '' }));
-  check("the agent step's input is shown as the model gets it, in Markdown (numbered tokens, not JSON)",
+  check("the agent step's input is shown as the model gets it, in Markdown (numbered tokens, not JSON), in the same tab as its prompt",
     inputMd.md && /Tokens, each with its number: \[1\]\S/.test(inputMd.text) && !inputMd.text.includes('[[1,'), inputMd.text.slice(0, 160));
   const ids = await page.$$eval('.tree li .id', (e) => e.map((x) => x.textContent));
   check('step ids: a sent_type step is 0B and the step it starts 0 (0.0B, 0.0, ...)', ids[0] === '0B' && ids[1] === '0'
@@ -175,7 +174,7 @@ async function stepThrough(page, max = 80) {
   check('the hint is written after the input and the step runs again', sent.length > 0 && sent.every((u) => /## Input[\s\S]*\n\nhuman提示：应该是 and，不是 none\n?$/.test(u)), JSON.stringify(sent[0]?.slice(-80)));
   const sysHint = (calls.bodies || []).slice(-1)[0]?.system || '';
   check('with a hint, the system prompt says the hint must be followed', /you must follow it/.test(sysHint), sysHint.slice(-160));
-  await page.click('.tab:text-is("提示词")');
+  await page.click('.tab:text-is("输入与提示词")');
   check('the prompt tab shows the hint', (await page.textContent('#output')).includes('human提示：应该是 and，不是 none'));
   await page.click('.tab:text-is("输出")');
   check('the re-run step waits for confirmation again, with its hint shown', !!(await page.$('#output .confirm-card'))

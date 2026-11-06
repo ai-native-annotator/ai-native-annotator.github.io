@@ -261,6 +261,29 @@ returns whole gold sentence annotations that contain them. To check a rule, call
 # the output handler sorts and resolves them
 OUTPUT_HANDLER = "src/output_handler/umroutputhandler.py"
 OUTPUT_HANDLER_IDS = [
+    # web: a node keeps its fragment's own variable when that is already a UMR variable of this
+    # sentence (s3x, s3p2: a loaded file's, wave 0's), so the names a person reads and writes stay
+    # put when a step is changed; other nodes are named from their concept, never taking one of those
+    ("""        self.used = set()
+""", """        self.used = set()
+        self.reserved = {str(nd.get("var")) for x in nodes for nd in ((fragment_of(x) or {}).get("nodes") or [])
+                         if re.fullmatch(r"s%d[a-z]\\w*" % n, str(nd.get("var", "")))}
+"""),
+    ("""            u = _UNode(self._var(nd["concept"]), nd["concept"], _align(nd.get("span")))""",
+     """            u = _UNode(self._var(nd["concept"], nd["var"]), nd["concept"], _align(nd.get("span")))"""),
+    ("""    def _var(self, concept):
+        head = next((ch for ch in concept.lower() if ch.isalpha() and ch.isascii()), "x")
+        base = f"s{self.n}{head}"
+        var, k = base, 1
+        while var in self.used:""", """    def _var(self, concept, prefer=None):
+        if prefer in self.reserved and prefer not in self.used:
+            self.used.add(prefer)
+            return prefer
+        head = next((ch for ch in concept.lower() if ch.isalpha() and ch.isascii()), "x")
+        base = f"s{self.n}{head}"
+        var, k = base, 1
+        while var in self.used or var in self.reserved:"""),
+
     ('    return tuple(int(p) for p in str(node_id).split("."))\n',
      '    # web: a part can end in B (a sent_type step) or A (an outside item\'s antecedent node):\n'
      '    # "0B" < "0" < "0.0B" < "0.0" < "0.0A"\n'

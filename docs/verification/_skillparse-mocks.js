@@ -54,7 +54,18 @@ module.exports = function mocks() {
       document: `(s${n}s0 / sentence :temporal ((document-creation-time :before ${v})) :modal ((root :modal author) (author :full-affirmative ${v}))${coref})` };
   }
 
+  /** A local change: the current output it was given, as it is (a model keeps what the hint does not touch). */
+  function revised(input) {
+    const m = /## The current output\n\n```json\n([\s\S]*?)\n```/.exec(input);
+    calls.revised = (calls.revised || 0) + 1;
+    return m ? JSON.parse(m[1]) : null;
+  }
+
   function emitFor(schema, input = '') {
+    if (input.includes('## The current output')) {
+      const out = revised(input);
+      if (out) return out;
+    }
     if (schema.properties?.document && schema.properties?.graph?.type === 'string') return generated(input);
     const out = {};
     for (const [k, p] of Object.entries(schema.properties || {})) {

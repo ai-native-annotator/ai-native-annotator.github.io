@@ -256,37 +256,57 @@ const statusIs = (page, re, timeout = 180000) =>
   const umrVars = await page.$$eval('#output .umr-var', (e) => e.map((x) => x.textContent));
   await page.click('#output .umr-var >> nth=0');
   await page.waitForTimeout(800);
-  check("the UMR text's variables are links to the steps that made them", umrVars.includes('s1x')
-    && (await page.$eval('.tab[aria-selected="true"]', (e) => e.textContent)) === '图' && !!(await page.$('.tree li[aria-selected="true"]')), umrVars.join(' '));
-  // a local change by a hint keeps the output's form, and the step waits to be confirmed again
-  await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
-  await page.click('.tab:text-is("输出")');
-  await page.click('#output .hint-btn');
-  await page.fill('#output .hint-area', '把 ARG0 改成 ARG1');
+  check("the UMR text's variables are links to the steps that made them, and the UMR text stays", umrVars.includes('s1x')
+    && (await page.$eval('.tab[aria-selected="true"]', (e) => e.textContent)) === 'UMR 文本' && !!(await page.$('.tree li[aria-selected="true"]'))
+    && !!(await page.$('#output .umr-var.on')), umrVars.join(' '));
+  // a local change, asked for in the AI panel by the UMR text's variables: the step that made the
+  // first one changes its output by the hint, and waits to be confirmed again
+  await page.fill('#ai .local-area', 's1x 的 aspect 应该是 activity');
   const nInW0 = calls.inputs.length;
-  await page.click('#output .hint-local');
+  await page.click('#ai .local-go');
   await settled();
-  check('a local change sends the current output and the hint, then waits to be confirmed',
-    calls.inputs.slice(nInW0).some((u) => u.includes('## The current output') && u.includes('human提示：把 ARG0 改成 ARG1'))
-    && !!(await page.$('#output .confirm-card')), String(calls.inputs.length - nInW0));
+  await page.click('.tab:text-is("输出")');
+  check('a local change by UMR variables goes to the step that made them, with its output, the hint and the variables',
+    calls.inputs.slice(nInW0).some((u) => u.includes('## The current output') && u.includes("## The sentence's UMR variables")
+      && /\| s1x \|/.test(u) && u.includes('human提示：s1x 的 aspect 应该是 activity'))
+    && !!(await page.$('#output .confirm-card')) && (await page.textContent('#ai')).includes('改的是'), String(calls.inputs.length - nInW0));
   await page.click('#output .review-card button:text-is("✓ 正确，确认")');
   await settled();
   await page.click('#btn-export');
   const [w0dl] = await Promise.all([page.waitForEvent('download'), page.click('button[data-export="umr-raw"]')]);
   const w0umr = fs.readFileSync(await w0dl.path(), 'utf8');
-  check("the export has wave 0's document-level relations, across sentences", /:coref \(\(s\d+\w* :same-event s\d+\w*\)\)/.test(w0umr)
-    && /document-creation-time :before/.test(w0umr), w0umr.split('# document level annotation:')[2]?.slice(0, 200));
+  check("the export has wave 0's document-level relations, across sentences, by the variables wave 0 gave (kept after a change)",
+    /:coref \(\(s1x :same-event s2x\)\)/.test(w0umr) && /document-creation-time :before/.test(w0umr),
+    w0umr.split('# document level annotation:')[2]?.slice(0, 200));
+
+  // the whole document at once
+  await page.click('#btn-import');
+  await page.fill('#modal textarea', '第一句。\n第二句。\n第三句。');
+  await page.fill('#modal input[type=text]', 'w1');
+  await page.check('#modal input[value="txt-lines"]');
+  await page.click('#modal button:text-is("导入")');
+  await page.waitForFunction(() => document.getElementById('doc').value === 'w1'
+    && /就绪/.test(document.getElementById('status').textContent), null, { timeout: 60000 });
+  await page.click('.wave-tab:has-text("generate")');
+  await page.waitForTimeout(300);
+  const genAllBefore = calls.generated.length;
+  await page.click('#run-bar .gen-all');
+  await settled();
+  const allDots = await page.$$eval('#context .items li .dot', (e) => e.map((x) => x.className));
+  check('"generate all" generates and converts every sentence in turn, each step confirmed',
+    calls.generated.length - genAllBefore === 3 && allDots.every((c) => /\bdone\b/.test(c)) && /生成了 3 句/.test(await page.textContent('#status')),
+    `${calls.generated.length - genAllBefore} · ${allDots.join(',')} · ${await page.textContent('#status')}`);
 
   // the imported documents are kept in this browser too
   await page.reload();
   await page.waitForFunction(() => !!document.querySelector('#modal .restore-yes')
     || (document.querySelectorAll('#doc option').length > 0 && /就绪|恢复|暂存|载入了/.test(document.getElementById('status').textContent)),
   null, { timeout: 180000 });
-  // the last document (w0) has work kept: go on with it
+  // the last document (w1) has work kept: go on with it
   if (await page.$('#modal .restore-yes')) await page.click('#modal .restore-yes');
   await page.waitForFunction(() => document.querySelectorAll('#doc option').length > 0, null, { timeout: 60000 });
   const docsAfter = await page.$$eval('#doc option', (e) => e.map((x) => x.value));
-  check('imported documents are still there after a reload', ['hawksbill', 'hawksbill-gold', 'hawksbill-char', 't-txt-lines', 't-txt-split']
+  check('imported documents are still there after a reload', ['hawksbill', 'hawksbill-gold', 'hawksbill-char', 't-txt-lines', 't-txt-split', 'w0', 'w1']
     .every((d) => docsAfter.includes(d)), docsAfter.join(', '));
 
   check('no page errors', errs.length === 0, errs.slice(0, 5).join('\n      '));

@@ -22,6 +22,8 @@ import { t } from './i18n.js';
 
 /** The wave whose steps make the sentence graph (wave 0, generate, may come before it). */
 export const SENTENCE_WAVE = 'sentence';
+/** Wave 0: umr_generate writes a whole sentence, convert loads it into the waves after it. */
+export const GENERATE_WAVE = 'generate';
 
 export const SKILLSETS = [
   { id: 'web-zh', label: '中文 · sent_type: Jev, 其余: 所选模型 (R42 + V12)', lang: 'zh' },
@@ -469,6 +471,42 @@ export async function runNextAll(w = S.wave) {
     status(S.cancel ? t('stopped') : t('allNextDone', tally));
     await refresh();
     return tally;
+  });
+}
+
+/**
+ * Wave 0 for the whole document: each sentence in turn is generated and converted, and each step
+ * is confirmed as it finishes (the person asked for the whole document at once; every step can
+ * still be looked at, re-run or changed after). Stops at the first step in error.
+ */
+export async function generateAll(w = GENERATE_WAVE) {
+  return guarded(async (signal) => {
+    const items = await py('items', { w });
+    let made = 0;
+    for (const it of items) {
+      if (S.cancel) break;
+      for (let round = 0; round < 8; round++) {
+        const r = await nextStep(w, it.index, signal);
+        const done = r.ran ? [r.ran] : r.awaiting || [];
+        if (r.ran && r.status === 'error') { status(t('genAllStopped', { n: it.index + 1, e: r.error || '' })); await refresh(); return made; }
+        if (!done.length) break;
+        for (const nid of done) {
+          try {
+            await py('confirm', { w, i: it.index, nid });
+          } catch (err) {
+            status(t('genAllStopped', { n: it.index + 1, e: err.message }));
+            await refresh();
+            return made;
+          }
+        }
+        changed();
+      }
+      made++;
+      if (w === S.wave) await refresh({ detail: false });
+    }
+    status(S.cancel ? t('stopped') : t('genAllDone', { n: made }));
+    await refresh();
+    return made;
   });
 }
 

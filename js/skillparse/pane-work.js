@@ -14,7 +14,7 @@
  */
 
 import { h, clear, pretty, toast, diffView } from './ui.js';
-import { S, SENTENCE_WAVE, onRender, render, selectNode, selectWave, selectItem, runNode, runNext, resetNode, saveOutput, startItem, sentenceGraph, confirmNode, confirmAndNext } from './core.js';
+import { S, SENTENCE_WAVE, GENERATE_WAVE, generateAll, onRender, render, selectNode, selectWave, selectItem, runNode, runNext, resetNode, saveOutput, startItem, sentenceGraph, confirmNode, confirmAndNext } from './core.js';
 import { py } from './py.js';
 import { outputPenman, docNodes } from './penman-view.js';
 import { drawGraph, fragmentGraph } from './graph-view.js';
@@ -27,9 +27,9 @@ const LABEL = { graph: 'tabGraph', output: 'tabOutput', input: 'tabInput', jev: 
 function tabsFor(d) {
   const out = ['graph'];
   if (d) {
-    out.push('output', 'input');
+    // an agent step's input is the last part of its prompt: one tab shows both
+    out.push('output', d.kind === 'agent' ? 'prompt' : 'input');
     if (d.kind === 'jev') out.push('jev');
-    if (d.kind === 'agent') out.push('prompt');
     if (d.kind === 'agent' || d.tool_specs?.length || d.tool_calls?.length) out.push('tools');
   }
   out.push('umr');
@@ -72,7 +72,7 @@ function reviewCard(d) {
   const unconfirmed = d.status === 'ok' && !d.confirmed;
   // a finished output can be changed locally by a hint (bridge.revise); a model step can also be
   // parsed again with the hint (its skill, as before)
-  const local = d.status === 'ok';
+  const local = false;           // a local change is asked for in the AI panel (by UMR variables)
   let hintBox = null;
   if (S.hinting && (model || local)) {
     const area = h('textarea', { rows: 3, class: 'hint-area', placeholder: t('hintPlaceholder') });
@@ -170,6 +170,10 @@ function outputTab(d) {
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
   if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
   if (d.model && d.status !== 'pending') parts.push(h('div', { class: 'note', text: t('madeBy', { model: d.model }) }));
+  if (d.doc_ref_problems?.length) {
+    parts.push(h('div', { class: 'card warn' }, h('strong', { text: t('docRefProblems') }),
+      h('ul', {}, d.doc_ref_problems.map((x) => h('li', { text: x })))));
+  }
   if (d.revise_error) parts.push(h('div', { class: 'card warn', text: t('reviseFailed', { e: d.revise_error }) }));
   if (d.applied) {
     parts.push(h('div', { class: 'card' }, h('strong', { text: t('convertApplied', { steps: d.applied.steps }) }),
@@ -232,15 +236,23 @@ function jevTab(d) {
       h('div', { class: 'a' }, answerLine(q, r.answers?.[id])))))));
 }
 
+/**
+ * An agent step's input and prompt in one: the input as the model gets it (Markdown), then the
+ * system prompt and the instructions (skill.md) the model got with it, and the values as JSON.
+ * Before the step has run, the input is the one it will get.
+ */
 function promptTab(d) {
   const p = d.prompt;
-  if (!p) return h('div', { class: 'empty', text: t('noPrompt') });
   return h('div', { style: 'display:grid;gap:6px' },
-    h('details', {}, h('summary', { text: 'system' }), h('pre', { class: 'block', text: p.system })),
-    h('details', {}, h('summary', { text: 'instructions (skill.md)' }),
+    h('div', { class: 'note', text: t('promptNote') }),
+    d.input_md ? h('div', { class: 'block md-view' }, renderMarkdown(p?.input && !d.input_md ? p.input : d.input_md, { lines: true })) : null,
+    p?.input && p.input.includes('## The current output') ? h('details', {}, h('summary', { text: t('promptSent') }), h('pre', { class: 'block', text: p.input })) : null,
+    p ? h('details', {}, h('summary', { text: 'system' }), h('pre', { class: 'block', text: p.system })) : null,
+    p ? h('details', {}, h('summary', { text: 'instructions (skill.md)' }),
       h('div', { class: 'block md-view' }, renderMarkdown(p.instructions)),
-      h('details', {}, h('summary', { class: 'note', text: t('mdSource') }), h('pre', { class: 'block', text: p.instructions }))),
-    h('details', { open: true }, h('summary', { text: 'input' }), h('pre', { class: 'block', text: p.input })));
+      h('details', {}, h('summary', { class: 'note', text: t('mdSource') }), h('pre', { class: 'block', text: p.instructions })))
+      : h('div', { class: 'note', text: t('noPrompt') }),
+    h('details', {}, h('summary', { text: t('jsonTitle') }), h('pre', { class: 'block', text: pretty(d.input) })));
 }
 
 function toolsTab(d) {
@@ -297,7 +309,7 @@ function toolResult(text) {
 }
 
 /** Go to the step that made a variable of the sentence graph (it is a node of the sentence wave). */
-async function goToMaker(g, v) {
+async function goToMaker(g, v, tab = 'graph') {
   const n = g.nodes.find((x) => x.var === v);
   if (!n?.node) return;
   const sentenceWave = SENTENCE_WAVE;
@@ -306,7 +318,7 @@ async function goToMaker(g, v) {
     await selectWave(sentenceWave);
     await selectItem(item);
   }
-  S.tab = 'graph';
+  S.tab = tab;
   await selectNode(n.node);
 }
 
@@ -367,12 +379,13 @@ async function umrTab(out) {
     if (S.tab !== 'umr') return;
     const added = new Set(g.nodes.filter((n) => n.auto).map((n) => n.var));
     const byVar = new Map(g.nodes.map((n) => [n.var, n]));
+    const mine = new Set(S.wave === SENTENCE_WAVE && S.node ? g.nodes.filter((n) => n.node === S.node).map((n) => n.var) : []);
     // a variable of this sentence's graph is a link to the step that made it (as a box of the graph)
     const linked = (ln) => ln.split(/(\bs\d+[A-Za-z]\w*\b)/).map((part) => {
       const n = byVar.get(part);
       if (!n) return part;
-      return h('a', { class: 'umr-var', href: '#', title: `${n.concept}${n.words ? ` · ${n.words}` : ''}`,
-        onclick: (e) => { e.preventDefault(); goToMaker(g, part); } }, part);
+      return h('a', { class: `umr-var${mine.has(part) ? ' on' : ''}`, href: '#', title: `${n.concept}${n.words ? ` · ${n.words}` : ''}`,
+        onclick: (e) => { e.preventDefault(); goToMaker(g, part, 'umr'); } }, part);
     });
     const lines = (g.text || '').split('\n').map((ln) => {
       const m = /^(\S+): \d+-\d+$/.exec(ln);
@@ -481,6 +494,7 @@ function drawBottom() {
       ] : first ? [fix(first), h('span', { class: 'note err', text: `${first.id} ${first.skill}: ${t('errorHelp')}` })]
         : h('button', { class: 'btn sm primary run-next', disabled: busy || !ep.nodes.some((n) => n.status === 'pending'), text: t('runNext'), onclick: () => runNext() }),
     ep?.started ? h('button', { class: 'btn sm', disabled: busy, text: t('restart'), onclick: () => startItem() }) : null,
+    S.wave === GENERATE_WAVE ? h('button', { class: 'btn sm gen-all', disabled: busy, title: t('genAllTitle'), text: t('genAll'), onclick: () => generateAll() }) : null,
     ep?.stale ? h('span', { class: 'note warn', text: t('stale') }) : null,
     ep?.error ? h('span', { class: 'note err', text: ep.error }) : null);
   if (!ep?.started) { clear(tree, h('div', { class: 'empty', text: t('notStarted') })); return; }
