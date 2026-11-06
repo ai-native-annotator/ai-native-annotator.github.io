@@ -924,8 +924,9 @@ class RegistryEngine:
             fields = ", ".join('"%s"' % k for k in skill.emit)
             p = {"system": SYSTEM, "instructions": "# Output Format\nYou must produce a JSON object with exactly "
                  "these fields: %s.\n" % fields, "input": self.input_markdown(w, i, nid)}
-        user = (p["input"].rstrip("\n") + "\n\n## The current output\n\n```json\n"
-                + json.dumps(jsonable(node["output"]), ensure_ascii=False, indent=1) + "\n```\n\n"
+        current = "{\n" + ",\n".join(" %s: %s" % (json.dumps(k), json.dumps(jsonable(v), ensure_ascii=False))
+                                     for k, v in node["output"].items()) + "\n}"
+        user = (p["input"].rstrip("\n") + "\n\n## The current output\n\n```json\n" + current + "\n```\n\n"
                 + self._umr_vars_md(w, i, nid) + self._hint_label() + hint + "\n")
         node["revising"] = {"output": node["output"], "hint": hint, "confirmed": node.get("confirmed")}
         node["status"] = "running"
@@ -956,19 +957,61 @@ class RegistryEngine:
                 "step is reached by an `outside` item naming that step. Keep the variable names of this step.\n\n"
                 + "\n".join(rows) + "\n\n")
 
+    # a UMR variable in a hint: s, the sentence number, a letter, letters and digits; written
+    # next to Chinese ("s1x2的ARG0") or in capitals ("S1C")
+    VAR_IN_TEXT = re.compile(r"(?<![A-Za-z0-9])[sS]\d+[A-Za-z][A-Za-z0-9]*")
+
     def locate(self, i, hint):
-        """The step a local change by a hint is for (the AI panel): the one that made the first UMR
-        variable of sentence i the hint names. Returns {"wave", "node", "vars": [named variables]}."""
-        nodes = self.graph(int(i), auto_align=False)["nodes"]
+        """The steps a local change by a hint is for (the AI panel). A UMR variable the hint names is
+        a node of one step (inside its fragment, or the fragment's first node); the steps it is for
+        are, for each named node, the step that made it, the step that attaches it when it is a
+        fragment's first node (the nearest step above with a fragment: the edge to it is there), and
+        the steps whose `outside` items stand for it. Returns {"wave", "node" (the first named node's
+        step), "steps" (all of them, in tree order), "vars"}."""
+        i = int(i)
+        nodes = self.graph(i, auto_align=False)["nodes"]
         by_var = {n["var"]: n for n in nodes}
-        named = [v for v in re.findall(r"\bs\d+[a-z]\w*", str(hint or "")) if v in by_var]
+        named = []
+        for v in self.VAR_IN_TEXT.findall(str(hint or "")):
+            v = v[0].lower() + v[1:].lower() if v.lower() in by_var else v
+            if v in by_var and v not in named:
+                named.append(v)
         if not named:
             raise StepError("name a node by its UMR variable (%s)" % ", ".join(list(by_var)[:6]))
-        first = by_var[named[0]]
-        if not first.get("node"):
+        ep = self.eps[SENTENCE_WAVE][i]
+        steps = ep["nodes"]
+
+        def fragment(n):
+            o = n.get("output") if n.get("status") == "ok" else None
+            g = (o or {}).get("graph") if isinstance(o, dict) else None
+            return [x.get("var") for x in (g or {}).get("nodes") or [] if isinstance(x, dict)]
+
+        def above(nid):
+            """The nearest step above nid with a fragment (a sent_type that is not a leaf passes)."""
+            p = steps[nid].get("parent")
+            while p is not None and p in steps:
+                if fragment(steps[p]) or (steps[p].get("output") or {}).get("relation") not in (None, "none"):
+                    return p
+                p = steps[p].get("parent")
+            return None
+        related = []
+        for v in named:
+            owner = by_var[v].get("node")
+            if not owner or owner not in steps:
+                continue
+            related.append(owner)
+            if fragment(steps[owner])[:1] == [by_var[v].get("local")]:
+                up = above(owner)
+                if up:
+                    related.append(up)
+                name = ref_id(steps[owner])
+                related += [k for k, n in steps.items() if n.get("status") == "ok" and any(
+                    isinstance(x, dict) and x.get("node") == name for x in (n.get("output") or {}).get("outside") or [])]
+        if not related:
             raise StepError("%s was not made by a step of this sentence" % named[0])
-        return {"wave": SENTENCE_WAVE, "node": first["node"], "vars": named,
-                "steps": sorted({by_var[v]["node"] for v in named if by_var[v].get("node")}, key=node_key)}
+        first = next(by_var[v]["node"] for v in named if by_var[v].get("node") in steps)
+        return {"wave": SENTENCE_WAVE, "node": first, "vars": named,
+                "steps": sorted(set(related), key=node_key)}
 
     def doc_ref_problems(self, i, nid):
         """Document-level relations that name a node inside step nid of sentence i by a variable the

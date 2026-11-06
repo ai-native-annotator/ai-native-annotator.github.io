@@ -166,12 +166,23 @@ async function localChange(text) {
     await selectWave(loc.wave);
     await selectItem(item);
   }
-  await selectNode(loc.node);
-  await runNode(loc.node, { hint: text, revise: true });
+  // every step the hint is for (the one that made a named node, the one that attaches it, those
+  // that reach it through outside), in tree order; each keeps what the hint does not touch
+  const changed = [];
+  for (const nid of loc.steps) {
+    // a change above may have made the steps under it again: one that is gone, or not finished, is skipped
+    const ep = await py('episode', { w: loc.wave, i: item });
+    if (!ep.nodes.some((n) => n.id === nid && n.status === 'ok')) continue;
+    await selectNode(nid);
+    await runNode(nid, { hint: text, revise: true });
+    changed.push(nid);
+  }
+  const ep = await py('episode', { w: loc.wave, i: item });
+  if (ep.nodes.some((n) => n.id === loc.node)) await selectNode(loc.node);
   // a one-off change (history): the hint is not kept on the step, nor in the box
   const key = `${S.skillset}|${S.doc}|${item}`;
   localDrafts.delete(key);
-  localDone.set(key, `${t('localWhere', { node: loc.node, vars: loc.vars.join(', ') })} ${t('docCheck')}`);
+  localDone.set(key, `${t('localWhere', { node: changed.join(', ') || '—', vars: loc.vars.join(', ') })} ${t('docCheck')}`);
   render();
 }
 
