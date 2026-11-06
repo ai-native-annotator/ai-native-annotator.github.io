@@ -49,7 +49,20 @@ function draw() {
         s.rules.length ? h('ul', { class: 'rules' }, s.rules.map((r) => h('li', { title: r.text, text: r.short || r.text }))) : null,
         h('div', { class: 'files' }, s.files.map(fileChip)));
     }),
+    localSkill(files),
     h('div', { class: 'card' }, h('h4', { text: t('shared') }), h('div', { class: 'files' }, S.desc.shared_files.map(fileChip))));
+}
+
+/** The local change's skill (not a step: the rules a local change by a hint adds to the step's own skill). */
+function localSkill(files) {
+  const paths = S.desc.local_skill || [];
+  if (!paths.length) return null;
+  const anyEdited = paths.some((f) => (files[f] || []).length);
+  return h('div', { class: 'skill local-skill', title: t('localSkillTitle'), onclick: () => openEditor(paths[0]) },
+    h('div', {}, h('span', { class: 'name', text: 'local_change' }), h('span', { class: 'badge agent', text: t('localSkillBadge') }),
+      anyEdited ? h('span', { class: 'badge edited', text: '✎' }) : null),
+    h('div', { class: 'note', text: t('localSkillNote') }),
+    h('div', { class: 'files' }, paths.map(fileChip)));
 }
 
 export async function openEditor(path) {

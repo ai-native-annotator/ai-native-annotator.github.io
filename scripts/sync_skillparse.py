@@ -233,7 +233,9 @@ def document_skills(dst, lang):
                       ("temporal", os.path.join(WEB_SKILLS, lang, "temporal")),
                       ("coref", os.path.join(WEB_SKILLS, lang, "coref")),
                       (CONVERT_SKILL, os.path.join(WEB_SKILLS, CONVERT_SKILL)),
-                      ("umr_generate", os.path.join(WEB_SKILLS, lang, "umr_generate"))):
+                      ("umr_generate", os.path.join(WEB_SKILLS, lang, "umr_generate")),
+                      # the local change's rules (not a step: the bridge reads it for revise)
+                      ("local_change", os.path.join(WEB_SKILLS, "local_change"))):
         shutil.copytree(src, os.path.join(dst, name), ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
 
 

@@ -261,8 +261,17 @@ const statusIs = (page, re, timeout = 180000) =>
     && !!(await page.$('#output .umr-var.on')), umrVars.join(' '));
   // a local change, asked for in the AI panel by the UMR text's variables: the step that made the
   // first one changes its output by the hint, and waits to be confirmed again
+  // the local change's own skill, in the skills pane: an edit counts at the next local change
+  await page.click('#skills .local-skill');
+  await page.click('#modal .tab:text-is("编辑原文")');
+  const localRules = await page.inputValue('#modal textarea');
+  await page.fill('#modal textarea', localRules.replace('Answer with the whole revised output.', 'Answer with the whole revised output. LOCAL-RULE-EDITED'));
+  await page.click('#modal button:text-is("保存（新版本）")');
+  await page.waitForFunction(() => document.querySelector('#modal .note.ok'), null, { timeout: 30000 });
+  await page.click('#modal-close');
   await page.fill('#ai .local-area', 's1x 的 aspect 应该是 activity');
   const nInW0 = calls.inputs.length;
+  const nBodies = calls.bodies.length;
   await page.click('#ai .local-go');
   await settled();
   await page.click('.tab:text-is("输出")');
@@ -270,6 +279,9 @@ const statusIs = (page, re, timeout = 180000) =>
     calls.inputs.slice(nInW0).some((u) => u.includes('## The current output') && u.includes("## The sentence's UMR variables")
       && /\| s1x \|/.test(u) && u.includes('human提示：s1x 的 aspect 应该是 activity'))
     && !!(await page.$('#output .confirm-card')) && (await page.textContent('#ai')).includes('改的是'), String(calls.inputs.length - nInW0));
+  check("the local change's skill is in the skills pane, and its edited rules go into the local change's system prompt",
+    localRules.includes("## The sentence's UMR variables") && calls.bodies.slice(nBodies).some((b) => b.system.includes('LOCAL-RULE-EDITED')),
+    calls.bodies.slice(nBodies).map((b) => b.system.slice(-120)).join(' | '));
   await page.click('#output .review-card button:text-is("✓ 正确，确认")');
   await settled();
   await page.click('#btn-export');

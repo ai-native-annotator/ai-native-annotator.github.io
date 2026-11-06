@@ -107,6 +107,14 @@ REVISE = ("You are revising the output of one step of a UMR annotation. Keep the
           "edges and their roles), attributes and outside items. Do not change the placeholders "
           "in `open` (later steps have annotated them) unless the hint asks for it. Answer with "
           "the whole revised output.")
+# the local change's own skill file, next to registry.yaml (web_skills/local_change, editable in
+# the skills pane): its text before VARS_HEAD goes into the system prompt, the section the note
+# before the table of UMR variables; REVISE and VARS_NOTE are what it says when it is missing
+LOCAL_SKILL = "local_change"
+VARS_HEAD = "## The sentence's UMR variables"
+VARS_NOTE = ("The hint names nodes by their UMR variables. In this step's output a node of this step is "
+             "named by its variable in the step; a node of another step is reached by an `outside` item "
+             "naming that step. Keep the variable names of this step.")
 NOT_BUILT = "(not built yet)"
 KNOWN_HEAD = ("Nodes of this sentence so far (an `outside` item names one of them by its `node`; "
               "a placeholder whose node is not built yet is listed too):")
@@ -434,7 +442,9 @@ class RegistryEngine:
                   if f.endswith((".py", ".yaml")) and f != "registry.yaml"]
         shared.append(os.path.relpath(self.path, FS))
         shared.append("skillparseumr/skillsets/tools/propbank.py")
-        return {"engine": self.kind, "skillset": self.sid, "waves": waves, "skills": skills,
+        local = self.local_skill_path()
+        local = [os.path.relpath(local, FS)] if os.path.exists(local) else []
+        return {"engine": self.kind, "skillset": self.sid, "waves": waves, "skills": skills, "local_skill": local,
                 "shared_files": shared, "doc": self._doc()}
 
     def _doc(self):
@@ -930,7 +940,8 @@ class RegistryEngine:
                 + self._umr_vars_md(w, i, nid) + self._hint_label() + hint + "\n")
         node["revising"] = {"output": node["output"], "hint": hint, "confirmed": node.get("confirmed")}
         node["status"] = "running"
-        node["prompt"] = {"system": SYSTEM + " " + HINT_RULE + " " + REVISE, "instructions": p["instructions"],
+        node["prompt"] = {"system": SYSTEM + " " + HINT_RULE + " " + self._local_skill()[0],
+                          "instructions": p["instructions"],
                           "input": user}
         node["retried"] = False
         return self._llm_request(node, skill)
@@ -952,10 +963,22 @@ class RegistryEngine:
             rows.append("| %s | %s | %s%s | %s |" % (n["var"], n["concept"], ref_id({"id": n.get("node") or "",
                                                                                       "skill": n.get("skill")})
                                                       if n.get("node") else "", mine, n.get("local") or ""))
-        return ("## The sentence's UMR variables\n\nThe hint names nodes by their UMR variables. In this "
-                "step's output a node of this step is named by its variable in the step; a node of another "
-                "step is reached by an `outside` item naming that step. Keep the variable names of this step.\n\n"
-                + "\n".join(rows) + "\n\n")
+        return VARS_HEAD + "\n\n" + self._local_skill()[1] + "\n\n" + "\n".join(rows) + "\n\n"
+
+    def local_skill_path(self):
+        return os.path.join(os.path.dirname(self.path), LOCAL_SKILL, "skill.md")
+
+    def _local_skill(self):
+        """The local change's rules and the note before the UMR variables (its skill.md, read
+        each time: an edit in the skills pane counts at once)."""
+        try:
+            with open(self.local_skill_path(), encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            return REVISE, VARS_NOTE
+        rules, _, note = text.partition(VARS_HEAD)
+        rules = re.sub(r"^#[^\n]*\n", "", rules.strip()).strip()
+        return " ".join(rules.split()) or REVISE, note.strip() or VARS_NOTE
 
     # a UMR variable in a hint: s, the sentence number, a letter, letters and digits; written
     # next to Chinese ("s1x2的ARG0") or in capitals ("S1C")
