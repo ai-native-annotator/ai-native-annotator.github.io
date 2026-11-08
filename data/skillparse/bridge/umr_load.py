@@ -31,6 +31,15 @@ TOKEN = re.compile(r"[A-Za-z0-9]+|[^\sA-Za-z0-9]")
 SPECIAL = {"date-entity", "date-interval", "ordinal-entity", "percentage-entity", "url-entity"}
 EVENT = re.compile(r"-\d{2}$")
 PREDICATE_FIELDS = ("aspect", "polarity", "modal-strength", "modstr")
+# an event's aspect and modal strength (web: attributes of the predicate's event node)
+ASPECTS = ("none", "habitual", "generic", "imperfective", "state", "reversible-state", "irreversible-state",
+           "inherent-state", "point-state", "process", "atelic-process", "perfective", "activity",
+           "undirected-activity", "directed-activity", "iterative", "endeavor", "semelfactive",
+           "undirected-endeavor", "directed-endeavor", "performance", "incremental-accomplishment",
+           "nonincremental-accomplishment", "directed-achievement", "reversible-directed-achievement",
+           "irreversible-directed-achievement", "inceptive")
+MODSTRS = ("full-affirmative", "partial-affirmative", "neutral-affirmative", "neutral-negative",
+           "partial-negative", "full-negative")
 
 
 class UNode:
@@ -271,13 +280,15 @@ class Loader:
         out = {"graph": {"nodes": nodes, "edges": edges, "attrs": attrs},
                "open": open_items, "outside": out_items, "alignment": own}
         if kind == "predicate":
-            aspect = fields.get("aspect", "none")
-            # modstr: the author's strength for this event in the file; "none" when the file gives
-            # it none (a loaded step may leave it empty, see RegistryEngine._check_emit)
+            # the event's aspect and modal strength (the author's, from the file's document level)
+            # are attributes of its node; polarity is a field
+            aspect = fields.get("aspect")
+            if aspect in self.aspects and aspect != "none":
+                attrs.append([u.var, "aspect", aspect])
             modstr = self.modstr.get(u.var) or fields.get("modal-strength") or fields.get("modstr")
-            out.update(frame={}, aspect=aspect if aspect in self.aspects else "none",
-                       modstr=modstr if modstr in self.modstrs else "none",
-                       polarity="negative" if fields.get("polarity") == "-" else "positive")
+            if modstr in self.modstrs:
+                attrs.append([u.var, "modstr", modstr])
+            out.update(frame={}, polarity="negative" if fields.get("polarity") == "-" else "positive")
         return out, opened, out_vars
 
     def vars_of(self, u):
@@ -424,8 +435,8 @@ class Loader:
         # the reified relations the discourse skill.md describes; the skill's emit no longer lists them
         listed = sk["discourse"].emit.get("relation") if "discourse" in sk else None
         self.relations = (set(listed) if isinstance(listed, list) else discourse_relations()) - {"none"}
-        self.aspects = set(sk["predicate"].emit["aspect"])
-        self.modstrs = set(sk["predicate"].emit["modstr"])
+        self.aspects = set(ASPECTS)
+        self.modstrs = set(MODSTRS)
 
     def loading(self):
         """A person's (or a whole generated) tree: no depth or size limit, no loop check."""

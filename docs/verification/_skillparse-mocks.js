@@ -82,6 +82,8 @@ module.exports = function mocks() {
       // the second time round: same skill and input as an ancestor)
       if ('frame' in out) {
         out.graph.edges = [['x', 'ARG0', 'x1']];
+        // the event's modal strength: an attribute of its node (web), not a field
+        out.graph.attrs = [['x', 'modstr', 'full-affirmative']];
         out.open = [{ var: 'x1', text: 'placeholder', span: [2, 2] }];
       }
     }

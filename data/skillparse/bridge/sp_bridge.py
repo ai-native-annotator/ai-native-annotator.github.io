@@ -106,6 +106,9 @@ GENERATE, CONVERT = "umr_generate", "convert"
 SENTENCE_WAVE = "sentence"
 # which model role a skill's calls go to (the page's settings): wave 0's own, else the agent skills'
 ROLE_OF = {GENERATE: "generate"}
+# web-uz: wave 0's first step cuts the sentence into tokens; the sentence takes them
+TOKENIZER = "tokenizer"
+GENERATE_WAVE = "generate"
 # a user_panel entry's keys that are not a skill's (registry.py builds the rest as skills)
 PANEL_KEYS = ("title", "role", "review", "modes")
 NOT_BUILT = "(not built yet)"
@@ -182,6 +185,22 @@ def new_id(parent_id, skill, position):
     else:
         base = "%s.%d" % (parent_id, position)
     return base + ("B" if skill == TYPER else "")
+
+
+def event_attr(out, role):
+    """A predicate step's aspect or modstr: an attribute of its event node (the fragment's first
+    node), or the field of that name (work from before)."""
+    if not isinstance(out, dict):
+        return None
+    g = out.get("graph") if isinstance(out.get("graph"), dict) else {}
+    first = (g.get("nodes") or [{}])[0]
+    var = first.get("var") if isinstance(first, dict) else None
+    roles = (role, "modal-strength") if role == "modstr" else (role,)
+    for a in g.get("attrs") or []:
+        if isinstance(a, (list, tuple)) and len(a) == 3 and a[0] == var and str(a[1]).lstrip(":") in roles:
+            return str(a[2]).strip('"')
+    v = out.get(role)
+    return v if v not in (None, "", "none") else None
 
 
 def ref_id(n):
@@ -515,8 +534,8 @@ class RegistryEngine:
                 concept = str(gn.get("concept", ""))
                 if n["skill"] == "predicate" and k == 0:
                     kind = "event"
-                    if out.get("aspect") and out["aspect"] != "none":
-                        kind += " (%s)" % out["aspect"]
+                    if event_attr(out, "aspect") not in (None, "none"):
+                        kind += " (%s)" % event_attr(out, "aspect")
                     if out.get("polarity") == "negative" or v in negated:
                         kind += ", negative"
                 elif SENSE.search(concept):
@@ -532,8 +551,8 @@ class RegistryEngine:
                 if n["skill"] == "predicate" and k == 0:
                     # for the modal rule (modal/modal.py): the event's modal strength, and its
                     # quote, purpose, condition, modal predicate and participants
-                    if out.get("modstr") and out["modstr"] != "none":
-                        row["modstr"] = out["modstr"]
+                    if event_attr(out, "modstr"):
+                        row["modstr"] = event_attr(out, "modstr")
                     roles = self._roles(by_id, n, sent.index)
                     if roles:
                         row["roles"] = roles
@@ -1150,8 +1169,8 @@ class RegistryEngine:
                 continue
             o = step.get("output") or {}
             first = ((o.get("graph") or {}).get("nodes") or [{}])[0]
-            if isinstance(first, dict) and first.get("var") == n.get("local") and o.get("modstr") not in (None, "", "none"):
-                extra.append((n["var"], ":modstr", o["modstr"]))
+            if isinstance(first, dict) and first.get("var") == n.get("local") and event_attr(o, "modstr"):
+                extra.append((n["var"], ":modstr", event_attr(o, "modstr")))
         if extra:
             pg = penman.decode(text)
             have = {(a, r) for a, r, _ in pg.attributes()}
@@ -1346,6 +1365,7 @@ class RegistryEngine:
             self._check_emit(skill, output)
             self._check_fragment(output)
             self._check_outside(node, output)
+            self._check_event_attrs(output)
         except Exception as e:
             if not node.get("retried"):
                 node["retried"] = True
@@ -1371,6 +1391,23 @@ class RegistryEngine:
         node["error"] = "%s: %s" % (type(e).__name__, e)
         node["trace"] = traceback.format_exc()[-3000:]
         return {"done": True, "node": node["id"], "status": "error", "error": node["error"]}
+
+    @staticmethod
+    def _check_event_attrs(out):
+        """An aspect or modstr attribute (predicate: on the event node) has one of UMR's values."""
+        from umr_load import ASPECTS, MODSTRS
+        g = out.get("graph") if isinstance(out, dict) and isinstance(out.get("graph"), dict) else {}
+        bad = []
+        for a in g.get("attrs") or []:
+            if not (isinstance(a, (list, tuple)) and len(a) == 3):
+                continue
+            role, value = str(a[1]).lstrip(":"), str(a[2]).strip('"')
+            if role == "aspect" and value not in ASPECTS:
+                bad.append("aspect %r (one of: %s)" % (value, ", ".join(ASPECTS)))
+            elif role in ("modstr", "modal-strength") and value not in MODSTRS:
+                bad.append("modstr %r (one of: %s)" % (value, ", ".join(MODSTRS)))
+        if bad:
+            raise StepError("attrs: " + "; ".join(bad))
 
     @staticmethod
     def _check_fragment(out):
@@ -1461,9 +1498,40 @@ class RegistryEngine:
             else:
                 node["children"].append(self._made)
         self._mark_stale(w, ep["index"])
+        if node["skill"] == TOKENIZER and not self.loading:
+            try:
+                self._set_tokens(ep["index"], out.get("tokens"))
+            except StepError as e:
+                return self._fail(w, ep, node, e)
         if node["skill"] == CONVERT and not self.loading:
             node["applied"] = self._apply_generated(ep["index"], out)
         return {"done": True, "node": node["id"], "status": "ok", "children": node["children"]}
+
+    def _set_tokens(self, i, tokens, mark=True):
+        """The tokenizer's tokens (web-uz, wave 0) become sentence i's: every span after counts them.
+        They must hold every character of the sentence but its spaces, in order."""
+        sent = self.doc.sents[int(i)]
+        tokens = [str(t) for t in tokens or [] if str(t).strip()]
+        if not tokens or any(re.search(r"\s", t) for t in tokens):
+            raise StepError("the tokens are empty or have spaces in them")
+        if "".join(tokens) != re.sub(r"\s+", "", sent.text):
+            raise StepError("the tokens are not the sentence (%s)" % " | ".join(tokens)[:300])
+        if list(sent.tokenized_text) != tokens:
+            sent.tokenized_text = tokens
+            for w in (self.order if mark else []):
+                if w != GENERATE_WAVE:
+                    self._mark_stale(w, int(i))
+
+    def _tokens_from_steps(self):
+        """After a restore: each sentence takes the tokens its tokenizer step gave (the document file
+        has the first ones)."""
+        for i, ep in (self.eps.get(GENERATE_WAVE) or {}).items():
+            for n in ep["nodes"].values():
+                if n["skill"] == TOKENIZER and n["status"] == "ok" and isinstance(n.get("output"), dict):
+                    try:
+                        self._set_tokens(i, n["output"].get("tokens"), mark=False)
+                    except StepError:
+                        pass
 
     def _apply_generated(self, i, out):
         """Wave 0: sentence i's checked graph into the sentence and document waves (their episodes
@@ -2003,6 +2071,7 @@ class RegistryEngine:
                 self.eps[w][int(i)] = ep
         if int(state.get("version") or 0) < 3:
             self._renumber_old()
+        self._tokens_from_steps()          # before the contexts: they read the tokens
         for w in self.order:
             for i, ep in self.eps[w].items():
                 if ep.get("error"):

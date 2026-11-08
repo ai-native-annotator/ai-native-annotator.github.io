@@ -57,6 +57,7 @@
 "fs/skillparseumr/web-procedures/uz/sent_type/sent_type.py",
 "fs/skillparseumr/web-procedures/uz/special_entity/skill.md",
 "fs/skillparseumr/web-procedures/uz/temporal/skill.md",
+"fs/skillparseumr/web-procedures/uz/tokenizer/tokenizer.py",
 "fs/skillparseumr/web-procedures/uz/umr_generate/skill.md",
 "fs/skillparseumr/web-procedures/zh/VERSION",
 "fs/skillparseumr/web-procedures/zh/apply_change/apply_change.py",

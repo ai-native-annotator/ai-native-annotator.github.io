@@ -220,7 +220,7 @@ async function stepThrough(page, max = 80) {
 
   await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
   await page.click('.tab:text-is("输出")');
-  check("a step's output is shown as Penman", /^\(x \/ test-01\n {4}:ARG0 <node: placeholder>\n {4}:modal-strength full-affirmative\)$/.test(await page.textContent('#output pre.penman')),
+  check("a step's output is shown as Penman", /^\(x \/ test-01\n {4}:ARG0 <node: placeholder>\n {4}:modstr full-affirmative\)$/.test(await page.textContent('#output pre.penman')),
     await page.textContent('#output pre.penman'));
   check("a step's graph fragment is drawn with its output", !!(await page.$('#output .graph-svg')));
   await page.click('#output .edit-btn');
@@ -364,8 +364,8 @@ async function stepThrough(page, max = 80) {
   // the Uzbek procedure: its sample document opens with it, and a sentence runs
   await page.selectOption('#doc', 'uzbek_sample');
   await statusIs(page, /就绪/);
-  check('the Uzbek document opens with the Uzbek procedure (ten skills)', (await page.$eval('#skillset', (e) => e.value)) === 'web-uz'
-    && (await page.$$('.skill:not(.panel-skill)')).length === 10);
+  check('the Uzbek document opens with the Uzbek procedure (eleven skills: the tokenizer first in wave 0)', (await page.$eval('#skillset', (e) => e.value)) === 'web-uz'
+    && (await page.$$('.skill:not(.panel-skill)')).length === 11 && (await page.$$eval('.skill .name', (e) => e.map((x) => x.textContent))).includes('tokenizer'));
   const nInUz = calls.inputs.length;
   const nJevUz = calls.jevStates.length;
   await stepThrough(page);

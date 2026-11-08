@@ -148,16 +148,9 @@ skills:
       outside: list[dict]       # 从句之外的参与者，每个 {text, span, role}
       alignment: list[int]      # 谓词本身的 span
       frame: dict               # 选定义项的 PropBank 框架 {roleset, roles}；抽象概念或查不到时 {}
-      aspect: ["none", "habitual", "generic", "imperfective", "state", "reversible-state",
-               "irreversible-state", "inherent-state", "point-state", "process", "atelic-process",
-               "perfective", "activity", "undirected-activity", "directed-activity", "iterative",
-               "endeavor", "semelfactive", "undirected-endeavor", "directed-endeavor", "performance",
-               "incremental-accomplishment", "nonincremental-accomplishment", "directed-achievement",
-               "reversible-directed-achievement", "irreversible-directed-achievement", "inceptive"]
-      modstr: ["full-affirmative", "partial-affirmative", "neutral-affirmative", "neutral-negative",
-               "partial-negative", "full-negative"]
+      # web：aspect、modstr 不单列，是 graph.attrs 里事件节点的属性：[e, "aspect", …]、[e, "modstr", …]
       polarity: [positive, negative]
-    store: [graph, open, alignment, frame, aspect, modstr, polarity]   # 后三个写成谓词的属性
+    store: [graph, open, alignment, frame, polarity]   # polarity 写成谓词的属性
 
   np_phrase:                    # 也用 propbank_lookup（施事名词、名物化事件要查义项）
     path: np_phrase

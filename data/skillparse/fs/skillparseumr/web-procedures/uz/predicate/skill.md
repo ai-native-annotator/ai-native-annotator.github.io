@@ -167,7 +167,9 @@ a question, a wish, an intention `-moqchi`), `neutral-negative`, `partial-negati
     event**, its span the predicate word(s). Add nodes for relation words (`keyin`, ...)
     with their spans.
   - `edges`: `[source, role, target]` between vars, e.g. `["e", "actor", "x1"]`.
-  - `attrs`: `[var, role, value]` for constants; usually `[]`.
+  - `attrs`: `[var, role, value]` for constants. The event's aspect and modal strength are
+    here, on the first node: `["e", "aspect", "performance"]`, `["e", "modstr",
+    "full-affirmative"]` (section 4); polarity is the separate field below.
   Variable names are yours (`e`, `k`, `x1`...); they are renamed later. Each names one
   thing: never use one var for two nodes or placeholders.
 - `open`: one placeholder per participant, `{{"var": "x1", "text": ..., "span": [first,
@@ -178,7 +180,8 @@ a question, a wish, an intention `-moqchi`), `neutral-negative`, `partial-negati
 - `alignment`: the span of the predicate word(s) (a light verb compound: both words).
 - `frame`: `{{}}` (Uzbek has no PropBank); for an abstract concept its roles as in the
   table.
-- `aspect`, `modstr`, `polarity`: always, as in section 4.
+- `polarity`: always, as in section 4. The aspect and modstr of the event are not fields:
+  they are `attrs` of the first node (`aspect`, `modstr`), always, as in section 4.
 
 ## Tools
 

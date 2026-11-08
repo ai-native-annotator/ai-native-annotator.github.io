@@ -449,8 +449,9 @@ An event that is only the content of an ability (the VP of 有能力 / 能 + VP)
     **first node is the event**, its span the predicate word(s). Add nodes for
     relation words (`after`, `between`, ...) with their spans.
   - `edges`: `[source, role, target]` between vars, e.g. `["e", "ARG0", "x1"]`.
-  - `attrs`: `[var, role, value]` for constants; usually `[]` (aspect, modal
-    strength and polarity are separate fields below).
+  - `attrs`: `[var, role, value]` for constants. The event's aspect and modal strength
+    are here, on the first node: `["e", "aspect", "performance"]`, `["e", "modstr",
+    "full-affirmative"]` (section 4); polarity is the separate field below.
   Variable names are yours (`e`, `a`, `x1`...); they are renamed later.
 
   Every var in `edges` is a node in `nodes` or a placeholder in `open`. A
@@ -458,7 +459,7 @@ An event that is only the content of an ability (the VP of 有能力 / 能 + VP)
 
   Every abstract `-91` node you create besides the first node (an identity-91 under 能力, a have-quant-91) gets `[i, "aspect", "state"]` in `attrs`.
 
-  When the first node is a connective (`and`, `or`, `consecutive`), it is not an event. Give each event under it its own aspect in `attrs` (`[e1, "aspect", ...]`) and set the `aspect` field to `none`: the connective gets no aspect and no modal strength. Its `alignment` and span are the coordinator word (和, 及, 分别), or, with no coordinator, the first event's word, never the whole clause.
+  When the first node is a connective (`and`, `or`, `consecutive`), it is not an event. Give each event under it its own aspect in `attrs` (`[e1, "aspect", ...]`) and give the connective itself no `aspect` and no `modstr` attribute. Its `alignment` and span are the coordinator word (和, 及, 分别), or, with no coordinator, the first event's word, never the whole clause.
 
 
 
@@ -475,7 +476,8 @@ An event that is only the content of an ability (the VP of 有能力 / 能 + VP)
 - `frame`: the roleset you chose, **copied from the lookup**
   (`{{"roleset": ..., "roles": {{...}}}}`); for an abstract concept its roles
   as in the table; `{{}}` if not in PropBank.
-- `aspect`, `modstr`, `polarity`: always, as in section 4.
+- `polarity`: always, as in section 4. The aspect and modstr of the event are not
+  fields: they are `attrs` of the first node (`aspect`, `modstr`), always, as in section 4.
 
 ## Examples
 

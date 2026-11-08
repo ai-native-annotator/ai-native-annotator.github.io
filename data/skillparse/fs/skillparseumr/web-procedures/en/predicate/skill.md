@@ -200,8 +200,9 @@ More on aspect:
     **first node is the event**, its span the predicate word(s). Add nodes for
     relation words (`after`, `between`, ...) with their spans.
   - `edges`: `[source, role, target]` between vars, e.g. `["e", "ARG0", "x1"]`.
-  - `attrs`: `[var, role, value]` for constants; usually `[]` (aspect, modal
-    strength and polarity are separate fields below).
+  - `attrs`: `[var, role, value]` for constants. The event's aspect and modal strength
+    are here, on the first node: `["e", "aspect", "performance"]`, `["e", "modstr",
+    "full-affirmative"]` (section 4); polarity is the separate field below.
   Variable names are yours (`e`, `a`, `x1`...); they are renamed later.
 
   Every var in `edges` is a node in `nodes` or a placeholder in `open`. A
@@ -219,7 +220,8 @@ More on aspect:
 - `frame`: the roleset you chose, **copied from the lookup**
   (`{{"roleset": ..., "roles": {{...}}}}`); for an abstract concept its roles
   as in the table; `{{}}` if not in PropBank.
-- `aspect`, `modstr`, `polarity`: always, as in section 4.
+- `polarity`: always, as in section 4. The aspect and modstr of the event are not
+  fields: they are `attrs` of the first node (`aspect`, `modstr`), always, as in section 4.
 
 ## Examples
 

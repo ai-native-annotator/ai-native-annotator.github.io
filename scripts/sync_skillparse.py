@@ -286,6 +286,52 @@ user_panel:
 """
 
 
+# predicate (web): the event's aspect and modal strength are attributes of its node in the
+# fragment ([e, "aspect", ...], [e, "modstr", ...]), not fields of their own; polarity stays a field
+PREDICATE_ATTRS_REGISTRY = [
+    ("""      aspect: ["none", "habitual", "generic", "imperfective", "state", "reversible-state",
+               "irreversible-state", "inherent-state", "point-state", "process", "atelic-process",
+               "perfective", "activity", "undirected-activity", "directed-activity", "iterative",
+               "endeavor", "semelfactive", "undirected-endeavor", "directed-endeavor", "performance",
+               "incremental-accomplishment", "nonincremental-accomplishment", "directed-achievement",
+               "reversible-directed-achievement", "irreversible-directed-achievement", "inceptive"]
+      modstr: ["full-affirmative", "partial-affirmative", "neutral-affirmative", "neutral-negative",
+               "partial-negative", "full-negative"]
+      polarity: [positive, negative]
+    store: [graph, open, alignment, frame, aspect, modstr, polarity]   # 后三个写成谓词的属性
+""", """      # web：aspect、modstr 不单列，是 graph.attrs 里事件节点的属性：[e, "aspect", …]、[e, "modstr", …]
+      polarity: [positive, negative]
+    store: [graph, open, alignment, frame, polarity]   # polarity 写成谓词的属性
+"""),
+]
+PREDICATE_ATTRS_MD = [
+    ("""  - `attrs`: `[var, role, value]` for constants; usually `[]` (aspect, modal
+    strength and polarity are separate fields below).""",
+     """  - `attrs`: `[var, role, value]` for constants. The event's aspect and modal strength
+    are here, on the first node: `["e", "aspect", "performance"]`, `["e", "modstr",
+    "full-affirmative"]` (section 4); polarity is the separate field below."""),
+    ("""- `aspect`, `modstr`, `polarity`: always, as in section 4.""",
+     """- `polarity`: always, as in section 4. The aspect and modstr of the event are not
+  fields: they are `attrs` of the first node (`aspect`, `modstr`), always, as in section 4."""),
+]
+PREDICATE_ATTRS_MD_ZH = [
+    ("and set the `aspect` field to `none`: the connective gets no aspect and no modal strength.",
+     "and give the connective itself no `aspect` and no `modstr` attribute."),
+]
+
+
+def predicate_attrs(dst, lang):
+    md = os.path.join(dst, "predicate", "skill.md")
+    with open(md, encoding="utf-8") as f:
+        body = f.read()
+    for old, new in PREDICATE_ATTRS_MD + (PREDICATE_ATTRS_MD_ZH if lang == "zh" else []):
+        if body.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (md, old[:60]))
+        body = body.replace(old, new)
+    with open(md, "w", encoding="utf-8") as f:
+        f.write(body)
+
+
 def document_skills(dst, lang):
     """The document wave's skills (web): modal (a rule) and the site's own temporal and coref,
     in place of the procedure's document skill (whose modal section modal.py now does)."""
@@ -507,7 +553,7 @@ def compose(sp, lang):
     shutil.rmtree(os.path.join(dst, "reentrancy"))
     text = drop_antecedent(text)
     shutil.rmtree(os.path.join(dst, "antecedent"))
-    for old, new in DOCUMENT_INPUT + SENT_TYPE_OUTSIDE + DOCUMENT_SKILLS + WAVE0:
+    for old, new in DOCUMENT_INPUT + SENT_TYPE_OUTSIDE + DOCUMENT_SKILLS + WAVE0 + PREDICATE_ATTRS_REGISTRY:
         if text.count(old) != 1:
             raise SystemExit("%s: cannot find %r" % (reg, old[:60]))
         text = text.replace(old, new)
@@ -538,6 +584,7 @@ def compose(sp, lang):
         with open(md, "w", encoding="utf-8") as f:
             f.write(body)
     document_skills(dst, lang)
+    predicate_attrs(dst, lang)
     patch_jevlib(os.path.join(dst, "jevlib.py"))
     header = ("# web-procedures/%s, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:\n"
               "# %s, with %s from %s (kind: jev, and %s it imports).\n"
@@ -717,6 +764,54 @@ def write_resources(sp, mp):
 UZ = "uz"
 UZ_FROM = "en"
 UZ_SKILLS = ["discourse", "predicate", "np_phrase", "special_entity", "temporal", "coref", "umr_generate"]
+# wave 0 (web-uz) starts with the tokenizer (web_skills/tokenizer, a rule): the sentence cut into
+# tokens, not just at the spaces; the page gives the sentence these tokens, and umr_generate gets
+# them numbered (as `tokens`: the wave's context no longer has token_sent)
+UZ_TOKENIZER = [
+    ("""  - name: generate                      # web：wave 0，一次生成整句的图和文档级标注，规则检查后转成后面两波的步骤
+    start: umr_generate
+""", """  - name: generate                      # web：wave 0，一次生成整句的图和文档级标注，规则检查后转成后面两波的步骤
+    start: tokenizer                    # web-uz：先分词（规则，tokenizer/tokenizer.py），再整句生成
+"""),
+    ("""        sent: sentence.text
+        token_sent: sentence.numbered_tokens
+        lang: annotation.lang
+      input:
+        before:                         # 前五句生成的图和文档级标注（这一波确认过的）""",
+     """        sent: sentence.text
+        lang: annotation.lang
+      input:
+        before:                         # 前五句生成的图和文档级标注（这一波确认过的）"""),
+    ("""  umr_generate:                 # 整句的 UMR 图（penman）、对齐、文档级标注，一次写出；模型默认 GPT-6.1 Sol / Opus 5.5
+    path: umr_generate
+    input:
+      before: list[dict]
+""", """  tokenizer:                    # web-uz：规则（tokenizer/tokenizer.py），把句子切成 token（不只按空格）；网页把这些 token 给这一句
+    path: tokenizer
+    kind: rule
+    input:
+      before: list[dict]        # 原样交给 umr_generate
+    emit:
+      tokens: list[str]
+      numbered: str             # [1]token [2]token …
+    store: [tokens]
+
+  umr_generate:                 # 整句的 UMR 图（penman）、对齐、文档级标注，一次写出；模型默认 GPT-6.1 Sol / Opus 5.5
+    path: umr_generate
+    input:
+      before: list[dict]
+      tokens: str               # web-uz：tokenizer 切出的 token，带编号
+"""),
+    ("""  # web：wave 0 生成之后，规则检查并转换
+  umr_generate:
+""", """  # web-uz：先分词，再生成
+  tokenizer:
+    - {run: umr_generate, input: {before: before, tokens: tokenizer_emit.numbered}}
+
+  # web：wave 0 生成之后，规则检查并转换
+  umr_generate:
+"""),
+]
 WEB_DOCS = os.path.join(OUT, "web_docs")
 UZ_DOCS = {"uzbek_sample": "uzbek_sample.txt"}       # one sentence per line, tokens split by spaces
 FUNCTION_UZ = """
@@ -752,9 +847,15 @@ def compose_uz():
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
     for skill in UZ_SKILLS:
         shutil.copyfile(os.path.join(WEB_SKILLS, UZ, skill, "skill.md"), os.path.join(dst, skill, "skill.md"))
+    shutil.copytree(os.path.join(WEB_SKILLS, "tokenizer"), os.path.join(dst, "tokenizer"),
+                    ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
     reg = os.path.join(dst, "registry.yaml")
     with open(reg, encoding="utf-8") as f:
         text = f.read()
+    for old, new in UZ_TOKENIZER:
+        if text.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (reg, old[:60]))
+        text = text.replace(old, new)
     first = "# web-procedures/%s, composed" % UZ_FROM
     if not text.startswith(first):
         raise SystemExit("%s: no header" % reg)

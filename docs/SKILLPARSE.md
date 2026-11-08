@@ -307,6 +307,8 @@ document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`
 
 每套流程（中文、英文、乌兹别克语）最前面多了一波 `generate`，每句一个 episode，按顺序（`parallel: 1`：每句要看前面五句生成的结果）。它是可选的：文档打开时仍停在 sentence 这一波，照原来一步步标也行。
 
+**乌兹别克语先分词**：`web-uz` 的 generate 这一波第一步是规则 `tokenizer`（`web_skills/tokenizer/tokenizer.py`，左栏可改），不只按空格切：标点、词首词尾的引号单独成 token，小数（3,5）不拆；oʻ、gʻ 和 tutuq belgisi（ʼ）留在词里（不管打的是 ' ʻ ʼ ‘ ’ ` 哪一个）；数字和词用连字符连着的拆成三个（2023-yil → 2023 | - | yil）；连字符连着的语气词单独成 token（kecha-yu → kecha | -yu；u、yu、chi、ku、mi、da、oq、yoq、gina…）；问号前写在词尾的 mi 拆开（kelasizmi? → kelasiz | mi | ?）；词与词用连字符连成的复合词（ota-ona）和词尾后缀不拆（token 是词，不是语素）。句子去掉空格后的每个字符都恰好在一个 token 里，bridge 会检查。确认后这些 token 就是这一句的 token（`_set_tokens`：后面各步的 span 按它数，导出的 Words: 也是它；保存的进度恢复时重新给这一句），后面的波标成过期。`umr_generate` 从它拿带编号的 token（输入 `tokens`；这一波的 context 不再有 token_sent）。
+
 1. **`umr_generate`**（agent，`web_skills/<lang>/umr_generate/skill.md`）：一次写出这一句的句级图（penman）、每个节点的对齐（`{变量: [首, 尾]}`，页面的 token 编号）和文档级标注（`(s<N>s0 / sentence :temporal … :modal … :coref …)`）。输入是句子、token、句号，以及前五句生成的图和文档级标注（`before`，registry 里 `pick: generated`）。变量以 `s<句号>` 开头，文档级标注用前几句图里的变量名指它们的节点。**模型单独设置**：角色 `generate`，默认 GPT-6.1 Sol（OpenRouter `openai/gpt-6.1-sol`），也可以换成 Opus 5.5；在 generate 这一波时，工具栏的「模型」就是这一波的模型。
 2. **`convert`**（规则，`web_skills/convert/convert.py`）：用 penman 解析图（解析不了、一个变量两个概念、span 超出句子就算出错，让人带提示重跑 umr_generate），检查对齐和文档级标注，`problems` 里列出能载入但可疑的地方。确认它之后，网页（`RegistryEngine._apply_generated` → `umr_load.load_generated`）把它载入 sentence、document 两波：和载入 .umr 文件的同一套办法，每一步标「生成」（算已确认，`origin: generated`）；这一句在这两波原来的步骤会被替换。
 
@@ -323,7 +325,7 @@ document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`
 **改这一句的图**（`local_change`）：人在右栏写评论（可以用 UMR 变量名、词、步骤编号，也可以说分支图里的节点），点「提出改动」。
 
 1. 上下文由 registry 里这一项的 `input` 决定，bridge 的 `panel_values` 提供可选的值：`sentence`（句子）、`tokens`（每个 token 带编号）、`tree`（在建或完整的步骤树：每一步的编号、skill、状态、那段话、写了哪些节点（用 UMR 变量）、边、属性、aspect/modstr/polarity、占位交给哪一步、outside 指向哪一步）、`variables`（当前 penman 图的变量 ↔ 步骤对照表：变量、概念、哪一步、那一步的 skill、它在那一步里的变量、对应的字；还没跑的占位会注明）、`comment`（评论），另外还有 `graph`（penman）、`lang`、`index`。默认用前五个，按 `local_change/skill.md` 的 `## Input` 填进去。
-2. 开头不塞任何一步的 skill：模型有 `call_skill(skill)` 这个工具（`local_change/tools/call_skill.py`，bridge 的 `skill_guide`），需要哪种节点的写法就查哪个 skill（agent 返回它的 skill.md、输入和输出字段；rule、jev 返回代码说明）；也有 propbank_lookup、search_annotations、search_guidelines。
+2. 开头不塞任何一步的 skill：模型有 `call_skill(skill)` 这个工具（和其他工具一样：模型发出调用，网页交给 bridge 执行，结果作为工具结果交回，模型看了再接着做，直到交回最终答案）（`local_change/tools/call_skill.py`，bridge 的 `skill_guide`），需要哪种节点的写法就查哪个 skill（agent 返回它的 skill.md、输入和输出字段；rule、jev 返回代码说明）；也有 propbank_lookup、search_annotations、search_guidelines。
 3. 模型交回 `changes`（按顺序的一组改动）和 `summary`。改动有六种：`add_node`（新变量名 n1…、概念、span、挂在哪个节点下、角色，可以用 `ARG0-of` 这样的反向角色）、`delete_node`、`rename_node`（改概念）、`add_relation`、`delete_relation`、`set_attribute`（aspect、modstr、polarity、refer-number、op1…，value 为 null 就删掉）。skill.md 要求新节点一次写到叶子（命名实体连 name 和 op、事件连 aspect 和 modstr），不留给后面的步骤。不再用代码去找该改哪一步，也不会一个变量调一次。
 4. 审核：bridge 先用 review skill 在当前图上试一遍（`preview_changes`，不改任何东西），中间栏的 UMR 文本页和图页换成预览：绿色是新增，红色划掉是删除（显示在原来的位置），橙色是修改（旧值划掉）；谓词的 `:modstr` 只在改了的地方显示。右栏列出每条改动和理由，可以勾选、取消，预览跟着变；用不上的改动（变量不存在、关系已经有了）会注明原因，因此挂不住的节点也会提示。
 5. 「执行勾选的 N 条」→ `apply_changes`：`apply_change` 把改动用到这一句的图上（penman，谓词的 modstr 写成 `:modstr`），新节点得到 `s<句号><概念首字母>[k]` 的变量名（不会用这句图里用过的名字），挂不住的节点去掉。然后 bridge 像载入 .umr 那样把新图拆回步骤（`umr_load.Loader`，一直拆到 stop 叶子，不用再去左边点新增）。拆的时候先把原来的图也按同样的方式拆一遍做比较：输出、输入、子步骤都没变的步骤，原样保留（它的提示词、回答、确认、工具调用；还没跑的步骤仍是没跑）；变了的步骤标成「右栏的改动执行后重新拆出来的」。文档级关系按变量跟着节点走到新的步骤编号，节点没了的关系一起去掉；document 这一波标成过期。
@@ -612,7 +614,8 @@ sentences:
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
 | wave 0 | — | `generate`：`umr_generate`（默认 GPT-6.1 Sol）一次写出整句的图和文档级标注，规则 `convert` 检查后载入后面两波；整句的改动在右栏提（`user_panel`） |
 | 右栏 | — | registry 顶层的 `user_panel`：`local_change`（模型按评论提出改动，有 `call_skill` 工具）、`apply_change`（规则，执行勾选的改动，再把图拆回步骤）、`reflect` |
-| 乌兹别克语 | — | `web-uz`：英文流程 + 本站写的乌兹别克语 skill.md；没有 PropBank（词干概念 + 通用角色）、没有金标 |
+| 乌兹别克语 | — | `web-uz`：英文流程 + 本站写的乌兹别克语 skill.md；wave 0 先用规则 `tokenizer` 分词；没有 PropBank（词干概念 + 通用角色）、没有金标 |
+| predicate 的 aspect、modstr | emit 里单独的两个字段（枚举） | 不单列：是 `graph.attrs` 里事件节点（第一个节点）的属性 `[e, "aspect", …]`、`[e, "modstr", …]`；bridge 检查取值（`_check_event_attrs`），output handler 照旧把 modstr 移到文档级；polarity 仍是字段 |
 | PropBank | 每个词条一个 XML（中文 24,521 个）；英文查 `arg-descr.txt`；`propbank_lookup` 返回 JSON，只有角色 | 中英文各合并成一个 JSON，带全部例子，放在 `resources/propbank/`，第一次查询时取来；本站的 `propbank.py` 读它，返回 Markdown（角色和全部例子）；中文的 roleset 和角色与原来完全相同，英文 `arg-descr.txt` 的 8,733 个 roleset 全都有 |
 | `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉（同步时不复制）；例子从金标里搜 |
 | 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成（照 umr-tool 的转换）；temporal、coref 各一个 agent 步骤（本站写的 skill.md，由 document 的两节精简而来） |
