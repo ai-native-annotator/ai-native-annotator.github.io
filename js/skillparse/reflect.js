@@ -25,6 +25,8 @@ function clip(text, n = MAX_FIELD) {
   return s.length > n ? `${s.slice(0, n)}\n… (${s.length - n} more characters)` : s;
 }
 
+// the system prompt when the procedure's registry has no user_panel reflect (its skill.md is the
+// one the page uses: the right pane passes it as `system`)
 const SYSTEM = `You maintain the skills of an annotation pipeline for Uniform Meaning Representation (UMR).
 A person is checking the pipeline one step at a time. You get one step (a node): the skill that ran,
 its input, what it produced, the person's feedback, and the skill's source files. Find what in the
@@ -132,7 +134,7 @@ export function buildPrompt({ skillset, node, context, mode, feedback, corrected
 }
 
 export async function reflect(args) {
-  return llm({ role: 'reflect', system: SYSTEM, instructions: buildPrompt(args), schema: SCHEMA, maxTurns: 2, signal: args.signal });
+  return llm({ role: 'reflect', system: args.system || SYSTEM, instructions: buildPrompt(args), schema: SCHEMA, maxTurns: 2, signal: args.signal });
 }
 
 /** Apply the edits to one file's text. Returns {text, results:[{ok, why}]}; failed edits change nothing. */

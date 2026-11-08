@@ -14,7 +14,7 @@
  */
 
 import { h, clear, pretty, toast, diffView } from './ui.js';
-import { S, SENTENCE_WAVE, GENERATE_WAVE, generateAll, onRender, render, selectNode, selectWave, selectItem, runNode, runNext, resetNode, saveOutput, startItem, sentenceGraph, confirmNode, confirmAndNext } from './core.js';
+import { S, SENTENCE_WAVE, GENERATE_WAVE, generateAll, onRender, render, selectNode, selectWave, selectItem, runNode, runNext, resetNode, saveOutput, startItem, sentenceGraph, confirmNode, confirmAndNext, panelKey } from './core.js';
 import { py } from './py.js';
 import { outputPenman, docNodes } from './penman-view.js';
 import { drawGraph, fragmentGraph } from './graph-view.js';
@@ -70,11 +70,10 @@ function reviewCard(d) {
   const busy = S.running > 0;
   const model = d.kind === 'jev' || d.kind === 'agent';
   const unconfirmed = d.status === 'ok' && !d.confirmed;
-  // a finished output can be changed locally by a hint (bridge.revise); a model step can also be
-  // parsed again with the hint (its skill, as before)
-  const local = false;           // a local change is asked for in the AI panel (by UMR variables)
+  // a model step can be parsed again with a hint (a change of the whole sentence's graph is asked
+  // for in the right pane: user_panel local_change)
   let hintBox = null;
-  if (S.hinting && (model || local)) {
+  if (S.hinting && model) {
     const area = h('textarea', { rows: 3, class: 'hint-area', placeholder: t('hintPlaceholder') });
     area.value = d.hint || '';
     area.addEventListener('keydown', (e) => {
@@ -82,7 +81,7 @@ function reviewCard(d) {
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         e.preventDefault();
-        (hintBox.querySelector('.hint-go') || hintBox.querySelector('.hint-local')).click();
+        hintBox.querySelector('.hint-go').click();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         S.hinting = false;
@@ -91,7 +90,6 @@ function reviewCard(d) {
     });
     hintBox = h('div', { class: 'hint-box' },
       model ? h('div', { class: 'note', text: t(d.kind === 'jev' ? 'hintWhereJev' : 'hintWhere', { label: hintLabel() }) }) : null,
-      local ? h('div', { class: 'note', text: t('localNote') }) : null,
       area,
       h('div', { class: 'row' },
         model ? h('button', { class: 'btn primary hint-go', disabled: busy, text: t('hintGo'), 'aria-keyshortcuts': 'Enter', onclick: () => {
@@ -100,12 +98,6 @@ function reviewCard(d) {
           S.hinting = false;
           runNode(d.id, { hint: v });
         } }, kbd('Enter')) : null,
-        local ? h('button', { class: `btn${model ? '' : ' primary'} hint-local`, disabled: busy, text: t('localGo'), onclick: () => {
-          const v = area.value.trim();
-          if (!v) { area.focus(); return; }
-          S.hinting = false;
-          runNode(d.id, { hint: v, revise: true });
-        } }) : null,
         d.hint ? h('button', { class: 'btn', disabled: busy, text: t('hintClear'), onclick: () => { S.hinting = false; runNode(d.id, { hint: '' }); } }) : null,
         h('button', { class: 'btn', text: t('cancel'), onclick: () => { S.hinting = false; render(); } })));
   }
@@ -116,7 +108,7 @@ function reviewCard(d) {
         h('button', { class: 'btn primary', text: t('confirmNext'), disabled: busy, 'aria-keyshortcuts': 'Enter', onclick: () => confirmAndNext(d.id) }, kbd('Enter')),
         h('button', { class: 'btn', text: t('confirm'), disabled: busy, onclick: () => confirmNode(d.id) }),
       ] : d.confirmed && !d.human ? h('span', { class: 'ok-tag', text: `✓ ${t('confirmedTag')}` }) : null,
-      model || local ? h('button', { class: 'btn hint-btn', 'aria-pressed': String(S.hinting), disabled: busy, text: t('hintRerun'), 'aria-keyshortcuts': 'Tab',
+      model ? h('button', { class: 'btn hint-btn', 'aria-pressed': String(S.hinting), disabled: busy, text: t('hintRerun'), 'aria-keyshortcuts': 'Tab',
         onclick: () => { S.hinting = !S.hinting; S.editing = false; render(); focusHint(); } }, kbd('Tab')) : null,
       h('button', { class: 'btn edit-btn', disabled: busy, text: t('editDirect'), onclick: () => { S.editing = true; S.hinting = false; render(); } }),
       h('button', { class: 'btn ghost', disabled: busy, text: t('rerun'), onclick: () => runNode(d.id) })),
@@ -170,11 +162,11 @@ function outputTab(d) {
   if (d.error) parts.push(h('div', { class: 'card err' }, h('strong', { text: `${t('error')}: ` }), d.error, d.trace ? h('details', {}, h('summary', { text: 'trace' }), h('pre', { text: d.trace })) : null));
   if (d.problems?.length) parts.push(h('div', { class: 'card warn' }, h('strong', { text: `${t('retried')}: ` }), d.problems.join('; ')));
   if (d.model && d.status !== 'pending') parts.push(h('div', { class: 'note', text: t('madeBy', { model: d.model }) }));
-  if (d.doc_followed && (d.revised || d.human)) {
-    // a change of a step: its document-level relations followed it; one line to say so
+  if (d.doc_followed && d.human) {
+    // a person's edit of a step: its document-level relations followed it; one line to say so
     parts.push(h('div', { class: 'note doc-followed', text: t('docFollowed', { changed: d.doc_followed.changed, dropped: d.doc_followed.dropped }) }));
   }
-  if (d.revise_error) parts.push(h('div', { class: 'card warn', text: t('reviseFailed', { e: d.revise_error }) }));
+  if (d.changed) parts.push(h('div', { class: 'note', text: t('changedTag') }));
   if (d.applied) {
     parts.push(h('div', { class: 'card' }, h('strong', { text: t('convertApplied', { steps: d.applied.steps }) }),
       d.applied.problems?.length ? h('ul', {}, d.applied.problems.map((x) => h('li', { text: x }))) : null));
@@ -246,7 +238,6 @@ function promptTab(d) {
   return h('div', { style: 'display:grid;gap:6px' },
     h('div', { class: 'note', text: t('promptNote') }),
     d.input_md ? h('div', { class: 'block md-view' }, renderMarkdown(p?.input && !d.input_md ? p.input : d.input_md, { lines: true })) : null,
-    p?.input && p.input.includes('## The current output') ? h('details', {}, h('summary', { text: t('promptSent') }), h('pre', { class: 'block', text: p.input })) : null,
     p ? h('details', {}, h('summary', { text: 'system' }), h('pre', { class: 'block', text: p.system })) : null,
     p ? h('details', {}, h('summary', { text: 'instructions (skill.md)' }),
       h('div', { class: 'block md-view' }, renderMarkdown(p.instructions)),
@@ -359,9 +350,26 @@ function graphPanel(g) {
 
 let shown = '';
 
+/** The right pane's proposal for this sentence (user_panel local_change), when there is one. */
+const previewHere = () => (S.preview && S.preview.key === panelKey() ? S.preview : null);
+
+function previewBanner(pv) {
+  return h('div', { class: 'card preview-banner' },
+    h('strong', { text: t('previewTitle', { n: pv.n }) }), ' ',
+    h('span', { class: 'mk-add', text: t('previewAdd') }), ' · ', h('span', { class: 'mk-del', text: t('previewDel') }), ' · ',
+    h('span', { class: 'mk-chg', text: t('previewChg') }),
+    h('div', { class: 'note', text: t('previewNote') }));
+}
+
 async function graphTab(out, d) {
-  const key = `${S.skillset}|${S.doc}|${S.wave}|${S.item}|${S.node}|${S.graphStamp}|${fit}`;
+  const pv = previewHere();
+  const key = `${S.skillset}|${S.doc}|${S.wave}|${S.item}|${S.node}|${S.graphStamp}|${fit}|${pv ? pv.stamp : ''}`;
   if (shown === key && out.querySelector('.graph-panel')) return;
+  if (pv) {
+    shown = key;
+    clear(out, previewBanner(pv), graphPanel(pv.graph));
+    return;
+  }
   if (!out.querySelector('.graph-panel')) clear(out, h('div', { class: 'loading' }, h('span', { class: 'spinner' }), '…'));
   try {
     const g = await sentenceGraph(S.item);
@@ -377,6 +385,14 @@ async function umrTab(out) {
   try {
     const g = await sentenceGraph(S.item);
     if (S.tab !== 'umr') return;
+    const pv = previewHere();
+    if (pv) {
+      // the changes in color on the penman text: added, gone (struck through), changed
+      const lines = pv.lines.map((ln) => h('span', { style: 'display:block' }, ln.map((x) => (x.m ? h('span', { class: `mk-${x.m}`, text: x.t }) : x.t))));
+      clear(out, previewBanner(pv), h('pre', { class: 'block penman-preview' }, lines),
+        h('details', {}, h('summary', { text: t('previewBefore') }), h('pre', { class: 'block', text: g.text || '' })));
+      return;
+    }
     const added = new Set(g.nodes.filter((n) => n.auto).map((n) => n.var));
     const byVar = new Map(g.nodes.map((n) => [n.var, n]));
     const mine = new Set(S.wave === SENTENCE_WAVE && S.node ? g.nodes.filter((n) => n.node === S.node).map((n) => n.var) : []);

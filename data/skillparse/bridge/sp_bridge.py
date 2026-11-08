@@ -2,9 +2,10 @@
 at a time.
 
 Everything under /sp/skillparseumr and /sp/modular-parsing is the SkillParseUMR (and
-modular-parsing) source as it is on disk, copied by scripts/sync_skillparse.py; only
-propbank.py is swapped for one that reads the merged PropBank file. This file is the only new
-Python. It does what src/runner.py does, split so the page drives it:
+modular-parsing) source as composed by scripts/sync_skillparse.py (a few patches; the site's own
+skills and tools from data/skillparse/web_skills and web_tools; propbank.py reads the merged
+PropBank file). This file, with umr_load.py, is the page's Python. It does what src/runner.py
+does, split so the page drives it:
 
   - a node is made but not run until someone clicks it, and a finished step must be confirmed
     (or corrected) before the next step of its episode can start: an episode never runs on by
@@ -12,7 +13,10 @@ Python. It does what src/runner.py does, split so the page drives it:
   - a kind: jev node hands the page its closed questions (Jev or Haiku answers them, by skill)
     and is finished when the page sends the answers back;
   - any node's output can be replaced by a person, and everything below it is redone;
-  - a wave's context windows (`range`) can be changed per wave before running.
+  - a wave's context windows (`range`) can be changed per wave before running;
+  - the right pane's skills (registry user_panel, not a wave) run outside the waves: local_change
+    proposes changes to a sentence's graph, apply_change applies the ones a person picked, and the
+    sentence's steps are made again from the new graph.
 
 The page calls `call(method, json_args)` and gets JSON back; see `Session` for the methods.
 """
@@ -102,19 +106,8 @@ GENERATE, CONVERT = "umr_generate", "convert"
 SENTENCE_WAVE = "sentence"
 # which model role a skill's calls go to (the page's settings): wave 0's own, else the agent skills'
 ROLE_OF = {GENERATE: "generate"}
-REVISE = ("You are revising the output of one step of a UMR annotation. Keep the output as it is, "
-          "except what the person's hint asks to change: mostly how the nodes are connected (the "
-          "edges and their roles), attributes and outside items. Do not change the placeholders "
-          "in `open` (later steps have annotated them) unless the hint asks for it. Answer with "
-          "the whole revised output.")
-# the local change's own skill file, next to registry.yaml (web_skills/local_change, editable in
-# the skills pane): its text before VARS_HEAD goes into the system prompt, the section the note
-# before the table of UMR variables; REVISE and VARS_NOTE are what it says when it is missing
-LOCAL_SKILL = "local_change"
-VARS_HEAD = "## The sentence's UMR variables"
-VARS_NOTE = ("The hint names nodes by their UMR variables. In this step's output a node of this step is "
-             "named by its variable in the step; a node of another step is reached by an `outside` item "
-             "naming that step. Keep the variable names of this step.")
+# a user_panel entry's keys that are not a skill's (registry.py builds the rest as skills)
+PANEL_KEYS = ("title", "role", "review", "modes")
 NOT_BUILT = "(not built yet)"
 KNOWN_HEAD = ("Nodes of this sentence so far (an `outside` item names one of them by its `node`; "
               "a placeholder whose node is not built yet is listed too):")
@@ -397,6 +390,8 @@ class RegistryEngine:
         self.sid = sid
         self.path = path
         self.reg = R.Registry.load(path)
+        self.panel = self._load_panel()                # registry user_panel: the right pane's skills
+        self.panel_runs = {}                           # (panel skill, sentence) -> its last run
         self.doc = UMRInputHandler(lang=lang).read(doc_path)
         self.waves = {w.name: w for w in self.reg.waves}
         self.order = [w.name for w in self.reg.waves]
@@ -442,9 +437,10 @@ class RegistryEngine:
                   if f.endswith((".py", ".yaml")) and f != "registry.yaml"]
         shared.append(os.path.relpath(self.path, FS))
         shared.append("skillparseumr/skillsets/tools/propbank.py")
-        local = self.local_skill_path()
-        local = [os.path.relpath(local, FS)] if os.path.exists(local) else []
-        return {"engine": self.kind, "skillset": self.sid, "waves": waves, "skills": skills, "local_skill": local,
+        panel = [{"name": n, "title": e.get("title") or n, "kind": e["skill"].kind, "role": e.get("role"),
+                  "review": e.get("review"), "modes": e.get("modes"), "input": jsonable(e["skill"].input),
+                  "emit": jsonable(e["skill"].emit), "files": skill_files(e["skill"].path)} for n, e in self.panel.items()]
+        return {"engine": self.kind, "skillset": self.sid, "waves": waves, "skills": skills, "user_panel": panel,
                 "shared_files": shared, "doc": self._doc()}
 
     def _doc(self):
@@ -884,8 +880,7 @@ class RegistryEngine:
         return {"need": "llm", "node": node["id"], "skill": node["skill"], "system": p["system"],
                 "instructions": p["instructions"], "input": p["input"] + (retry or ""),
                 "emit": jsonable(skill.emit), "tools": [tool_spec(t) for t in skill_tools(skill.path)],
-                "retry": bool(retry), "role": ROLE_OF.get(node["skill"], "haiku"),
-                "revise": bool(node.get("revising"))}
+                "retry": bool(retry), "role": ROLE_OF.get(node["skill"], "haiku")}
 
     def tool(self, w, i, nid, name, args, manual=False):
         """Run one tool for an agent node; ctx.deps is {"skill_dir", "skill"} as SkillCallable gives it,
@@ -899,7 +894,7 @@ class RegistryEngine:
             fn = fns[name]
             try:
                 if _wants_ctx(fn):
-                    ctx = sys.modules["pydantic_ai"].RunContext({"skill_dir": skill.path, "skill": skill.name,
+                    ctx = sys.modules["pydantic_ai"].RunContext({"skill_dir": skill.path, "skill": skill.name, "engine": self,
                                                                  "doc_sentences": [s.text for s in self.doc.sents]})
                     res = fn(ctx, **(args or {}))
                 else:
@@ -914,148 +909,370 @@ class RegistryEngine:
         node.setdefault("tool_calls", []).append(call)
         return text
 
-    def revise(self, w, i, nid, hint):
-        """A local change (web): the model revises the step's finished output by the person's hint,
-        keeping what the hint does not touch. When the placeholders stay the same, the steps
-        under it are kept; otherwise they are made again from the revised output."""
-        ep, node = self._node(w, i, nid)
-        if node["status"] != "ok" or not isinstance(node.get("output"), dict):
-            raise StepError("step %s has no output to revise" % nid)
-        if self.running(w, i):
-            raise StepError("a step of this item is running")
-        skill = self.reg.skills[node["skill"]]
-        hint = str(hint or "").strip()
-        if not hint:
-            raise StepError("a local change needs a hint")
-        inputs = self._inputs(ep, node)
+    # -- the right pane (registry user_panel): not a wave
+
+    def _load_panel(self):
+        """registry.yaml's user_panel: {name: {"skill": Skill, "title", "role", "review", "modes"}},
+        in the file's order. Each entry is written like a skill (path, kind, input, emit)."""
+        import yaml
+        with open(self.path, encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        raw = data.get("user_panel") or {}
+        if not isinstance(raw, dict):
+            raise StepError("user_panel: must be a mapping")
+        specs = {n: {k: v for k, v in s.items() if k not in PANEL_KEYS} for n, s in raw.items() if isinstance(s, dict)}
+        errors = []
+        skills = self.R._build_skills(specs, os.path.dirname(self.path), errors) if specs else {}
+        if errors:
+            raise StepError("user_panel: " + "; ".join(errors))
+        return {n: dict({k: raw[n].get(k) for k in PANEL_KEYS}, skill=skills[n]) for n in skills}
+
+    def _panel(self, name):
+        entry = self.panel.get(name)
+        if not entry:
+            raise StepError("the registry's user_panel has no %s" % name)
+        return entry
+
+    def skill_guide(self, name):
+        """call_skill: one skill of the procedure (or of the right pane) as the model may read it."""
+        name = str(name or "").strip()
+        skill = self.reg.skills.get(name) or (self.panel.get(name) or {}).get("skill")
+        if not skill:
+            return "No skill %r. The skills: %s" % (name, ", ".join(list(self.reg.skills)))
+        head = ("# %s (kind: %s)\nIt is given: %s\nIt decides (its output): %s\n\n"
+                % (name, skill.kind, json.dumps(jsonable(skill.input), ensure_ascii=False),
+                   json.dumps(jsonable(skill.emit), ensure_ascii=False)))
         if skill.kind == "agent":
-            p = self._agent_prompt(skill, inputs, None, node.get("known"))
+            with open(os.path.join(skill.path, "skill.md"), encoding="utf-8") as f:
+                md = f.read()
+            cut = md.rfind("\n## Input\n")
+            body = (md[:cut] if cut >= 0 else md).replace("{{", "{").replace("}}", "}")
         else:
-            fields = ", ".join('"%s"' % k for k in skill.emit)
-            p = {"system": SYSTEM, "instructions": "# Output Format\nYou must produce a JSON object with exactly "
-                 "these fields: %s.\n" % fields, "input": self.input_markdown(w, i, nid)}
-        current = "{\n" + ",\n".join(" %s: %s" % (json.dumps(k), json.dumps(jsonable(v), ensure_ascii=False))
-                                     for k, v in node["output"].items()) + "\n}"
-        user = (p["input"].rstrip("\n") + "\n\n## The current output\n\n```json\n" + current + "\n```\n\n"
-                + self._umr_vars_md(w, i, nid) + self._hint_label() + hint + "\n")
-        node["revising"] = {"output": node["output"], "hint": hint, "confirmed": node.get("confirmed")}
-        node["status"] = "running"
-        node["prompt"] = {"system": SYSTEM + " " + HINT_RULE + " " + self._local_skill()[0],
-                          "instructions": p["instructions"],
-                          "input": user}
-        node["retried"] = False
-        return self._llm_request(node, skill)
+            body = ""
+            path = os.path.join(skill.path, name + ".py")
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    src = f.read()
+                m = re.match(r'\s*(?:#[^\n]*\n\s*)*[rubRUB]*("""|\'\'\')(.*?)\1', src, re.S)
+                body = m.group(2).strip() if m else ""
+            body = body or "(its code says nothing about what it does)"
+        return (head + body)[:30000]
 
-    def _umr_vars_md(self, w, i, nid):
-        """The sentence's UMR variables (as the .umr names them), against the steps that made them:
-        a person's hint names nodes by those."""
-        if w != SENTENCE_WAVE:
-            return ""
-        try:
-            nodes = self.graph(i, auto_align=False)["nodes"]
-        except Exception:
-            return ""
-        if not nodes:
-            return ""
-        rows = ["| UMR variable | concept | step | its variable in the step |", "|---|---|---|---|"]
-        for n in nodes:
-            mine = " (this step)" if n.get("node") == nid else ""
-            rows.append("| %s | %s | %s%s | %s |" % (n["var"], n["concept"], ref_id({"id": n.get("node") or "",
-                                                                                      "skill": n.get("skill")})
-                                                      if n.get("node") else "", mine, n.get("local") or ""))
-        return VARS_HEAD + "\n\n" + self._local_skill()[1] + "\n\n" + "\n".join(rows) + "\n\n"
+    def _sentence_graph_text(self, g):
+        block = g.get("text") or ""
+        return block.split("# sentence level graph:", 1)[-1].split("# alignment:", 1)[0].strip()
 
-    def local_skill_path(self):
-        return os.path.join(os.path.dirname(self.path), LOCAL_SKILL, "skill.md")
+    def _umr_names(self, g):
+        """(step id, its variable) -> the graph's UMR variable."""
+        return {(n.get("node"), n.get("local")): n["var"] for n in g["nodes"] if n.get("node")}
 
-    def _local_skill(self):
-        """The local change's rules and the note before the UMR variables (its skill.md, read
-        each time: an edit in the skills pane counts at once)."""
-        try:
-            with open(self.local_skill_path(), encoding="utf-8") as f:
-                text = f.read()
-        except OSError:
-            return REVISE, VARS_NOTE
-        rules, _, note = text.partition(VARS_HEAD)
-        rules = re.sub(r"^#[^\n]*\n", "", rules.strip()).strip()
-        return " ".join(rules.split()) or REVISE, note.strip() or VARS_NOTE
-
-    # a UMR variable in a hint: s, the sentence number, a letter, letters and digits; written
-    # next to Chinese ("s1x2的ARG0") or in capitals ("S1C")
-    VAR_IN_TEXT = re.compile(r"(?<![A-Za-z0-9])[sS]\d+[A-Za-z][A-Za-z0-9]*")
-
-    def locate(self, i, hint):
-        """The steps a local change by a hint is for (the AI panel). A UMR variable the hint names is
-        a node of one step (inside its fragment, or the fragment's first node); the steps it is for
-        are, for each named node, the step that made it, the step that attaches it when it is a
-        fragment's first node (the nearest step above with a fragment: the edge to it is there), and
-        the steps whose `outside` items stand for it. Returns {"wave", "node" (the first named node's
-        step), "steps" (all of them, in tree order), "vars"}."""
+    def tree_markdown(self, i, g=None):
+        """The sentence wave's tree of steps (built so far, or whole), one line per step: id, skill,
+        status, its piece of the sentence, and what it wrote, with the graph's UMR variables."""
         i = int(i)
-        nodes = self.graph(i, auto_align=False)["nodes"]
-        by_var = {n["var"]: n for n in nodes}
-        named = []
-        for v in self.VAR_IN_TEXT.findall(str(hint or "")):
-            v = v[0].lower() + v[1:].lower() if v.lower() in by_var else v
-            if v in by_var and v not in named:
-                named.append(v)
-        if not named:
-            raise StepError("name a node by its UMR variable (%s)" % ", ".join(list(by_var)[:6]))
-        ep = self.eps[SENTENCE_WAVE][i]
-        steps = ep["nodes"]
+        ep = self.eps.get(SENTENCE_WAVE, {}).get(i)
+        if not ep or not ep["nodes"]:
+            return "(not started: the sentence has no steps yet)"
+        g = g or self.graph(i, auto_align=False)
+        umr = self._umr_names(g)
+        steps = sorted((n for n in ep["nodes"].values() if n["status"] != "dropped"), key=lambda n: node_key(n["id"]))
+        status = {"ok": "done", "pending": "not run", "running": "running", "error": "error"}
+        lines = []
+        for n in steps:
+            nid, o = n["id"], (n.get("output") if n["status"] == "ok" else None) or {}
+            u = lambda v: umr.get((nid, v), v)  # noqa: E731
+            inp = n.get("input") or {}
+            head = "%s- %s `%s` (%s)" % ("  " * n["depth"], nid, n["skill"], status.get(n["status"], n["status"]))
+            if inp.get("text") is not None:
+                head += ' "%s" %s' % (str(inp.get("text")).replace("\n", " "), json.dumps(inp.get("span")))
+            parts = []
+            if n["status"] == "error":
+                parts.append("error: %s" % str(n.get("error") or "")[:200])
+            if n["skill"] == TYPER and o:
+                parts.append("type: %s" % o.get("type"))
+            if o.get("relation") not in (None, "none") and n["skill"] == "discourse":
+                parts.append("relation: %s (node %s)" % (o["relation"], u(o.get("var") or "")) if o.get("var")
+                             else "relation: %s" % o["relation"])
+            frag = o.get("graph") if isinstance(o.get("graph"), dict) else {}
+            if frag.get("nodes"):
+                parts.append("nodes: " + ", ".join("%s / %s%s" % (u(x.get("var")), x.get("concept"),
+                                                                 " %s" % json.dumps(x["span"]) if x.get("span") and x["span"] != [0, 0] else "")
+                                                   for x in frag["nodes"] if isinstance(x, dict)))
+            edges = [e for e in frag.get("edges") or [] if isinstance(e, (list, tuple)) and len(e) == 3]
+            if edges:
+                parts.append("edges: " + ", ".join("%s :%s %s" % (u(a), str(r).lstrip(":"), u(b)) for a, r, b in edges))
+            attrs = [a for a in frag.get("attrs") or [] if isinstance(a, (list, tuple)) and len(a) == 3]
+            if attrs:
+                parts.append("attributes: " + ", ".join("%s :%s %s" % (u(a), str(r).lstrip(":"), v) for a, r, v in attrs))
+            fields = [(k, o.get(k)) for k in ("aspect", "modstr", "polarity") if o.get(k) not in (None, "", "none")]
+            if fields:
+                parts.append(", ".join("%s %s" % kv for kv in fields))
+            kids = {c["edge"]: c["id"] for c in steps if c.get("parent") == nid}
+            holes = [x for x in o.get("open") or [] if isinstance(x, dict)]
+            if holes:
+                parts.append("placeholders: " + ", ".join('%s "%s" %s → %s' % (x.get("var"), x.get("text"), json.dumps(x.get("span")),
+                                                                             kids.get(x.get("var"), "no step"))
+                                                         for x in holes))
+            outs = [x for x in o.get("outside") or [] if isinstance(x, dict)]
+            if outs:
+                parts.append("outside: " + ", ".join("%s → %s (%s)" % (x.get("role") or x.get("var") or "", x.get("node") or json.dumps(x.get("span")),
+                                                                       x.get("text", "")) for x in outs))
+            lines.append(head + ("".join("\n%s  %s" % ("  " * n["depth"], p) for p in parts)))
+        return "\n".join(lines)
 
-        def fragment(n):
-            o = n.get("output") if n.get("status") == "ok" else None
-            g = (o or {}).get("graph") if isinstance(o, dict) else None
-            return [x.get("var") for x in (g or {}).get("nodes") or [] if isinstance(x, dict)]
+    @staticmethod
+    def variables_markdown(g):
+        """The current graph's variables against the steps (nodes of the tree) that wrote them."""
+        if not g["nodes"]:
+            return "(the graph is empty)"
+        rows = ["| UMR variable | concept | step | skill | its variable in the step | words |", "|---|---|---|---|---|---|"]
+        for n in g["nodes"]:
+            step = n.get("node") or ""
+            if n.get("unfilled"):
+                step = "%s (a placeholder of it; its step is not done)" % step
+            rows.append("| %s | %s | %s | %s | %s | %s |" % (n["var"], n["concept"], step, n.get("skill") or "",
+                                                             n.get("local") or "", n.get("words") or ""))
+        return "\n".join(rows)
 
-        def above(nid):
-            """The nearest step above nid with a fragment (a sent_type that is not a leaf passes)."""
-            p = steps[nid].get("parent")
-            while p is not None and p in steps:
-                if fragment(steps[p]) or (steps[p].get("output") or {}).get("relation") not in (None, "none"):
-                    return p
-                p = steps[p].get("parent")
-            return None
-        related = []
-        for v in named:
-            owner = by_var[v].get("node")
-            if not owner or owner not in steps:
+    def panel_values(self, i, comment=""):
+        """Every value a user_panel skill may take as input (its registry `input` picks them)."""
+        i = int(i)
+        sent = self.doc.sents[i]
+        g = self.graph(i, auto_align=False)
+        return {"sentence": sent.text, "tokens": prompt_value([[k + 1, t] for k, t in enumerate(sent.tokenized_text)]),
+                "tree": self.tree_markdown(i, g), "variables": self.variables_markdown(g),
+                "graph": self._sentence_graph_text(g) or "(empty)", "comment": str(comment or "").strip(),
+                "lang": self.doc.lang, "index": sent.index}
+
+    def panel_start(self, name, i, comment=""):
+        """Run an agent skill of the right pane on sentence i: what the page must ask the model."""
+        entry = self._panel(name)
+        skill = entry["skill"]
+        if skill.kind != "agent":
+            raise StepError("%s is not a model skill" % name)
+        if not str(comment or "").strip():
+            raise StepError("write a comment first")
+        values = self.panel_values(i, comment)
+        missing = [k for k in skill.input if k not in values]
+        if missing:
+            raise StepError("user_panel.%s.input: no value %s (there are: %s)" % (name, ", ".join(missing), ", ".join(values)))
+        p = self._agent_prompt(skill, {k: values[k] for k in skill.input})
+        self.panel_runs[(name, int(i))] = {"name": name, "i": int(i), "prompt": p, "tool_calls": [], "retried": False,
+                                          "comment": str(comment).strip()}
+        return self._panel_request(name, int(i))
+
+    def _panel_request(self, name, i, retry=""):
+        entry = self._panel(name)
+        skill, run = entry["skill"], self.panel_runs[(name, i)]
+        p = run["prompt"]
+        return {"need": "llm", "skill": name, "system": p["system"], "instructions": p["instructions"],
+                "input": p["input"] + retry, "emit": jsonable(skill.emit),
+                "tools": [tool_spec(t) for t in skill_tools(skill.path)], "role": entry.get("role") or "haiku",
+                "retry": bool(retry)}
+
+    def panel_tool(self, name, i, tool, args):
+        """A tool call of a right-pane skill (call_skill among them)."""
+        skill = self._panel(name)["skill"]
+        run = self.panel_runs.get((name, int(i)))
+        fns = {t.__name__: t for t in skill_tools(skill.path)}
+        if tool not in fns:
+            res = "Unknown tool name: %r. Tools: %s" % (tool, ", ".join(sorted(fns)))
+        else:
+            fn = fns[tool]
+            try:
+                if _wants_ctx(fn):
+                    ctx = sys.modules["pydantic_ai"].RunContext({"skill_dir": skill.path, "skill": skill.name, "engine": self,
+                                                                 "doc_sentences": [s.text for s in self.doc.sents]})
+                    res = fn(ctx, **(args or {}))
+                else:
+                    res = fn(**(args or {}))
+            except Exception as e:
+                res = "%s: %s" % (type(e).__name__, e)
+        text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
+        if run is not None:
+            run["tool_calls"].append({"tool": tool, "args": args, "result": text[:200000]})
+        return text
+
+    def panel_complete(self, name, i, output, model=None):
+        """The model's answer for a right-pane skill. local_change: its changes, checked by the
+        review skill (apply_change) on the current graph, for the person to look at."""
+        i = int(i)
+        entry = self._panel(name)
+        skill, run = entry["skill"], self.panel_runs.get((name, i))
+        if run is None:
+            raise StepError("%s has not been started for sentence %d" % (name, i + 1))
+        try:
+            self._check_emit(skill, output)
+            changes = output.get("changes") if isinstance(output, dict) else None
+            if "changes" in skill.emit and not all(isinstance(c, dict) and c.get("op") for c in changes or []):
+                raise StepError("each change is an object with an op")
+        except Exception as e:
+            if not run["retried"]:
+                run["retried"] = True
+                retry = ("\n\n## Your previous answer was not valid\n%s\n%s\n\nFix the errors and answer again."
+                         % (e, json.dumps(jsonable(output), ensure_ascii=False)[:3000]))
+                return self._panel_request(name, i, retry)
+            raise
+        run["output"], run["model"] = output, model
+        res = {"done": True, "skill": name, "output": output, "prompt": run["prompt"], "tool_calls": run["tool_calls"],
+               "model": model}
+        if entry.get("review") and isinstance(output, dict) and "changes" in output:
+            res["preview"] = self.preview_changes(i, output["changes"], name)
+        return res
+
+    def _review_skill(self, name):
+        review = self._panel(name).get("review")
+        if not review:
+            raise StepError("user_panel.%s has no review skill" % name)
+        skill = self._panel(review)["skill"]
+        if skill.kind != "rule":
+            raise StepError("user_panel.%s: review %s must be a rule" % (name, review))
+        return skill
+
+    def _working_graph(self, i):
+        """Sentence i's graph as apply_change takes it: penman with each event's modal strength as
+        :modstr (from its predicate step), and the alignment {var: [first, last]}."""
+        import penman
+        g = self.graph(i, auto_align=False)
+        text = self._sentence_graph_text(g)
+        if not g["nodes"] or not text:
+            raise StepError("sentence %d has no graph yet" % (int(i) + 1))
+        ep = self.eps.get(SENTENCE_WAVE, {}).get(int(i)) or {"nodes": {}}
+        align = {}
+        for n in g["nodes"]:
+            lo, hi = (int(x) for x in str(n.get("align") or "0-0").split("-"))
+            if lo > 0:
+                align[n["var"]] = [lo, hi]
+        extra = []
+        for n in g["nodes"]:
+            step = ep["nodes"].get(n.get("node") or "")
+            if not step or step["skill"] != "predicate" or step["status"] != "ok":
                 continue
-            related.append(owner)
-            if fragment(steps[owner])[:1] == [by_var[v].get("local")]:
-                up = above(owner)
-                if up:
-                    related.append(up)
-                name = ref_id(steps[owner])
-                related += [k for k, n in steps.items() if n.get("status") == "ok" and any(
-                    isinstance(x, dict) and x.get("node") == name for x in (n.get("output") or {}).get("outside") or [])]
-        if not related:
-            raise StepError("%s was not made by a step of this sentence" % named[0])
-        first = next(by_var[v]["node"] for v in named if by_var[v].get("node") in steps)
-        return {"wave": SENTENCE_WAVE, "node": first, "vars": named,
-                "steps": sorted(set(related), key=node_key)}
+            o = step.get("output") or {}
+            first = ((o.get("graph") or {}).get("nodes") or [{}])[0]
+            if isinstance(first, dict) and first.get("var") == n.get("local") and o.get("modstr") not in (None, "", "none"):
+                extra.append((n["var"], ":modstr", o["modstr"]))
+        if extra:
+            pg = penman.decode(text)
+            have = {(a, r) for a, r, _ in pg.attributes()}
+            pg = penman.Graph(pg.triples + [t for t in extra if (t[0], t[1]) not in have], top=pg.top,
+                              epidata=pg.epidata)
+            text = penman.encode(pg, indent=4)
+        return text, align, g
 
-    def doc_ref_problems(self, i, nid):
-        """Document-level relations that name a node inside step nid of sentence i by a variable the
-        step no longer has (after a change): "<sentence>:<step>/<var>"."""
-        ep = self.eps.get(SENTENCE_WAVE, {}).get(int(i))
-        step = ep["nodes"].get(nid) if ep else None
-        if not step:
-            return []
-        g = (step.get("output") or {}).get("graph") or {}
-        have = {x.get("var") for x in g.get("nodes") or [] if isinstance(x, dict)}
-        name = "%d:%s" % (self.doc.sents[int(i)].index, ref_id(step))
-        out = []
-        for k, dep in (self.eps.get("document") or {}).items():
+    def _apply_rule(self, i, changes, name):
+        skill = self._review_skill(name)
+        work, align, g = self._working_graph(i)
+        sent = self.doc.sents[int(i)]
+        inputs = {"graph": work, "alignment": align, "changes": jsonable(changes or []), "index": sent.index}
+        out = self._skill_module(skill).run(**{k: v for k, v in inputs.items() if k in skill.input})
+        self._check_emit(skill, out)
+        return work, align, g, out
+
+    def preview_changes(self, i, changes, name="local_change"):
+        """What the changes would do, without doing it: the review skill on the current graph, and
+        the graph with the changes marked (added, deleted, changed) for the penman text and the
+        drawing."""
+        work, align, g, out = self._apply_rule(int(i), changes, name)
+        marks = out.get("marks") or {}
+        return {"applied": out.get("applied") or [], "problems": out.get("problems") or [], "marks": marks,
+                "lines": marked_penman(work, out["graph"], marks), "graph": marked_graph(g, out, marks),
+                "after": out["graph"]}
+
+    def apply_changes(self, i, changes, name="local_change"):
+        """The changes a person picked: the review skill (apply_change) makes the new graph, and the
+        sentence's steps are made again from it as a .umr is loaded (down to the stop leaves). A
+        step the changes did not touch is kept as it was (its prompt, answers, confirmation, and a
+        step not run yet stays not run); the document-level relations that named a node follow it
+        to its new step, and go with a node that is gone."""
+        import copy
+        import umr_load
+        i = int(i)
+        if self.running(SENTENCE_WAVE, i):
+            raise StepError("a step of this sentence is running")
+        work, align, g, out = self._apply_rule(i, changes, name)
+        if not any(a.get("ok") for a in out.get("applied") or []):
+            raise StepError("no change could be applied: " + "; ".join(out.get("problems") or []))
+        sent = self.doc.sents[i]
+        old_ep = copy.deepcopy(self.eps[SENTENCE_WAVE][i])
+        old_ref = {}
+        for n in g["nodes"]:
+            step = old_ep["nodes"].get(n.get("node") or "")
+            if step and n.get("local"):
+                old_ref["%d:%s/%s" % (sent.index, ref_id(step), n["local"])] = n["var"]
+
+        def load(graph, alignment):
+            ld = umr_load.Loader(self, origin="changed")
+            ld.prepare()
+            block = {"words": list(sent.tokenized_text), "graph": graph, "doc": "",
+                     "align": {str(v): (int(a[0]), int(a[1])) for v, a in (alignment or {}).items()}}
+            with ld.loading():
+                refs = ld.sentence(i, block) or {}
+            return ld, refs
+
+        def signature(ep):
+            return {nid: json.dumps(jsonable([n["skill"], n.get("input"), n.get("output")]), sort_keys=True, ensure_ascii=False)
+                    for nid, n in ep["nodes"].items()}
+        load(work, align)                  # the graph as it is, the way the loader takes it apart
+        before = signature(self.eps[SENTENCE_WAVE][i])
+        ld, refs = load(out["graph"], out.get("alignment") or {})
+        ep = self.eps[SENTENCE_WAVE][i]
+        after = signature(ep)
+        kept, changed = [], []
+        for nid, node in ep["nodes"].items():
+            orig = old_ep["nodes"].get(nid)
+            same = (before.get(nid) == after[nid] and orig and orig["skill"] == node["skill"]
+                    and orig.get("input") == node.get("input")
+                    and [(c, old_ep["nodes"][c].get("edge")) for c in orig.get("children") or [] if c in old_ep["nodes"]]
+                    == [(c, ep["nodes"][c].get("edge")) for c in node.get("children") or []])
+            if same:
+                for k, v in orig.items():
+                    if k not in ("id", "parent", "children", "edge", "depth"):
+                        node[k] = v
+                kept.append(nid)
+            else:
+                node["changed"] = True
+                changed.append(nid)
+        self.refs[i] = refs
+        followed = self._follow_vars(sent.index, old_ref, refs)
+        self._mark_stale(SENTENCE_WAVE, i)
+        return {"applied": out.get("applied") or [], "problems": (out.get("problems") or []) + ld.problems,
+                "kept": len(kept), "changed": sorted(changed, key=node_key), "doc_followed": followed,
+                "graph": out["graph"]}
+
+    def _follow_vars(self, index, old_ref, refs):
+        """Document-level relations that named a node of sentence `index` ("<index>:<step>/<var>")
+        name it by its new step; a relation with a node that is gone goes."""
+        changed = dropped = 0
+
+        def fix(x):
+            m = re.fullmatch(r"(\d+):([\d.]+[AB]?)/(\S+)", str(x))
+            if not m or int(m.group(1)) != index or str(x) not in old_ref:
+                return x, False
+            var = old_ref[str(x)]
+            return refs.get(var), refs.get(var) != str(x)
+        for dep in (self.eps.get("document") or {}).values():
             for d in dep["nodes"].values():
-                for r in ((d.get("output") or {}).get("relations") or []):
-                    for x in (r.get("source"), r.get("target")):
-                        m = re.fullmatch(r"(\d+:[\d.]+)/(\S+)", str(x))
-                        if m and m.group(1) == name and m.group(2) not in have:
-                            out.append("sentence %d %s: %s %s %s" % (int(k) + 1, d["skill"], r.get("source"),
-                                                                    r.get("relation"), r.get("target")))
-        return out
+                for field in ("output", "machine_output", "stored"):
+                    o = d.get(field)
+                    if not (isinstance(o, dict) and isinstance(o.get("relations"), list)):
+                        continue
+                    kept = []
+                    for r in o["relations"]:
+                        if not isinstance(r, dict):
+                            kept.append(r)
+                            continue
+                        src, a = fix(r.get("source"))
+                        tgt, b = fix(r.get("target"))
+                        if src is None or tgt is None:
+                            dropped += field == "output"
+                            continue
+                        if a or b:
+                            changed += field == "output"
+                            r = dict(r, source=src, target=tgt)
+                        kept.append(r)
+                    o["relations"] = kept
+        return {"changed": changed, "dropped": dropped}
 
     def follow_doc_refs(self, i, step, old, new):
         """After a step of sentence i changed its output (a local change, a person's edit), the
@@ -1117,31 +1334,6 @@ class RegistryEngine:
                     o["relations"] = kept
         return {"changed": changed, "dropped": dropped}
 
-    def _revised(self, w, ep, node, out):
-        """The revised output of a local change: in place when its placeholders are the same."""
-        old = node["revising"]["output"]
-        same = [(x.get("var"), x.get("span")) for x in old.get("open") or [] if isinstance(x, dict)] == \
-               [(x.get("var"), x.get("span")) for x in out.get("open") or [] if isinstance(x, dict)]
-        if not same:
-            node.pop("revising")
-            for k in self._descendants(ep, node["id"]):
-                del ep["nodes"][k]
-            res = self._finish(w, ep, node, out, keep=old)
-        else:
-            skill = self.reg.skills[node["skill"]]
-            out = self._check_emit(skill, out, keep=old)
-            node.pop("revising")
-            node["output"] = node["machine_output"] = out
-            node["stored"] = {k: out[k] for k in skill.store}
-            node["status"], node["error"], node["confirmed"], node["human"] = "ok", None, False, False
-            self._mark_stale(w, ep["index"])
-            res = {"done": True, "node": node["id"], "status": "ok", "children": node["children"]}
-        node["revised"] = True
-        # the document-level relations that pointed inside this step follow it
-        if w == SENTENCE_WAVE:
-            node["doc_followed"] = self.follow_doc_refs(ep["index"], node, old, node.get("output"))
-        return res
-
     def complete(self, w, i, nid, output, model=None):
         """A model's JSON answer for an agent node (and which model gave it). An answer that does
         not fit emit is sent back once with what is wrong (agent.run's retries=1), then the node
@@ -1151,7 +1343,7 @@ class RegistryEngine:
             node["model"] = str(model)
         skill = self.reg.skills[node["skill"]]
         try:
-            self._check_emit(skill, output, keep=(node.get("revising") or {}).get("output"))
+            self._check_emit(skill, output)
             self._check_fragment(output)
             self._check_outside(node, output)
         except Exception as e:
@@ -1162,28 +1354,14 @@ class RegistryEngine:
                          % (e, json.dumps(jsonable(output), ensure_ascii=False)[:3000]))
                 return self._llm_request(node, skill, retry)
         try:
-            if node.get("revising"):
-                return self._revised(w, ep, node, output)
             return self._finish(w, ep, node, output)
         except Exception as e:
-            self._unrevise(node)
             return self._fail(w, ep, node, e)
-
-    @staticmethod
-    def _unrevise(node):
-        """A local change that failed leaves the step as it was."""
-        was = node.pop("revising", None)
-        if was:
-            node["output"], node["status"], node["confirmed"] = was["output"], "ok", was["confirmed"]
 
     def fail(self, w, i, nid, error):
         """The page could not get an answer (no key, network, refused): the node is in error."""
         ep, node = self._node(w, i, nid)
         self._drop_gens(w, i, nid)
-        if node.get("revising"):
-            self._unrevise(node)
-            node["revise_error"] = str(error)
-            return self.episode(w, i)
         node["status"] = "error"
         node["error"] = str(error)
         return self.episode(w, i)
@@ -1221,7 +1399,7 @@ class RegistryEngine:
                             "by its `node` (one of: %s); not %s" % (", ".join(sorted(names, key=node_key)) or "none",
                                                                   json.dumps(jsonable(bad), ensure_ascii=False)[:300]))
 
-    def _check_emit(self, skill, out, keep=None):
+    def _check_emit(self, skill, out):
         if not isinstance(out, dict):
             raise StepError("the output is not an object")
         missing = [k for k in skill.emit if k not in out]
@@ -1233,8 +1411,6 @@ class RegistryEngine:
             if isinstance(t, list):
                 if self.loading and v == "none":
                     pass            # a loaded file can leave a choice empty (umr_load: modstr)
-                elif keep and keep.get(k) == v:
-                    pass            # a local change keeps a value the step already had
                 elif v not in t:
                     raise StepError("%s = %r is not one of %s" % (k, v, ", ".join(map(str, t))))
             elif t in ("list[str]", "list[int]", "list[float]", "list[dict]") and not isinstance(v, list):
@@ -1246,12 +1422,12 @@ class RegistryEngine:
             clean[k] = v
         return jsonable(clean)
 
-    def _finish(self, w, ep, node, out, human=False, keep=None):
+    def _finish(self, w, ep, node, out, human=False):
         """Store the output and make the children the dispatcher asks for (runner._dispatch)."""
         R = self.R
         skill = self.reg.skills[node["skill"]]
         try:
-            out = self._check_emit(skill, out, keep=keep)
+            out = self._check_emit(skill, out)
         except Exception as e:
             return self._fail(w, ep, node, e)
         if not human:
@@ -1678,7 +1854,8 @@ class RegistryEngine:
             p = prov.get(v) or {}
             res["nodes"].append({"var": v, "concept": concept, "align": a, "auto": v in added,
                                  "words": " ".join(tokens[lo - 1:hi]) if lo > 0 else "",
-                                 "node": p.get("node"), "skill": p.get("skill"), "local": p.get("var")})
+                                 "node": p.get("node"), "skill": p.get("skill"), "local": p.get("var"),
+                                 "unfilled": bool(p.get("unfilled"))})
         res["edges"] = [{"src": a, "role": r.lstrip(":"), "tgt": b} for a, r, b in g.edges()]
         res["attrs"] = [{"var": a, "role": r.lstrip(":"), "value": str(b)} for a, r, b in g.attributes()]
         return res
@@ -1848,7 +2025,149 @@ class RegistryEngine:
         purge_modules()
         import registry as R
         self.reg = R.Registry.load(self.path)
+        self.panel = self._load_panel()
         return True
+
+
+# ------------------------------------------------------------------ the changes, marked
+
+def _norm_edge(source, role, target):
+    role = str(role).lstrip(":")
+    return (target, role[:-3], source) if role.endswith("-of") else (source, role, target)
+
+
+def marked_penman(old_text, new_text, marks):
+    """The new graph as penman lines, each a list of {"t": text, "m": mark}: "add" (new), "del"
+    (gone: shown where it was, struck through), "chg" (changed: a concept or a value, after the
+    old one struck through). A predicate's :modstr shows only where it changed."""
+    import penman
+    old_t, new_t = penman.parse(old_text).node, penman.parse(new_text).node
+    old_br, old_vars, new_vars = {}, set(), set()
+
+    def index(node, into, names):
+        var, br = node
+        names.add(var)
+        if into is not None:
+            into.setdefault(var, br)
+        for _, t in br:
+            if isinstance(t, tuple):
+                index(t, into, names)
+    index(old_t, old_br, old_vars)
+    index(new_t, None, new_vars)
+    added, deleted = set(marks.get("added_nodes") or []), set(marks.get("deleted_nodes") or [])
+    renamed = marks.get("renamed") or {}
+    add_e = {tuple(e) for e in marks.get("added_edges") or []}
+    del_e = {tuple(e) for e in marks.get("deleted_edges") or []}
+    attr = {(a["var"], a["role"]): a for a in marks.get("attrs") or []}
+    lines = []
+
+    def seg(t, m=""):
+        return {"t": t, "m": m}
+
+    def node(n, depth, role=None, rmark="", whole=""):
+        var, br = n
+        concept = next((str(t) for r, t in br if r == "/"), "")
+        head = [seg("    " * depth)]
+        if role:
+            head.append(seg(":%s " % role, rmark or whole))
+        if var in renamed and not whole:
+            head += [seg("(%s / " % var), seg(renamed[var][0], "del"), seg(" "), seg(concept, "chg")]
+        else:
+            head.append(seg("(%s / %s" % (var, concept), whole))
+        lines.append(head)
+        ind = "    " * (depth + 1)
+        for r, t in br:
+            if r == "/":
+                continue
+            r = r.lstrip(":")
+            if isinstance(t, tuple):
+                if whole == "del" and t[0] not in deleted:      # it is still there, elsewhere
+                    lines.append([seg(ind), seg(":%s %s" % (r, t[0]), "del")])
+                    continue
+                e = _norm_edge(var, r, t[0])
+                node(t, depth + 1, r, "" if whole else ("add" if e in add_e else ""),
+                     whole or ("add" if t[0] in added else ""))
+                continue
+            t = str(t)
+            if t in (old_vars if whole == "del" else new_vars):  # a second mention of a node
+                m = whole or ("add" if _norm_edge(var, r, t) in add_e else "")
+                lines.append([seg(ind), seg(":%s %s" % (r, t), m)])
+                continue
+            a = attr.get((var, r))
+            if r == "modstr" and not a and not whole:
+                continue
+            if whole:
+                lines.append([seg(ind), seg(":%s %s" % (r, t), whole)])
+            elif a and a["old"] is not None:
+                lines.append([seg(ind), seg(":%s " % r), seg(str(a["old"]), "del"), seg(" "), seg(t, "chg")])
+            else:
+                lines.append([seg(ind), seg(":%s %s" % (r, t), "add" if a else "")])
+        # what the old graph had under this node and the new one has not
+        if not whole and var in old_br:
+            for r, t in old_br[var]:
+                if r == "/":
+                    continue
+                r = r.lstrip(":")
+                if isinstance(t, tuple):
+                    if _norm_edge(var, r, t[0]) in del_e:
+                        if t[0] in deleted:
+                            node(t, depth + 1, r, "del", "del")
+                        else:
+                            lines.append([seg(ind), seg(":%s %s" % (r, t[0]), "del")])
+                    continue
+                t = str(t)
+                if t in old_vars:
+                    if _norm_edge(var, r, t) in del_e:
+                        lines.append([seg(ind), seg(":%s %s" % (r, t), "del")])
+                    continue
+                a = attr.get((var, r))
+                if a and a["new"] is None:
+                    lines.append([seg(ind), seg(":%s %s" % (r, t), "del")])
+        lines[-1].append(seg(")", whole))
+    node(new_t, 0)
+    return lines
+
+
+def marked_graph(g, out, marks):
+    """The new graph in graph()'s shape for the drawing, with the nodes, edges and attributes that
+    are gone put back, and each one's "mark" ("add", "del", "chg", or "")."""
+    import penman
+    ng = penman.decode(out["graph"])
+    tokens = g.get("tokens") or []
+    old = {n["var"]: n for n in g["nodes"]}
+    align = out.get("alignment") or {}
+    added, deleted = set(marks.get("added_nodes") or []), set(marks.get("deleted_nodes") or [])
+    renamed = marks.get("renamed") or {}
+    add_e = {tuple(e) for e in marks.get("added_edges") or []}
+    attr = {(a["var"], a["role"]): a for a in marks.get("attrs") or []}
+    nodes = []
+    for v, _, c in ng.instances():
+        a = align.get(v)
+        n = dict(old.get(v) or {}, var=v, concept=str(c), mark="add" if v in added else "chg" if v in renamed else "",
+                 align="%d-%d" % (a[0], a[1]) if a else "0-0",
+                 words=" ".join(tokens[a[0] - 1:a[1]]) if a and a[0] > 0 else "")
+        if v in renamed:
+            n["concept"] = "%s → %s" % (renamed[v][0], c)
+        nodes.append(n)
+    nodes += [dict(old[v], mark="del") for v in deleted if v in old]
+    edges = [{"src": s, "role": r.lstrip(":"), "tgt": t, "mark": "add" if (s, r.lstrip(":"), t) in add_e else ""}
+             for s, r, t in ng.edges()]
+    edges += [{"src": s, "role": r, "tgt": t, "mark": "del"} for s, r, t in marks.get("deleted_edges") or []]
+    attrs = []
+    for v, r, x in ng.attributes():
+        r = r.lstrip(":")
+        a = attr.get((v, r))
+        if r == "modstr" and not a:
+            continue
+        if a and a["old"] is not None:
+            attrs.append({"var": v, "role": r, "value": "%s → %s" % (a["old"], a["new"]), "mark": "chg"})
+        else:
+            attrs.append({"var": v, "role": r, "value": str(x), "mark": "add" if a else ""})
+    attrs += [{"var": a["var"], "role": a["role"], "value": str(a["old"]), "mark": "del"}
+              for a in marks.get("attrs") or [] if a["new"] is None and a["var"] not in deleted]
+    attrs += [dict(a, mark="del") for a in g.get("attrs") or [] if a["var"] in deleted]
+    return {"index": g.get("index"), "tokens": tokens, "text": "", "top": ng.top, "nodes": nodes, "edges": edges,
+            "attrs": attrs, "doc": g.get("doc"), "error": None}
 
 
 # ------------------------------------------------------------------ alignment

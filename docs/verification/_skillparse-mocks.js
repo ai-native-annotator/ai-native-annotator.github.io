@@ -54,18 +54,22 @@ module.exports = function mocks() {
       document: `(s${n}s0 / sentence :temporal ((document-creation-time :before ${v})) :modal ((root :modal author) (author :full-affirmative ${v}))${coref})` };
   }
 
-  /** A local change: the current output it was given, as it is (a model keeps what the hint does not touch). */
-  function revised(input) {
-    const m = /## The current output\n\n```json\n([\s\S]*?)\n```/.exec(input);
-    calls.revised = (calls.revised || 0) + 1;
-    return m ? JSON.parse(m[1]) : null;
+  /**
+   * user_panel local_change: changes for the comment "s1x 的 aspect 应该是 activity" (an attribute
+   * changed, and a node added under s1x), read off the input's variables table.
+   */
+  function localChange(input) {
+    calls.localChange = (calls.localChange || 0) + 1;
+    calls.localInputs = [...(calls.localInputs || []), input];
+    const top = /\| (s\d+x) \|/.exec(input)?.[1] || 's1x';
+    return { changes: [
+      { op: 'set_attribute', var: top, attribute: 'aspect', value: 'activity', reason: '评论说是 activity' },
+      { op: 'add_node', var: 'n1', concept: '测试', span: null, parent: top, role: 'mod', reason: '测试新增' },
+    ], summary: `${top} 的 aspect 改成 activity，加一个 mod。` };
   }
 
   function emitFor(schema, input = '') {
-    if (input.includes('## The current output')) {
-      const out = revised(input);
-      if (out) return out;
-    }
+    if (input.includes("### The person's comment")) return localChange(input);
     if (schema.properties?.document && schema.properties?.graph?.type === 'string') return generated(input);
     const out = {};
     for (const [k, p] of Object.entries(schema.properties || {})) {
@@ -114,11 +118,12 @@ module.exports = function mocks() {
       if (res.includes('"examples"')) calls.tools.examplesRead = true;
       if (res.includes('"heading"') && /Aspect/.test(res)) calls.tools.guidelinesRead = true;
       if (res.includes('### 吃-01') && res.includes('Example 1:')) calls.tools.propbankRead = true;
+      if (res.includes('# predicate (kind: agent)')) calls.tools.skillRead = true;
     }
     // the tools in turn, each once per step: gold annotations, the guidelines, then PropBank
     // (the merged Chinese file), as a predicate would
     const asked = body.messages.flatMap((m) => m.tool_calls || []).map((c) => c.function.name);
-    const plan = [['search_annotations', { language: 'zh', keywords: ['have-org-role-91', '报导'] }],
+    const plan = [['call_skill', { skill: 'predicate' }], ['search_annotations', { language: 'zh', keywords: ['have-org-role-91', '报导'] }],
       ['search_guidelines', { keywords: ['aspect', 'habitual'] }],
       ['propbank_lookup', { lemmas: ['吃'], language: 'zh' }]];
     for (const [name, args] of plan) {

@@ -49,20 +49,29 @@ function draw() {
         s.rules.length ? h('ul', { class: 'rules' }, s.rules.map((r) => h('li', { title: r.text, text: r.short || r.text }))) : null,
         h('div', { class: 'files' }, s.files.map(fileChip)));
     }),
-    localSkill(files),
+    panelSkills(files),
     h('div', { class: 'card' }, h('h4', { text: t('shared') }), h('div', { class: 'files' }, S.desc.shared_files.map(fileChip))));
 }
 
-/** The local change's skill (not a step: the rules a local change by a hint adds to the step's own skill). */
-function localSkill(files) {
-  const paths = S.desc.local_skill || [];
-  if (!paths.length) return null;
-  const anyEdited = paths.some((f) => (files[f] || []).length);
-  return h('div', { class: 'skill local-skill', title: t('localSkillTitle'), onclick: () => openEditor(paths[0]) },
-    h('div', {}, h('span', { class: 'name', text: 'local_change' }), h('span', { class: 'badge agent', text: t('localSkillBadge') }),
-      anyEdited ? h('span', { class: 'badge edited', text: '✎' }) : null),
-    h('div', { class: 'note', text: t('localSkillNote') }),
-    h('div', { class: 'files' }, paths.map(fileChip)));
+/** The right pane's skills (registry user_panel): not in any wave, each editable like a step's skill. */
+function panelSkills(files) {
+  const entries = S.desc.user_panel || [];
+  if (!entries.length) return null;
+  return h('div', { class: 'card user-panel' },
+    h('h4', { text: t('userPanel') }),
+    h('div', { class: 'note', text: t('userPanelNote') }),
+    entries.map((e) => {
+      const anyEdited = e.files.some((f) => (files[f] || []).length);
+      const role = e.role && settings().roles[e.role] ? e.role : null;
+      const model = e.kind === 'agent' && role ? currentChoice(role)?.label.replace(/ [\d.]+$/, '') || settings().roles[role].model : null;
+      return h('div', { class: 'skill panel-skill', title: e.title || e.name, onclick: () => e.files[0] && openEditor(e.files[0]) },
+        h('div', {}, h('span', { class: 'name', text: e.name }), h('span', { class: `badge ${e.kind}`, text: t(`kinds.${e.kind}`) }),
+          model ? h('span', { class: 'badge by-haiku', text: `→ ${model}` }) : null,
+          e.review ? h('span', { class: 'badge', text: `→ ${e.review}` }) : null,
+          anyEdited ? h('span', { class: 'badge edited', text: '✎' }) : null),
+        e.title ? h('div', { class: 'note', text: e.title }) : null,
+        h('div', { class: 'files' }, e.files.map(fileChip)));
+    }));
 }
 
 export async function openEditor(path) {

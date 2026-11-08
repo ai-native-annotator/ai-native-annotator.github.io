@@ -304,3 +304,24 @@ body.busy .status::before { content: ""; display: inline-block; width: 10px; hei
 .umr-var:hover { color: var(--accent); }
 .tool-form textarea { font-family: var(--mono); }
 .umr-var.on { background: var(--accent-soft); color: var(--accent); }
+
+/* a change proposed in the right pane (user_panel local_change), on the UMR text and the graph */
+.mk-add { color: var(--success); font-weight: 600; }
+.mk-del { color: var(--danger); text-decoration: line-through; }
+.mk-chg { color: var(--hi); font-weight: 600; }
+.preview-banner { border-color: var(--hi); background: var(--hi-soft); }
+.penman-preview { line-height: 1.55; }
+.g-node.mk-add rect { stroke: var(--success); stroke-width: 2; }
+.g-node.mk-chg rect { stroke: var(--hi); stroke-width: 2; }
+.g-node.mk-del rect { stroke: var(--danger); stroke-dasharray: 4 3; }
+.g-node.mk-del { opacity: .7; }
+.g-node.mk-add text, text.mk-add { fill: var(--success); }
+.g-node.mk-chg .g-concept, text.mk-chg { fill: var(--hi); }
+.g-node.mk-del text, text.mk-del { fill: var(--danger); text-decoration: line-through; }
+.g-edge.mk-add { stroke: var(--success); stroke-width: 2; }
+.g-edge.mk-del { stroke: var(--danger); stroke-dasharray: 4 3; }
+.change-list { display: grid; gap: 6px; margin: 6px 0; }
+.change-item { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px; background: var(--panel-2); }
+.change-item.failed { border-color: var(--danger); }
+.change-item label { display: flex; gap: 6px; align-items: baseline; }
+.change-op { font-family: var(--mono); font-size: 12px; }

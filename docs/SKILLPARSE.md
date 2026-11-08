@@ -40,7 +40,7 @@
 | `js/skillparse/pane-context.js` | 左栏：wave、for_each 项、上下文窗口 |
 | `js/skillparse/pane-skills.js` | Skill 栏、skill 文件编辑器（Markdown 阅读 / 编辑原文 / 版本） |
 | `js/skillparse/pane-work.js` | 中栏：图、输出（Penman + JSON）、输入、问答、提示词、工具调用、UMR 文本；下方步骤树和运行栏 |
-| `js/skillparse/pane-ai.js` · `reflect.js` | 右栏 AI：三种改 skill 的方式和 AI 自查 |
+| `js/skillparse/pane-ai.js` · `reflect.js` | 右栏 AI，按 registry 的 `user_panel`：改这一句的图（提出改动、预览、执行），以及三种改 skill 的方式和 AI 自查 |
 | `js/skillparse/graph-view.js` | 把图画成 SVG |
 | `js/skillparse/penman-view.js` | 把一步的输出写成 Penman（`<node: …>` / `<outside: …>`）；document 一步的节点编号写成 full span 和概念，`docNodes` 列出它能指的节点 |
 | `js/skillparse/md.js` | skill.md 的 Markdown 渲染 |
@@ -314,11 +314,19 @@ document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`
 
 **生成整篇**：generate 这一波的运行栏有「▶▶ 生成整篇」（`generateAll`）：每一句依次生成、转换，跑完的步骤直接确认；遇到出错的步骤就停在那一句。
 
-**局部修改**（右栏 AI 最上面一栏「改这一句的图」）：用 UMR 文本里的变量名说要改什么（「s1x2 的 ARG0 应该是 s1p」）。`locate` 从提示里找出变量名（`s<句号>` 加字母数字，紧挨着汉字、大写也认得，只认这一句图里有的），再找出相关的步骤：每个提到的节点，写它的那一步；它是那一步片段的第一个节点时，还有把它挂上去的那一步（上面最近的有片段的一步，连到它的边在那里）和用 outside 指向它的那些步骤——所以提到分支图里的节点（name 节点、下面的子节点）也能找到要改的那几步。这几步按树的顺序依次 `revise`（上面那步改动后，下面不存在了的步骤跳过）：每一步把它的输入、现有输出（每个字段一行的 JSON）、提示，以及这一句所有 UMR 变量对应哪一步、在那一步里叫什么（一张表），交给模型；模型只改提示说的地方（主要是连接方式），保留这一步的变量名，整份输出交回来。占位（`open`）没变时下面的步骤保留，否则按新输出重做；改完要再确认。原来就有的取值（比如载入时留空的 modstr）照样接受。步骤上的「带提示重跑」仍是按这一步的 skill 重新解析。
+**右栏按 registry 的 `user_panel` 配置**：`registry.yaml` 顶层多了一段 `user_panel`（同步时给 `registry.py` 打补丁，允许这个键；流程本身不读它），不属于任何一波。每一项写法和 skills 一样（`path`、`kind`、`input`、`emit`），另外可以有 `title`（右栏这一栏的标题）、`role`（用哪个模型角色）、`review`（人审核后执行的 skill）、`modes`（反思的几种方式）。bridge 用 `registry.py` 自己的 `_build_skills` 检查并建好这些 skill（`_load_panel`）；左栏 skill 列表下面有一块「右栏（user_panel）」，三个 skill 的文件都能打开、修改、存新版本。现在有三项：
 
-**局部修改的 skill**（`web_skills/local_change/skill.md`，组装时放进每个语言的 procedure；左栏 skill 列表下面的 `local_change`，可以打开、修改、存新版本）：它不是一个步骤，也不替换被改那一步的 skill。局部修改时，说明部分仍是那一步自己的 skill.md（规则步骤是通用的输出格式说明），这个文件加在外面：`## The sentence's UMR variables` 之前的部分接在 system 后面（修改规则），这一节是 UMR 变量表前面的说明。每次局部修改都重新读它，保存后下一次就用新的；文件没有时用 bridge 里的默认文字。模型跟着被改的那一步走（sentence 这一波是 Haiku 那个角色）。
+- `local_change`（agent，`role: generate`）：「改这一句的图」。
+- `apply_change`（rule，`apply_change/apply_change.py`）：local_change 的 `review`，执行勾选的改动。
+- `reflect`（agent，`role: reflect`）：「反思这一步」的三种方式（`modes`），system 是 `reflect/skill.md`（原来写在 `reflect.js` 里，现在只是没有 user_panel 的流程的后备）。
 
-**变量名不会乱变**：output handler 起 .umr 变量名时，一个节点在它那一步里的变量如果已经是这一句的 UMR 变量（`s3x`、`s3p2`：载入的文件、wave 0 生成的都是），就沿用它；其余节点按概念起名，不会占用这些名字。所以人看到、写进提示的变量名，改过一步之后还是那个名字。文档级关系按「句号:步骤编号/变量」指节点，跟着节点走。一步改完后（局部修改，或直接修改输出），指向这一步里的变量的文档级关系**自动跟着改**（`follow_doc_refs`）：这一步还有的变量不动；没有了的，改指新输出里概念和 span 都相同的节点，其次概念相同的，再其次（原来是第一个节点）新的第一个节点；节点整个没了，指向它的关系一起去掉。局部修改可能新增变量、让其他变量改名，这都没关系；这一步的输出页和右栏只用一句话提醒：句子有改动，可以检查一下 document 有没有改动。局部修改的提示只用这一次（像一条历史改动），不留在这一步上，以后重跑这一步不会带着它。
+**改这一句的图**（`local_change`）：人在右栏写评论（可以用 UMR 变量名、词、步骤编号，也可以说分支图里的节点），点「提出改动」。
+
+1. 上下文由 registry 里这一项的 `input` 决定，bridge 的 `panel_values` 提供可选的值：`sentence`（句子）、`tokens`（每个 token 带编号）、`tree`（在建或完整的步骤树：每一步的编号、skill、状态、那段话、写了哪些节点（用 UMR 变量）、边、属性、aspect/modstr/polarity、占位交给哪一步、outside 指向哪一步）、`variables`（当前 penman 图的变量 ↔ 步骤对照表：变量、概念、哪一步、那一步的 skill、它在那一步里的变量、对应的字；还没跑的占位会注明）、`comment`（评论），另外还有 `graph`（penman）、`lang`、`index`。默认用前五个，按 `local_change/skill.md` 的 `## Input` 填进去。
+2. 开头不塞任何一步的 skill：模型有 `call_skill(skill)` 这个工具（`local_change/tools/call_skill.py`，bridge 的 `skill_guide`），需要哪种节点的写法就查哪个 skill（agent 返回它的 skill.md、输入和输出字段；rule、jev 返回代码说明）；也有 propbank_lookup、search_annotations、search_guidelines。
+3. 模型交回 `changes`（按顺序的一组改动）和 `summary`。改动有六种：`add_node`（新变量名 n1…、概念、span、挂在哪个节点下、角色，可以用 `ARG0-of` 这样的反向角色）、`delete_node`、`rename_node`（改概念）、`add_relation`、`delete_relation`、`set_attribute`（aspect、modstr、polarity、refer-number、op1…，value 为 null 就删掉）。skill.md 要求新节点一次写到叶子（命名实体连 name 和 op、事件连 aspect 和 modstr），不留给后面的步骤。不再用代码去找该改哪一步，也不会一个变量调一次。
+4. 审核：bridge 先用 review skill 在当前图上试一遍（`preview_changes`，不改任何东西），中间栏的 UMR 文本页和图页换成预览：绿色是新增，红色划掉是删除（显示在原来的位置），橙色是修改（旧值划掉）；谓词的 `:modstr` 只在改了的地方显示。右栏列出每条改动和理由，可以勾选、取消，预览跟着变；用不上的改动（变量不存在、关系已经有了）会注明原因，因此挂不住的节点也会提示。
+5. 「执行勾选的 N 条」→ `apply_changes`：`apply_change` 把改动用到这一句的图上（penman，谓词的 modstr 写成 `:modstr`），新节点得到 `s<句号><概念首字母>[k]` 的变量名（不会用这句图里用过的名字），挂不住的节点去掉。然后 bridge 像载入 .umr 那样把新图拆回步骤（`umr_load.Loader`，一直拆到 stop 叶子，不用再去左边点新增）。拆的时候先把原来的图也按同样的方式拆一遍做比较：输出、输入、子步骤都没变的步骤，原样保留（它的提示词、回答、确认、工具调用；还没跑的步骤仍是没跑）；变了的步骤标成「右栏的改动执行后重新拆出来的」。文档级关系按变量跟着节点走到新的步骤编号，节点没了的关系一起去掉；document 这一波标成过期。
 
 **UMR 文本页**：每个变量都是链接，点它选中写它的那一步，仍留在 UMR 文本页（选中的那一步的变量会标出来）。
 
@@ -602,7 +610,8 @@ sentences:
 | document 的输入 | `sents` + `trees`（reentrancy 那一波的整棵树） | `sentences`：sentence 那一波生成的每句节点表（编号、full span、概念、类型、skill）；skill.md 讲输入的几段改成说明这张表 |
 | discourse 的 relation | 17 个值的列表 | 任意字符串 |
 | jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
-| wave 0 | — | `generate`：`umr_generate`（默认 GPT-6.1 Sol）一次写出整句的图和文档级标注，规则 `convert` 检查后载入后面两波；每步可按提示局部修改 |
+| wave 0 | — | `generate`：`umr_generate`（默认 GPT-6.1 Sol）一次写出整句的图和文档级标注，规则 `convert` 检查后载入后面两波；整句的改动在右栏提（`user_panel`） |
+| 右栏 | — | registry 顶层的 `user_panel`：`local_change`（模型按评论提出改动，有 `call_skill` 工具）、`apply_change`（规则，执行勾选的改动，再把图拆回步骤）、`reflect` |
 | 乌兹别克语 | — | `web-uz`：英文流程 + 本站写的乌兹别克语 skill.md；没有 PropBank（词干概念 + 通用角色）、没有金标 |
 | PropBank | 每个词条一个 XML（中文 24,521 个）；英文查 `arg-descr.txt`；`propbank_lookup` 返回 JSON，只有角色 | 中英文各合并成一个 JSON，带全部例子，放在 `resources/propbank/`，第一次查询时取来；本站的 `propbank.py` 读它，返回 Markdown（角色和全部例子）；中文的 roleset 和角色与原来完全相同，英文 `arg-descr.txt` 的 8,733 个 roleset 全都有 |
 | `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉（同步时不复制）；例子从金标里搜 |

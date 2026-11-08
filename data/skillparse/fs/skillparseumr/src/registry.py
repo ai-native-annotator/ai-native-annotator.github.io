@@ -230,7 +230,8 @@ def _build(data, path, errors):
     if not isinstance(data, dict):
         errors.append("the file must be a mapping with waves, skills and dispatcher")
         return None
-    _keys(data, TOP_KEYS, TOP_KEYS, "top level", errors)
+    # web: user_panel (the right pane of the page) is read by the page's bridge, not here
+    _keys(data, TOP_KEYS | {"user_panel"}, TOP_KEYS, "top level", errors)
     base_dir = os.path.dirname(os.path.abspath(path))
     skills = _build_skills(data.get("skills"), base_dir, errors)
     waves = _build_waves(data.get("waves"), errors)

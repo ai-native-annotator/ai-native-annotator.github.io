@@ -225,6 +225,67 @@ WAVE0 = [
 ]
 
 
+# the right pane (web): not a wave. registry.py is told the top-level key user_panel exists (the
+# runner leaves it alone); the bridge reads it: local_change (a model proposes changes to one
+# sentence's graph), apply_change (a rule applies the ones a person picked), reflect
+REGISTRY_PY = "src/registry.py"
+REGISTRY_USER_PANEL = [
+    ('    _keys(data, TOP_KEYS, TOP_KEYS, "top level", errors)\n',
+     '    # web: user_panel (the right pane of the page) is read by the page\'s bridge, not here\n'
+     '    _keys(data, TOP_KEYS | {"user_panel"}, TOP_KEYS, "top level", errors)\n'),
+]
+USER_PANEL = """
+# ---- 右栏（web）：不属于任何一波；右栏的每一栏都按这里的配置 ----
+# 每一项是一个 skill（path、kind、input、emit，写法和 skills 一样），另外可以有：
+#   title   右栏这一栏的标题        role    用哪个模型角色（顶部的模型设置）
+#   review  人审核之后执行的 skill  modes   反思的几种方式
+user_panel:
+
+  local_change:                 # 「改这一句的图」：模型读这一句的树和变量表，按人的评论提出一组改动；人审核后交给 review
+    title: 改这一句的图
+    kind: agent
+    path: local_change
+    role: generate              # 整句的判断：用 wave 0 那个模型（默认 GPT-6.1 Sol / Opus 5.5）
+    input:                      # 上下文（按 skill.md 的 ## Input 填）；可选的值：sentence, tokens, tree, variables, graph, comment, lang, index
+      sentence: str             # 句子
+      tokens: str               # 分好的句子，每个 token 带编号
+      tree: str                 # 在建或完整的步骤树：每一步的编号、skill、那段话、输出（节点用 UMR 变量）
+      variables: str            # 当前 penman 图的变量 ↔ 步骤（node）对照表
+      comment: str              # 人的评论
+    emit:
+      changes: list[dict]       # 改动，按顺序：add_node / delete_node / rename_node / add_relation / delete_relation / set_attribute
+      summary: str              # 改了什么、为什么
+    review: apply_change        # 人在 penman 和图上看过、勾选之后，执行改动的 skill
+
+  apply_change:                 # 规则（apply_change/apply_change.py）：把勾选的改动用到这一句的图上；网页再把新图拆回步骤（到 stop 为止）
+    title: 执行改动
+    kind: rule
+    path: apply_change
+    input:
+      graph: str                # 这一句现在的图（penman；谓词的 modstr 写成 :modstr）
+      alignment: dict           # 变量 → [首, 尾]
+      changes: list[dict]
+      index: int                # 句号：新节点的变量名 s<句号>…
+    emit:
+      graph: str
+      alignment: dict
+      applied: list[dict]       # 每条改动：ok、why、新节点的变量名
+      marks: dict               # 新增、删除、修改了哪些节点、关系、属性（给 penman 和图上色）
+      problems: list[str]
+
+  reflect:                      # 「反思这一步」：对选中的那一步，找 skill 的问题、提修改（system 是 reflect/skill.md）
+    title: 反思这一步
+    kind: agent
+    path: reflect
+    role: reflect
+    modes: [edit, corrected, told]
+    emit:
+      diagnosis: str
+      layer: str
+      edits: list[dict]
+"""
+
+
 def document_skills(dst, lang):
     """The document wave's skills (web): modal (a rule) and the site's own temporal and coref,
     in place of the procedure's document skill (whose modal section modal.py now does)."""
@@ -234,8 +295,10 @@ def document_skills(dst, lang):
                       ("coref", os.path.join(WEB_SKILLS, lang, "coref")),
                       (CONVERT_SKILL, os.path.join(WEB_SKILLS, CONVERT_SKILL)),
                       ("umr_generate", os.path.join(WEB_SKILLS, lang, "umr_generate")),
-                      # the local change's rules (not a step: the bridge reads it for revise)
-                      ("local_change", os.path.join(WEB_SKILLS, "local_change"))):
+                      # the right pane's skills (registry user_panel, not a wave)
+                      ("local_change", os.path.join(WEB_SKILLS, "local_change")),
+                      ("apply_change", os.path.join(WEB_SKILLS, "apply_change")),
+                      ("reflect", os.path.join(WEB_SKILLS, "reflect"))):
         shutil.copytree(src, os.path.join(dst, name), ignore=shutil.ignore_patterns("*.pyc", "__pycache__"))
 
 
@@ -448,6 +511,7 @@ def compose(sp, lang):
         if text.count(old) != 1:
             raise SystemExit("%s: cannot find %r" % (reg, old[:60]))
         text = text.replace(old, new)
+    text = text.rstrip("\n") + "\n" + USER_PANEL
     for skill in sorted(os.listdir(dst)):
         md = os.path.join(dst, skill, "skill.md")
         if not os.path.isfile(md):
@@ -757,6 +821,15 @@ def main(sp, mp, penman_whl=None):
             raise SystemExit("%s: cannot find %r" % (oh, old[:60]))
         text = text.replace(old, new)
     with open(oh, "w", encoding="utf-8") as f:
+        f.write(text)
+    rp = os.path.join(FS, "skillparseumr", REGISTRY_PY)
+    with open(rp, encoding="utf-8") as f:
+        text = f.read()
+    for old, new in REGISTRY_USER_PANEL:
+        if text.count(old) != 1:
+            raise SystemExit("%s: cannot find %r" % (rp, old[:60]))
+        text = text.replace(old, new)
+    with open(rp, "w", encoding="utf-8") as f:
         f.write(text)
     for lang in PROCEDURES:
         compose(sp, lang)

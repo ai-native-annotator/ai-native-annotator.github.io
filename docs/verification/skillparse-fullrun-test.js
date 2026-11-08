@@ -259,31 +259,39 @@ const statusIs = (page, re, timeout = 180000) =>
   check("the UMR text's variables are links to the steps that made them, and the UMR text stays", umrVars.includes('s1x')
     && (await page.$eval('.tab[aria-selected="true"]', (e) => e.textContent)) === 'UMR 文本' && !!(await page.$('.tree li[aria-selected="true"]'))
     && !!(await page.$('#output .umr-var.on')), umrVars.join(' '));
-  // a local change, asked for in the AI panel by the UMR text's variables: the step that made the
-  // first one changes its output by the hint, and waits to be confirmed again
-  // the local change's own skill, in the skills pane: an edit counts at the next local change
-  await page.click('#skills .local-skill');
-  await page.click('#modal .tab:text-is("编辑原文")');
-  const localRules = await page.inputValue('#modal textarea');
-  await page.fill('#modal textarea', localRules.replace('Answer with the whole revised output.', 'Answer with the whole revised output. LOCAL-RULE-EDITED'));
-  await page.click('#modal button:text-is("保存（新版本）")');
-  await page.waitForFunction(() => document.querySelector('#modal .note.ok'), null, { timeout: 30000 });
-  await page.click('#modal-close');
-  await page.fill('#ai .local-area', 's1x 的 aspect 应该是 activity');
-  const nInW0 = calls.inputs.length;
-  const nBodies = calls.bodies.length;
-  await page.click('#ai .local-go');
+  // the right pane (registry user_panel): a comment, the model's changes (with call_skill), shown
+  // in color on the UMR text and the graph, picked, and applied by apply_change
+  check('the skills pane lists the user_panel skills (local_change, apply_change, reflect)',
+    (await page.$$eval('#skills .panel-skill .name', (e) => e.map((x) => x.textContent))).join(',') === 'local_change,apply_change,reflect');
+  await page.fill('#ai .panel-comment', 's1x 的 aspect 应该是 activity');
+  const nLocal = calls.localChange || 0;
+  await page.click('#ai .panel-propose');
   await settled();
-  await page.click('.tab:text-is("输出")');
-  check('a local change by UMR variables goes to the step that made them, with its output, the hint and the variables',
-    calls.inputs.slice(nInW0).some((u) => u.includes('## The current output') && u.includes("## The sentence's UMR variables")
-      && /\| s1x \|/.test(u) && u.includes('human提示：s1x 的 aspect 应该是 activity'))
-    && !!(await page.$('#output .confirm-card')) && (await page.textContent('#ai')).includes('改的是'), String(calls.inputs.length - nInW0));
-  check("the local change's skill is in the skills pane, and its edited rules go into the local change's system prompt",
-    localRules.includes("## The sentence's UMR variables") && calls.bodies.slice(nBodies).some((b) => b.system.includes('LOCAL-RULE-EDITED')),
-    calls.bodies.slice(nBodies).map((b) => b.system.slice(-120)).join(' | '));
-  await page.click('#output .review-card button:text-is("✓ 正确，确认")');
+  await page.waitForSelector('#ai .change-item', { timeout: 30000 });
+  const localIn = (calls.localInputs || []).slice(-1)[0] || '';
+  check('a change: the model gets the sentence, its tokens, the tree with each step\'s skill, the variables and the comment, and calls call_skill',
+    calls.localChange === nLocal + 1 && localIn.includes('Tokens, each with its number: [1]') && localIn.includes('### The tree of steps')
+    && /- 0 `predicate`/.test(localIn) && /\| s1x \| /.test(localIn) && localIn.includes('s1x 的 aspect 应该是 activity') && !!calls.tools.skillRead,
+    localIn.slice(0, 300));
+  await page.waitForSelector('#output .penman-preview', { timeout: 30000 });
+  check('the proposed changes are drawn in color on the UMR text (changed, added)',
+    !!(await page.$('#output .penman-preview .mk-chg')) && !!(await page.$('#output .penman-preview .mk-add'))
+    && (await page.$$('#ai .change-item')).length === 2, await page.textContent('#output'));
+  await page.click('.tab:text-is("图")');
+  await page.waitForSelector('#output .graph-panel', { timeout: 30000 });
+  check('and on the graph', !!(await page.$('#output .g-node.mk-add')) && !!(await page.$('#output .preview-banner')));
+  await page.click('#ai .change-item:nth-child(2) input[type=checkbox]');
+  await page.waitForFunction(() => !document.querySelector('#output .g-node.mk-add'), null, { timeout: 30000 });
+  check('a change unpicked leaves the preview', !(await page.$('#output .g-node.mk-add')));
+  await page.click('#ai .panel-apply');
   await settled();
+  await page.waitForSelector('#ai .panel-done', { timeout: 30000 });
+  await page.click('.tab:text-is("UMR 文本")');
+  await page.waitForFunction(() => /:aspect activity/.test(document.querySelector('#output')?.textContent || '') && !document.querySelector('#output .penman-preview'), null, { timeout: 30000 });
+  const umrAfter = await page.textContent('#output');
+  check('applied by apply_change: the picked change is in the graph, the unpicked one is not, and the steps are made again',
+    /:aspect activity/.test(umrAfter) && !umrAfter.includes('测试') && (await page.textContent('#ai .panel-done')).includes('1/1'),
+    `${await page.textContent('#ai .panel-done')} · ${umrAfter.slice(0, 300)}`);
   await page.click('#btn-export');
   const [w0dl] = await Promise.all([page.waitForEvent('download'), page.click('button[data-export="umr-raw"]')]);
   const w0umr = fs.readFileSync(await w0dl.path(), 'utf8');

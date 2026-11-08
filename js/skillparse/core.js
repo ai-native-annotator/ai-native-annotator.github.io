@@ -39,6 +39,8 @@ export const S = {
   running: 0, cancel: false,
   umr: null, umrStale: true, graphStamp: 0, graphs: new Map(),
   ai: {},                 // node key -> {history: [], proposal, verify}
+  panel: {},              // "skillset|doc|item" -> the right pane's proposal for that sentence (user_panel)
+  preview: null,          // {key, lines, graph}: the proposal's changes drawn on the UMR text and the graph
   live: new Map(),        // "wave|item|node" -> {kind: 'jev' | 'llm', model, round, questions, since}: a model at work
   status: '',
 };
@@ -298,10 +300,8 @@ async function withSlot(fn) {
 }
 
 /** Run one node to the end. Returns the bridge's final result. */
-export async function drive(w, i, nid, signal, { hint, revise = false } = {}) {
-  // revise: a local change of the finished output by the hint (bridge.revise), else the step runs
-  let r = revise ? await py('revise', { w, i, nid, hint })
-    : await py('step', { w, i, nid, ...(hint === undefined ? {} : { hint }) });
+export async function drive(w, i, nid, signal, { hint } = {}) {
+  let r = await py('step', { w, i, nid, ...(hint === undefined ? {} : { hint }) });
   const key = `${w}|${i}|${nid}`;
   const since = Date.now();
   // the step is shown at work (tree, item list, output pane) while a model answers it
@@ -342,6 +342,47 @@ export async function drive(w, i, nid, signal, { hint, revise = false } = {}) {
 
 let controller = null;
 
+// ------------------------------------------------------------------ the right pane (user_panel)
+
+/** The right pane's entries (registry user_panel), by name. */
+export function panelEntry(name) {
+  return (S.desc?.user_panel || []).find((e) => e.name === name) || null;
+}
+
+export const panelKey = (i = S.item) => `${S.skillset}|${S.doc}|${i}`;
+
+/**
+ * Run a model skill of the right pane on sentence i with the person's comment: the bridge builds
+ * its prompt from the registry entry's input; its tools (call_skill among them) go back to the
+ * bridge. Returns the bridge's result ({output, preview, prompt, tool_calls}).
+ */
+export async function runPanel(name, i, comment) {
+  return guarded(async (signal) => {
+    let r = await py('panel_start', { name, i, comment });
+    while (r.need === 'llm') {
+      const role = settings().roles[r.role] ? r.role : 'haiku';
+      const model = settings().roles[role].model;
+      status(t('running', { what: `#${i + 1} ${name} · ${model}${r.retry ? ' · retry' : ''}` }));
+      const out = await withSlot(() => llm({
+        role, system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
+        schema: emitSchema(r.emit), signal, callTool: (tool, args) => py('panel_tool', { name, i, tool, args }),
+      }));
+      r = await py('panel_complete', { name, i, output: out, model });
+    }
+    status('');
+    return r;
+  });
+}
+
+/** The changes a person picked, applied by the entry's review skill (apply_change); the steps follow. */
+export async function applyPanel(name, i, changes) {
+  const r = await py('apply_changes', { name, i, changes });
+  changed();
+  if (S.preview?.key === panelKey(i)) S.preview = null;
+  await refresh();
+  return r;
+}
+
 /** S.running, mirrored on <body data-running> so a test can wait for the page to settle. */
 function busy(delta) {
   S.running += delta;
@@ -379,10 +420,10 @@ export function stop() {
 }
 
 /** Run (or re-run) one step; `hint` is the person's note that goes in after its input. */
-export async function runNode(nid = S.node, { hint, revise = false } = {}) {
+export async function runNode(nid = S.node, { hint } = {}) {
   return guarded(async (signal) => {
     try {
-      const r = await drive(S.wave, S.item, nid, signal, { hint, revise });
+      const r = await drive(S.wave, S.item, nid, signal, { hint });
       status(r.status === 'error' ? `${t('error')}: ${r.error}` : t('checkStep', { id: nid }));
       return r;
     } catch (err) {

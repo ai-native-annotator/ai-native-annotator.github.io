@@ -79,7 +79,7 @@ async function stepThrough(page, max = 80) {
 
   await page.goto(`${BASE}/index.html`);
   await statusIs(page, /就绪/);
-  check('Python boots and the Chinese procedure opens', (await page.$$('.skill:not(.local-skill)')).length === 10
+  check('Python boots and the Chinese procedure opens', (await page.$$('.skill:not(.panel-skill)')).length === 10
     && (await page.$eval('#skillset', (e) => e.value)) === 'web-zh');
   check('three waves (wave 0 generate, sentence, document); the page opens on the sentence wave',
     (await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]))).join(',') === 'generate,sentence,document'
@@ -365,7 +365,7 @@ async function stepThrough(page, max = 80) {
   await page.selectOption('#doc', 'uzbek_sample');
   await statusIs(page, /就绪/);
   check('the Uzbek document opens with the Uzbek procedure (ten skills)', (await page.$eval('#skillset', (e) => e.value)) === 'web-uz'
-    && (await page.$$('.skill:not(.local-skill)')).length === 10);
+    && (await page.$$('.skill:not(.panel-skill)')).length === 10);
   const nInUz = calls.inputs.length;
   const nJevUz = calls.jevStates.length;
   await stepThrough(page);

@@ -35,7 +35,8 @@ function textWidth(s, size = FONT) {
 function boxLines(n, attrs) {
   const lines = [{ text: n.concept, cls: 'g-concept' }];
   lines.push({ text: `${n.var}${n.words ? ` · ${n.words}` : ''}`, cls: 'g-var' });
-  for (const a of attrs) lines.push({ text: `:${a.role} ${a.value}`, cls: 'g-attr' });
+  // a change proposed in the right pane is marked: added, gone, changed
+  for (const a of attrs) lines.push({ text: `:${a.role} ${a.value}`, cls: a.mark ? `g-attr mk-${a.mark}` : 'g-attr' });
   return lines;
 }
 
@@ -109,23 +110,23 @@ export function drawGraph(g, { highlight = new Set(), dashed = new Set(), onPick
     'aria-label': `graph with ${g.nodes.length} nodes` });
   svg.append(el('defs', {}, el('marker', { id: 'g-arrow', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: 'auto-start-reverse' },
     el('path', { d: 'M0,0 L10,5 L0,10 z', class: 'g-arrowhead' }))));
-  const label = (x, yy, text) => {
-    const t = el('text', { x, y: yy, class: 'g-role', 'text-anchor': 'middle' });
+  const label = (x, yy, text, mark) => {
+    const t = el('text', { x, y: yy, class: `g-role${mark ? ` mk-${mark}` : ''}`, 'text-anchor': 'middle' });
     t.textContent = `:${text}`;
     return t;
   };
   for (const e of treeEdges) {
     const a = pos.get(e.src); const b = pos.get(e.tgt);
     const x1 = a.cx; const y1 = a.y + a.h; const x2 = b.cx; const y2 = b.y;
-    svg.append(el('path', { d: `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`, class: 'g-edge', 'marker-end': 'url(#g-arrow)' }));
-    svg.append(label((x1 + x2) / 2, (y1 + y2) / 2 - 3, e.role));
+    svg.append(el('path', { d: `M${x1},${y1} C${x1},${(y1 + y2) / 2} ${x2},${(y1 + y2) / 2} ${x2},${y2}`, class: `g-edge${e.mark ? ` mk-${e.mark}` : ''}`, 'marker-end': 'url(#g-arrow)' }));
+    svg.append(label((x1 + x2) / 2, (y1 + y2) / 2 - 3, e.role, e.mark));
   }
   for (const e of reentrant) {
     const a = pos.get(e.src); const b = pos.get(e.tgt);
     const x1 = a.cx; const y1 = a.y + a.h; const x2 = b.cx + (b.cx > a.cx ? -b.w / 2 : b.w / 2); const y2 = b.y + b.h / 2;
     const bend = Math.max(40, Math.abs(x2 - x1) / 3);
-    svg.append(el('path', { d: `M${x1},${y1} C${x1},${y1 + bend} ${x2 + (b.cx > a.cx ? -bend : bend)},${y2} ${x2},${y2}`, class: 'g-edge g-reentrant', 'marker-end': 'url(#g-arrow)' }));
-    svg.append(label((x1 + x2) / 2, Math.max(y1, y2) + 12, e.role));
+    svg.append(el('path', { d: `M${x1},${y1} C${x1},${y1 + bend} ${x2 + (b.cx > a.cx ? -bend : bend)},${y2} ${x2},${y2}`, class: `g-edge g-reentrant${e.mark ? ` mk-${e.mark}` : ''}`, 'marker-end': 'url(#g-arrow)' }));
+    svg.append(label((x1 + x2) / 2, Math.max(y1, y2) + 12, e.role, e.mark));
   }
   for (const n of g.nodes) {
     const p = pos.get(n.var);
@@ -134,6 +135,7 @@ export function drawGraph(g, { highlight = new Set(), dashed = new Set(), onPick
     if (highlight.has(n.var)) cls.push('hl');
     if (dashed.has(n.var)) cls.push('open');
     if (n.auto) cls.push('auto');
+    if (n.mark) cls.push(`mk-${n.mark}`);
     const grp = el('g', { class: cls.join(' '), transform: `translate(${p.cx - p.w / 2},${p.y})`, tabindex: 0, 'data-var': n.var });
     grp.append(el('rect', { width: p.w, height: p.h, rx: 7 }));
     size.get(n.var).lines.forEach((l, k) => {
