@@ -1217,8 +1217,10 @@ class RegistryEngine:
         old_ref = {}
         for n in g["nodes"]:
             step = old_ep["nodes"].get(n.get("node") or "")
-            if step and n.get("local"):
-                old_ref["%d:%s/%s" % (sent.index, ref_id(step), n["local"])] = n["var"]
+            if step and n.get("local") and not n.get("unfilled"):
+                # as the document wave names it, and the long form ("<step>/<var>") work from before used
+                old_ref[self._ref_of(sent.index, step, n["local"])] = n["var"]
+                old_ref.setdefault("%d:%s/%s" % (sent.index, ref_id(step), n["local"]), n["var"])
 
         def load(graph, alignment):
             ld = umr_load.Loader(self, origin="changed")
@@ -1259,13 +1261,41 @@ class RegistryEngine:
                 "kept": len(kept), "changed": sorted(changed, key=node_key), "doc_followed": followed,
                 "graph": out["graph"]}
 
+    @staticmethod
+    def _ref_of(index, step, local):
+        """How the document wave names a node of a step (as its table does): the step's first node
+        (or a node of a step with no fragment) "<sentence>:<step>", another node of its fragment
+        "<sentence>:<step>/<var>"."""
+        o = step.get("output") if isinstance(step.get("output"), dict) else {}
+        g = o.get("graph") if isinstance(o.get("graph"), dict) else {}
+        nodes = [x for x in g.get("nodes") or [] if isinstance(x, dict)]
+        if not nodes or nodes[0].get("var") == local:
+            return "%d:%s" % (index, ref_id(step))
+        return "%d:%s/%s" % (index, ref_id(step), local)
+
+    def node_refs(self, upto):
+        """{UMR variable: how the document wave names its node} for sentences 0..upto, from their
+        graphs as they are now: loaded, generated or annotated step by step."""
+        prov = self.render(False)["provenance"]
+        out = {}
+        for i in range(int(upto) + 1):
+            sent = self.doc.sents[i]
+            ep = self.eps.get(SENTENCE_WAVE, {}).get(i)
+            if not ep:
+                continue
+            for var, x in (prov.get(str(sent.index)) or prov.get(sent.index) or {}).items():
+                step = ep["nodes"].get(x.get("node") or "")
+                if step and not x.get("unfilled"):
+                    out[var] = self._ref_of(sent.index, step, x.get("var"))
+        return out
+
     def _follow_vars(self, index, old_ref, refs):
         """Document-level relations that named a node of sentence `index` ("<index>:<step>/<var>")
         name it by its new step; a relation with a node that is gone goes."""
         changed = dropped = 0
 
         def fix(x):
-            m = re.fullmatch(r"(\d+):([\d.]+[AB]?)/(\S+)", str(x))
+            m = re.fullmatch(r"(\d+):([\d.]+[AB]?)(?:/(\S+))?", str(x))
             if not m or int(m.group(1)) != index or str(x) not in old_ref:
                 return x, False
             var = old_ref[str(x)]

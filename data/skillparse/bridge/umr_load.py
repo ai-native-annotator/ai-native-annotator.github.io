@@ -408,10 +408,11 @@ class Loader:
             elif n["id"] in got:        # the file wrote the same word and concept twice
                 self.merged.append("snt%d %s=%s" % (i + 1, n["id"], got[n["id"]]))
         refs = {}
-        # a sent_type leaf "0.1B" is named "0.1" (sp_bridge.ref_id)
+        # a sent_type leaf "0.1B" is named "0.1" (sp_bridge.ref_id); a step's first node is the step
+        # ("3:0.1", as the document wave's table names it), another node of it "3:0.1/<var>"
         name = lambda nid: nid[:-1] if nid.endswith("B") else nid  # noqa: E731
         for var, nid in self.where.items():
-            refs[var] = "%d:%s/%s" % (sent.index, name(nid), var)
+            refs[var] = "%d:%s" % (sent.index, name(nid))
         for var, nid in self.where_inner.items():
             refs.setdefault(var, "%d:%s/%s" % (sent.index, name(nid), var))
         return refs
@@ -467,8 +468,12 @@ class Loader:
         if ep["error"] or not ep["nodes"]:
             self.problems.append("snt%d document: %s" % (i + 1, ep["error"] or "no step"))
             return
-        rels = [{"group": g, "source": refs.get(a, a), "relation": r, "target": refs.get(b, b)}
-                for g, a, r, b in self.doc_rel(doc) if not (g == "modal" and a == "root")]
+        found = [x for x in self.doc_rel(doc) if not (x[0] == "modal" and x[1] == "root")]
+        rels = [{"group": g, "source": refs.get(a, a), "relation": r, "target": refs.get(b, b)} for g, a, r, b in found]
+        unknown = sorted({v for _, a, _, b in found for v in (a, b) if re.fullmatch(r"s\d+[A-Za-z]\w*", v) and v not in refs})
+        if unknown:
+            self.problems.append("snt%d document: %s name no node of this or an earlier sentence (left as written)"
+                                 % (i + 1, ", ".join(unknown)))
         self.w, self.i, self.ep = "document", i, ep
         root = next(k for k, x in ep["nodes"].items() if x["parent"] is None)
         later = {r.run for r in e.reg.rules(ep["nodes"][root]["skill"])}
@@ -519,9 +524,9 @@ def load_generated(engine, i, graph, alignment, document):
     with ld.loading():
         refs = ld.sentence(i, block) or {}
         engine.refs[i] = refs
-        known = {}
-        for k in sorted(engine.refs):
-            if k <= i:
-                known.update(engine.refs[k])
+        # the nodes of this and every earlier sentence, from their graphs as they are now (loaded,
+        # generated, or annotated step by step), as the document wave names them
+        known = engine.node_refs(i)
+        known.update(refs)
         ld.document(i, document or "", known)
     return {"steps": ld.count, "problems": ld.problems, "refs": refs}
