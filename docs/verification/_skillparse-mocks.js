@@ -118,7 +118,8 @@ module.exports = function mocks() {
       // whole gold sentences, read in the page's Python from resources/gold/zh/gold.json
       if (res.includes('sentence level graph') && res.includes('have-org-role-91')) calls.tools.goldRead = true;
       if (res.includes('"examples"')) calls.tools.examplesRead = true;
-      if (res.includes('"heading"') && /Aspect/.test(res)) calls.tools.guidelinesRead = true;
+      if (res.includes('# UMR guidelines on') && /Aspect/.test(res)) calls.tools.guidelinesRead = true;
+      if (res.includes('# Gold annotations with') && res.includes('```')) calls.tools.goldMarkdown = true;
       if (res.includes('### 吃-01') && res.includes('Example 1:')) calls.tools.propbankRead = true;
       if (res.includes('# predicate (kind: agent)')) calls.tools.skillRead = true;
     }

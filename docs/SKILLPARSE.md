@@ -201,8 +201,8 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 | 工具 | 参数 | 返回 |
 |---|---|---|
-| `search_annotations` | `language`（`zh` / `en`），`keywords`（词、概念 `have-org-role-91`、角色 `:ARG1-of`、属性 `:aspect state` 等，在句子和标注里任意位置匹配），`max_results`（默认 3，最多 10） | `gold`：整句的金标标注 `{doc, sentence_number, sentence, annotation}`（annotation 是这句在 .umr 里的整块：词、句级图、alignment、文档级标注）；`found`：一共匹配多少句（只搜金标，不再有 `reference/example.md`）。命中关键词种类多的排前，再按命中次数、长度短的。正在标注的文档里的句子不返回（样例文档本身是金标），有被排除的会在 `left_out` 里说明 |
-| `search_guidelines` | `keywords`，`max_results`（默认 3，最多 10） | `sections`：`{heading, text}`，heading 是在指南里的位置（`UMR attributes > Part 3-3-1. Aspect > …`），text 是一节，长的节按段落切成约 3000 字一段（标 `(k/n)`）；`found`。排序：命中关键词种类多的，标题里命中的，命中密度高的 |
+| `search_annotations` | `language`（`zh` / `en`），`keywords`（词、概念 `have-org-role-91`、角色 `:ARG1-of`、属性 `:aspect state` 等，在句子和标注里任意位置匹配），`max_results`（默认 3，最多 10） | Markdown：先说一共匹配多少句、显示了几句，然后每句一节（`## k. 文档, sentence N`）：句子，再把这句在 .umr 里的整块（词、句级图、alignment、文档级标注）放在代码块里（只搜金标，不再有 `reference/example.md`）。命中关键词种类多的排前，再按命中次数、长度短的。正在标注的文档里的句子不返回（样例文档本身是金标），有被排除的会写一句说明 |
+| `search_guidelines` | `keywords`，`max_results`（默认 3，最多 10） | Markdown：先说匹配多少段，然后每段一节，标题是它在指南里的位置（`Part 3-3. UMR attributes > Part 3-3-1. Aspect > …`），下面是原文（一节，长的节按段落切成约 3000 字一段，标 `(k/n)`）；原文里的小标题改成粗体，HTML 锚点改成例句编号，例子仍在代码块里。排序：命中关键词种类多的，标题里命中的，命中密度高的 |
 
 数据在 `data/skillparse/resources/`，启动时不加载（英文金标 24.7 MB）：第一次搜索时由 Python 用 Pyodide 的 `open_url` 从 `SP_BASE + "resources/…"` 取来并缓存（本地跑时先看 `$SP_RESOURCES`）。
 
@@ -299,7 +299,7 @@ document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`
 `web-procedures/uz` 由同步脚本做出（`compose_uz`）：拿组好的英文流程（registry、sent_type 和它的 jevlib，两波、modal 规则都一样），换上本站写的乌兹别克语 skill.md（`data/skillparse/web_skills/uz/`：discourse、predicate、np_phrase、special_entity、temporal、coref，以英文版为底，加上中文版里不限于中文的规则，改成乌兹别克语的写法），再给 jevlib 打补丁：Jev 看到的语言是 Uzbek，加上乌兹别克语的虚词表（连词、后置词、语气词）和代词（各个格的形式）。
 
 - **没有 PropBank**：照 UMR 指南 Part 3-2-1-1（Stage 0），动词概念用词干、不带义项号（`ochdi` → `och`），参与者用通用角色（`actor`、`undergoer`、`theme`、`recipient`、`experiencer` 等）；抽象概念（`identity-91`、`have-org-role-92`…）照旧用编号角色；`frame` 写 `{}`。
-- **没有金标**：`propbank_lookup` 对乌兹别克语回答 "There is no PropBank for this language"，`search_annotations` 回答 `{"gold": [], "found": 0, "note": …}`；`search_guidelines` 照常能用。
+- **没有金标**：`propbank_lookup` 对乌兹别克语回答 "There is no PropBank for this language"，`search_annotations` 回答 "There is no gold data for 'uz'"；`search_guidelines` 照常能用。
 - **文档的语言**：`.umr` 开头写 `# :: lang uz`（`doc_lang` 先看这一行，没有就是有汉字为中文、否则英文）。导入框多了「语言」一项（自动 / 中文 / English / O'zbekcha），选了乌兹别克语就写这一行；按行导入时把标点切成单独的词，词里的 `'`、`ʻ`、连字符保留（`O'zbekiston`、`2023-yil`）。
 - **样例文档**：`uzbek_sample`（5 句，`data/skillparse/web_docs/uzbek_sample.txt`）。
 

@@ -1,4 +1,5 @@
-"""search_annotations and search_guidelines: two tools every agent skill has (web).
+"""search_annotations and search_guidelines: two tools every agent skill has (web). Both answer
+in Markdown, as the model and the page's tool-calls tab read them.
 
     search_annotations(language, keywords)  gold UMR annotations of whole sentences that contain the
                                             keywords
@@ -27,7 +28,7 @@ GOLD = ("zh", "en")             # the languages there is gold data for
 _cache = {}
 
 
-def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str], max_results: int = 3) -> dict:
+def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str], max_results: int = 3) -> str:
     """Find how a case is annotated: gold UMR annotations of whole sentences.
 
     language: "zh" (Chinese) or "en" (English); there is no gold data for "uz" (Uzbek).
@@ -37,18 +38,18 @@ def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str]
     keywords come first.
     max_results: how many gold sentences to return (at most 10).
 
-    Returns {"gold": [{"doc", "sentence_number", "sentence", "annotation"}], where annotation is
-    the sentence's whole annotation (words, sentence-level graph, alignment, document-level
-    annotation); "found": how many gold sentences matched in all}.
+    Returns Markdown: how many gold sentences matched, then for each one shown its document and
+    number, the sentence, and its whole annotation (words, sentence-level graph, alignment,
+    document-level annotation) in a code block.
     """
     lang = _lang(language)
     if lang is None:
-        return {"gold": [], "error": f"language must be zh, en or uz, not {language!r}"}
+        return f"Language must be zh, en or uz, not {language!r}."
     if lang not in GOLD:
-        return {"gold": [], "found": 0, "note": f"there is no gold data for {language!r}"}
+        return f"There is no gold data for {language!r}: no annotation found."
     words = _keywords(keywords)
     if not words:
-        return {"gold": [], "error": "give at least one keyword"}
+        return "Give at least one keyword."
     n = _count(max_results, 3)
     skip = {_plain(s) for s in ((getattr(ctx, "deps", None) or {}).get("doc_sentences") or [])}
     gold, left_out = [], 0
@@ -61,17 +62,18 @@ def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str]
             continue
         gold.append((hits, len(rec["annotation"]), rec))
     gold.sort(key=lambda x: (-x[0][0], -x[0][1], x[1]))
-    out = {
-        "gold": [{"doc": r["doc"], "sentence_number": r["snt"], "sentence": r["text"],
-                  "annotation": _clip(r["annotation"])} for _, _, r in gold[:n]],
-        "found": len(gold),
-    }
+    shown = gold[:n]
+    out = ["# Gold annotations with %s" % ", ".join("`%s`" % w for w in words), "",
+           "%d of %d matching sentences (those with more of the keywords first)." % (len(shown), len(gold))
+           if gold else "No gold sentence has these keywords."]
     if left_out:
-        out["left_out"] = f"{left_out} matching sentences of the document being annotated are not shown"
-    return out
+        out.append("%d matching sentences of the document being annotated are not shown." % left_out)
+    for k, (_, _, r) in enumerate(shown, 1):
+        out += ["", "## %d. %s, sentence %s" % (k, r["doc"], r["snt"]), "", r["text"], "", "```", _clip(r["annotation"]).strip("\n"), "```"]
+    return "\n".join(out) + "\n"
 
 
-def search_guidelines(keywords: list[str], max_results: int = 3) -> dict:
+def search_guidelines(keywords: list[str], max_results: int = 3) -> str:
     """Look a rule up in the UMR guidelines (umr4nlp/umr-guidelines, guidelines.md).
 
     keywords: terms to look for, e.g. "aspect", "modal strength", "have-rel-role-92", ":quant",
@@ -79,13 +81,12 @@ def search_guidelines(keywords: list[str], max_results: int = 3) -> dict:
     them, then those that mention them most.
     max_results: how many passages to return (at most 10).
 
-    Returns {"sections": [{"heading": the passage's place in the guidelines ("Part 3. ... > Part
-    3-3-1. Aspect"), "text": the passage (a section, or a part of a long one)}], "found": how
-    many passages matched}.
+    Returns Markdown: how many passages matched, then each passage shown under its place in the
+    guidelines ("Part 3. ... > Part 3-3-1. Aspect"), as the guidelines write it.
     """
     words = _keywords(keywords)
     if not words:
-        return {"sections": [], "error": "give at least one keyword"}
+        return "Give at least one keyword."
     n = _count(max_results, 3)
     found = []
     for path, text in _guideline_sections():
@@ -94,7 +95,26 @@ def search_guidelines(keywords: list[str], max_results: int = 3) -> dict:
             in_head = _hits(path, words)[0]
             found.append(((hits[0], in_head, hits[1] * 1000 // max(1, len(text))), len(text), path, text))
     found.sort(key=lambda x: (-x[0][0], -x[0][1], -x[0][2], x[1]))
-    return {"sections": [{"heading": p, "text": _clip(t)} for _, _, p, t in found[:n]], "found": len(found)}
+    shown = found[:n]
+    out = ["# UMR guidelines on %s" % ", ".join("`%s`" % w for w in words), "",
+           "%d of %d matching passages." % (len(shown), len(found)) if found else "No passage of the guidelines has these keywords."]
+    for k, (_, _, path, text) in enumerate(shown, 1):
+        out += ["", "## %d. %s" % (k, re.sub(r"^Uniform Meaning Representation \(UMR\)[^>]*> ", "", path)), "", _passage(_clip(text))]
+    return "\n".join(out) + "\n"
+
+
+def _passage(text):
+    """A passage under its own heading: its first line (the section's heading) is dropped, and its
+    other headings become bold lines, so they do not compete with the answer's. The guidelines'
+    HTML anchors become plain example numbers, and ```x``` inside a line is `x`."""
+    text = re.sub(r'<span[^>]*>([^<]*)</span>', lambda m: "**%s**" % m.group(1).strip() if m.group(1).strip() else "", text)
+    text = re.sub(r'<a [^>]*>([^<]*)</a>', r"\1", text)
+    text = re.sub(r"```([^`\n]+?)```", r"`\1`", text)
+    lines = text.split("\n")
+    if lines and re.match(r"^#{1,6}\s", lines[0]):
+        lines = lines[1:]
+    lines = ["**%s**" % m.group(1) if (m := re.match(r"^#{1,6}\s+(.*?)\s*#*\s*$", ln)) else ln for ln in lines]
+    return "\n".join(lines).strip("\n")
 
 
 # ------------------------------------------------------------------ helpers
