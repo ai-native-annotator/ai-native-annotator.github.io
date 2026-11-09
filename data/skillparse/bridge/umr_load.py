@@ -22,6 +22,10 @@ import re
 import penman
 
 
+def _key(nid):
+    return [int(p) if p.isdigit() else p for p in re.split(r"[.]", re.sub(r"[AB]$", "", nid))]
+
+
 def sp_ref(nid):
     """How the node of step nid is named (a sent_type leaf "0.1B" is "0.1")."""
     return nid[:-1] if nid.endswith("B") else nid
@@ -475,12 +479,17 @@ class Loader:
             self.problems.append("snt%d document: %s name no node of this or an earlier sentence (left as written)"
                                  % (i + 1, ", ".join(unknown)))
         self.w, self.i, self.ep = "document", i, ep
-        root = next(k for k, x in ep["nodes"].items() if x["parent"] is None)
-        later = {r.run for r in e.reg.rules(ep["nodes"][root]["skill"])}
-        st = self.put(root, {"relations": [x for x in rels if x["group"] not in later]})
-        for kid in st.get("children") or []:
-            group = ep["nodes"][kid]["skill"]
-            self.put(kid, {"relations": [x for x in rels if x["group"] == group]})
+        # each step takes its group (modal, temporal, coref: the wave's three starts, side by side);
+        # a group no step is named after goes to the first
+        roots = sorted((k for k, x in ep["nodes"].items() if x["parent"] is None), key=_key)
+        named = set(e.reg.skills)
+        todo = [(k, k == roots[0]) for k in roots]
+        while todo:
+            k, first = todo.pop(0)
+            group = ep["nodes"][k]["skill"]
+            st = self.put(k, {"relations": [x for x in rels if x["group"] == group
+                                            or (first and x["group"] not in named)]})
+            todo += [(kid, False) for kid in st.get("children") or []]
 
     def run(self, text):
         e = self.e

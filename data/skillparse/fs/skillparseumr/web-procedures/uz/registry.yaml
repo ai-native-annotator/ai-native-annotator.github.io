@@ -72,7 +72,7 @@ waves:
         span: sentence.span
 
   - name: document
-    start: modal                      # web：modal（规则）→ temporal、coref
+    start: [modal, temporal, coref]   # web：三步并列（步骤 1、2、3），互不依赖：modal 是规则，temporal、coref 是模型
     parallel: 20                        # 只读前面几波的结果，各句可以同时跑
     init_input:
       for_each:                         # 每句一个 episode
@@ -270,10 +270,7 @@ dispatcher:
       input: {text: hole.text, span: hole.span}
       edge: hole.var
 
-  # web：modal 之后，temporal 和 coref 各跑一次（输入一样）
-  modal:
-    - {run: temporal, input: {sentences: sentences}}
-    - {run: coref, input: {sentences: sentences}}
+  # web：document 这一波的 modal、temporal、coref 是三个并列的起点（见 waves），没有后续
 
 # ---- 右栏（web）：不属于任何一波；右栏的每一栏都按这里的配置 ----
 # 每一项是一个 skill（path、kind、input、emit，写法和 skills 一样），另外可以有：

@@ -23,7 +23,8 @@ import re
 import penman
 
 OPS = ("add_node", "delete_node", "rename_node", "add_relation", "delete_relation", "set_attribute")
-SYMBOL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.+\-]*$|^-$")
+# a number, - or +, or a symbol without dots stays bare; anything else (12306.cn, 张三) is quoted
+SYMBOL = re.compile(r"^-?\d+(\.\d+)?$|^[A-Za-z0-9][A-Za-z0-9_+\-]*$|^[-+]$")
 
 
 def _norm(source, role, target):

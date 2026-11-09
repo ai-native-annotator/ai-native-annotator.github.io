@@ -503,11 +503,14 @@ def _check(reg, errors):
     reached = set()
     for i, w in enumerate(waves):
         where = f"waves[{i}] ({w.name})"
-        if w.start not in skills:
-            errors.append(f"{where}.start: no such skill '{w.start}'")
+        # web: start may be a list of skills, each the first step of its own tree
+        starts = w.start if isinstance(w.start, list) else [w.start]
+        missing = [str(s) for s in starts if s not in skills]
+        if missing or not starts:
+            errors.append(f"{where}.start: no such skill '{', '.join(missing) or w.start}'")
             continue
         _check_wave(reg, i, w, where, errors)
-        wave_skills = _reachable(reg, w.start)
+        wave_skills = set().union(*(_reachable(reg, s) for s in starts))
         reached |= wave_skills
         for s in sorted(wave_skills):
             _check_skill_in_wave(reg, skills[s], w, where, errors)
@@ -554,7 +557,8 @@ def _check_wave(reg, i, w, where, errors):
                 errors.append(f"{at}: window needs a for_each in this wave")
             _check_path(reg, i, w, win.source if win else e, win, allowed, at, errors)
 
-    _check_cover(set(w.input), reg.skills[w.start], f"{where}.init_input.input", errors)
+    for s in (w.start if isinstance(w.start, list) else [w.start]):
+        _check_cover(set(w.input), reg.skills[s], f"{where}.init_input.input", errors)
 
 
 def _check_path(reg, i, w, p, win, allowed, where, errors):

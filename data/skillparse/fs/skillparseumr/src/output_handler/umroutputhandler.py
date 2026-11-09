@@ -317,7 +317,7 @@ def _value(role, value, concept):
     v = str(value).strip()
     if v.startswith('"') and v.endswith('"') and len(v) >= 2:
         v = v[1:-1]
-    bare = re.fullmatch(r"-?\d+(\.\d+)?|[-+]|[A-Za-z0-9_.-]+", v) is not None
+    bare = re.fullmatch(r"-?\d+(\.\d+)?|[-+]|[A-Za-z0-9_-]+", v) is not None   # web: 12306.cn is quoted
     quote = (concept == "name" and role.startswith("op")) or (role == "wiki" and v != "-") or not bare
     return '"%s"' % v.replace('"', "'") if quote else v
 

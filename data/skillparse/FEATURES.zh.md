@@ -7,7 +7,7 @@
 - **三种语言**：中文（web-zh）、英文（web-en）、乌兹别克语（web-uz）。打开文档时按文档语言自动选择。
 - **wave 1 · generate**（可选）：模型一次写出整句的图、对齐和文档级标注，再自动拆成后面两波的步骤。
 - **wave 2 · sentence**：一步一步建句级图，每一步一个 skill。
-- **wave 3 · document**：文档级标注，分 modal（模态）、temporal（时间）、coref（共指）三步。
+- **wave 3 · document**：文档级标注，分 modal（模态）、temporal（时间）、coref（共指）三个并列的步骤（1、2、3），互不影响。
 - 不想用 wave 1 也可以：直接在 wave 2 一步步标。
 
 ## 2. 文档

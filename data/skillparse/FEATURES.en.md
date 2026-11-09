@@ -7,7 +7,7 @@ Step-by-step UMR annotation in the browser: SkillParseUMR's annotation procedure
 - **Three languages**: Chinese (web-zh), English (web-en), Uzbek (web-uz), picked from the document's language.
 - **Wave 1 · generate** (optional): a model writes a sentence's whole graph, alignment and document-level annotation at once, which are then taken apart into the steps of the next two waves.
 - **Wave 2 · sentence**: the sentence graph built step by step, one skill per step.
-- **Wave 3 · document**: the document level, in three steps: modal, temporal, coref.
+- **Wave 3 · document**: the document level, in three steps side by side (1, 2, 3) that do not touch each other: modal, temporal, coref.
 - Wave 1 is optional: you can annotate step by step in wave 2 from the start.
 
 ## 2. Documents

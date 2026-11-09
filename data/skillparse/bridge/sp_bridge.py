@@ -706,7 +706,11 @@ class RegistryEngine:
             ep["error"] = "%s: %s" % (type(e).__name__, e)
             return self.episode(w, i)
         ep["context"] = ctx
-        self._make(w, ep, wave.start, inp, None, None, 0)
+        # a wave may start with several skills side by side (document: modal, temporal, coref), each
+        # the first step of its own tree: steps 1, 2, 3; one start is step 0
+        starts = wave.start if isinstance(wave.start, list) else [wave.start]
+        for k, s in enumerate(starts):
+            self._make(w, ep, s, inp, None, None, k + 1 if len(starts) > 1 else 0)
         self._mark_stale(w, i)
         return self.episode(w, i)
 
@@ -1552,6 +1556,26 @@ class RegistryEngine:
                 if w != GENERATE_WAVE:
                     self._mark_stale(w, int(i))
 
+    def _side_by_side(self):
+        """Work kept from before: a wave that now starts with several skills (document: modal,
+        temporal, coref) kept them as one tree (modal 0, temporal 0.0, coref 0.1). They become the
+        wave's steps 1, 2, 3, side by side, as they are."""
+        for w in self.order:
+            starts = self.waves[w].start
+            if not isinstance(starts, list) or len(starts) < 2:
+                continue
+            for ep in self.eps[w].values():
+                nodes = ep["nodes"]
+                if "0" not in nodes or any(k != "0" and not re.fullmatch(r"0\.\d+", k) for k in nodes):
+                    continue
+                if sorted(n["skill"] for n in nodes.values()) != sorted(starts):
+                    continue
+                new = {}
+                for n in nodes.values():
+                    nid = str(starts.index(n["skill"]) + 1)
+                    new[nid] = dict(n, id=nid, parent=None, edge=None, depth=0, children=[])
+                ep["nodes"] = new
+
     def _tokens_from_steps(self):
         """After a restore: each sentence takes the tokens its tokenizer step gave (the document file
         has the first ones)."""
@@ -2115,6 +2139,7 @@ class RegistryEngine:
                 self.eps[w][int(i)] = ep
         if int(state.get("version") or 0) < 3:
             self._renumber_old()
+        self._side_by_side()
         self._tokens_from_steps()          # before the contexts: they read the tokens
         for w in self.order:
             for i, ep in self.eps[w].items():

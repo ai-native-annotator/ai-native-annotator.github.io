@@ -115,7 +115,7 @@ WEB_TOOLS = os.path.join(OUT, "web_tools")
 # then temporal and coref, the site's own agent skills (web_skills/<lang>/temporal, coref)
 WEB_SKILLS = os.path.join(OUT, "web_skills")
 DOCUMENT_SKILLS = [
-    ("    start: document\n", "    start: modal                      # web：modal（规则）→ temporal、coref\n"),
+    ("    start: document\n", "    start: [modal, temporal, coref]   # web：三步并列（步骤 1、2、3），互不依赖：modal 是规则，temporal、coref 是模型\n"),
     ("""  document:                     # TODO: 时间、模态、共指，一个 skill 还是拆开
     path: document
     input:
@@ -154,10 +154,7 @@ DOCUMENT_SKILLS = [
       relations: list[dict]
     store: [relations]
 """),
-    ("  # document：没有后续\n", """  # web：modal 之后，temporal 和 coref 各跑一次（输入一样）
-  modal:
-    - {run: temporal, input: {sentences: sentences}}
-    - {run: coref, input: {sentences: sentences}}
+    ("  # document：没有后续\n", """  # web：document 这一波的 modal、temporal、coref 是三个并列的起点（见 waves），没有后续
 """),
 ]
 # wave 0 (web): umr_generate writes a sentence's whole graph and document-level annotation at
@@ -230,6 +227,25 @@ WAVE0 = [
 # sentence's graph), apply_change (a rule applies the ones a person picked), reflect
 REGISTRY_PY = "src/registry.py"
 REGISTRY_USER_PANEL = [
+    # web: a wave may start with several skills side by side (document: modal, temporal, coref)
+    ("""        if w.start not in skills:
+            errors.append(f"{where}.start: no such skill '{w.start}'")
+            continue
+        _check_wave(reg, i, w, where, errors)
+        wave_skills = _reachable(reg, w.start)
+""", """        # web: start may be a list of skills, each the first step of its own tree
+        starts = w.start if isinstance(w.start, list) else [w.start]
+        missing = [str(s) for s in starts if s not in skills]
+        if missing or not starts:
+            errors.append(f"{where}.start: no such skill '{', '.join(missing) or w.start}'")
+            continue
+        _check_wave(reg, i, w, where, errors)
+        wave_skills = set().union(*(_reachable(reg, s) for s in starts))
+"""),
+    ("""    _check_cover(set(w.input), reg.skills[w.start], f"{where}.init_input.input", errors)
+""", """    for s in (w.start if isinstance(w.start, list) else [w.start]):
+        _check_cover(set(w.input), reg.skills[s], f"{where}.init_input.input", errors)
+"""),
     ('    _keys(data, TOP_KEYS, TOP_KEYS, "top level", errors)\n',
      '    # web: user_panel (the right pane of the page) is read by the page\'s bridge, not here\n'
      '    _keys(data, TOP_KEYS | {"user_panel"}, TOP_KEYS, "top level", errors)\n'),
@@ -372,6 +388,9 @@ returns whole gold sentence annotations that contain them. To check a rule, call
 # the output handler sorts and resolves them
 OUTPUT_HANDLER = "src/output_handler/umroutputhandler.py"
 OUTPUT_HANDLER_IDS = [
+    # web: a value with a dot that is not a number (12306.cn, www.example.com) is a string: quoted
+    ("""    bare = re.fullmatch(r"-?\\d+(\\.\\d+)?|[-+]|[A-Za-z0-9_.-]+", v) is not None""",
+     """    bare = re.fullmatch(r"-?\\d+(\\.\\d+)?|[-+]|[A-Za-z0-9_-]+", v) is not None   # web: 12306.cn is quoted"""),
     # web: a node keeps its fragment's own variable when that is already a UMR variable of this
     # sentence (s3x, s3p2: a loaded file's, wave 0's), so the names a person reads and writes stay
     # put when a step is changed; other nodes are named from their concept, never taking one of those

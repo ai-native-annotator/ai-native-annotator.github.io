@@ -124,7 +124,7 @@ Worker 是单线程的，所有 `py()` 调用按顺序排队执行。模型请�
 | `complete(w, i, nid, output)` | 交回模型的 `final_result`；格式不对会要求重答一次 |
 | `fail(w, i, nid, error)` | 页面拿不到回答（没 key、网络、停止），这一步记为出错 |
 | `confirm(w, i, nid)` | 确认这一步 |
-| `set_output(w, i, nid, output)` | 人直接写这一步的输出（算确认），下面的步骤按它重建；重建出来技能、输入、挂法都没变的子步骤（document 的 temporal、coref 挂在 modal 下；占位没变的步骤）连同它下面的整棵子树原样保留 |
+| `set_output(w, i, nid, output)` | 人直接写这一步的输出（算确认），下面的步骤按它重建；重建出来技能、输入、挂法都没变的子步骤（比如占位没变的步骤）连同它下面的整棵子树原样保留 |
 | `reset(w, i, nid)` | 清空这一步及下面所有步骤，回到 pending |
 | `set_window(w, var, rng)` | 改上下文窗口（如前 5 句） |
 | `render(auto_align)` | 写整篇 `.umr`（见第 8 节） |
@@ -277,7 +277,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 ### 文档级：modal、temporal、coref 三步（web 改过）
 
-document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），它跑完派生 `temporal`、`coref` 两个 agent 步骤，三步的输入一样（前五句和这一句的节点表）。`temporal`、`coref` 是本站自己写的 skill（`data/skillparse/web_skills/<lang>/temporal`、`coref`，同步时复制进 `web-procedures/<lang>/`，原来的 `document/` 不再用）：由原来 `document/skill.md` 的 temporal、coref 两节精简、按主题重排而来（中文 temporal 9.2 KB → 6.0 KB，coref 5.7 KB → 4.0 KB），规则内容保留；开头写明两条要求：**写全**（temporal：这一句的每个事件和时间表达都有且只有一个父节点；coref：这一句里每个提到过的东西都连到最近的前一次提及），**只管这一句**（target 一定是这一句的节点，source 是这一句、前面几句的节点或常量）。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
+document 这一波每句三个并列的步骤，互不依赖：registry 里这一波的 `start` 是一个列表 `[modal, temporal, coref]`（同步时给 `registry.py` 打补丁，允许一波有几个起点），每个起点自己是一棵树的第一步，编号 1、2、3（只有一个起点的波仍是 0）。1 是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），2、3 是 `temporal`、`coref` 两个 agent 步骤；三步的输入一样（前五句和这一句的节点表），改其中一步不会碰另外两步。以前存下的进度（modal 0 下挂 temporal 0.0、coref 0.1）恢复时自动改成 1、2、3（`_side_by_side`）。`temporal`、`coref` 是本站自己写的 skill（`data/skillparse/web_skills/<lang>/temporal`、`coref`，同步时复制进 `web-procedures/<lang>/`，原来的 `document/` 不再用）：由原来 `document/skill.md` 的 temporal、coref 两节精简、按主题重排而来（中文 temporal 9.2 KB → 6.0 KB，coref 5.7 KB → 4.0 KB），规则内容保留；开头写明两条要求：**写全**（temporal：这一句的每个事件和时间表达都有且只有一个父节点；coref：这一句里每个提到过的东西都连到最近的前一次提及），**只管这一句**（target 一定是这一句的节点，source 是这一句、前面几句的节点或常量）。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
 
 **modal 规则**（`modal/modal.py`）：照 UMR 标注工具（umr-tool.cs.brandeis.edu，jinzhao3611/umr-annotation-tool 的 `modal_converter.py`，依据 "UMR Simplified Modal Annotation to Modal Dependency Structure"）的转换规则，只是不读整句图，而读节点表里 predicate 那一行的 `modstr` 和 `roles`（`_roles`：quote、purpose、condition、modal-predicate，以及 ARG0 / actor / experiencer / causer）。E、M、S、C 是事件，E′ 等是它们的 modstr（没有就是 unspecified）：
 
@@ -344,7 +344,7 @@ document 这一波每句是一棵三步的小树：根是 `modal`（`kind: rule`
 | wave | for_each | 起点 | 读什么 |
 |---|---|---|---|
 | sentence | 每一句 | `sent_type`（输入整句） | 这一句的文本和 token |
-| document | 每一句 | `modal`（规则）→ `temporal`、`coref` | 前 5 句和这一句，每句一张节点表（`sentences`，由 sentence 这一波的树生成，要都完成并确认） |
+| document | 每一句 | 三步并列：1 `modal`（规则）、2 `temporal`、3 `coref` | 前 5 句和这一句，每句一张节点表（`sentences`，由 sentence 这一波的树生成，要都完成并确认） |
 
 sentence 这一波里的流向（dispatcher）：
 
@@ -617,6 +617,8 @@ sentences:
 | 右栏 | — | registry 顶层的 `user_panel`：`local_change`（模型按评论提出改动，有 `call_skill` 工具）、`apply_change`（规则，执行勾选的改动，再把图拆回步骤）、`reflect` |
 | 乌兹别克语 | — | `web-uz`：英文流程 + 本站写的乌兹别克语 skill.md；wave 0 先用规则 `tokenizer` 分词；没有 PropBank（词干概念 + 通用角色）、没有金标 |
 | predicate 的 aspect、modstr | emit 里单独的两个字段（枚举） | 不单列：是 `graph.attrs` 里事件节点（第一个节点）的属性 `[e, "aspect", …]`、`[e, "modstr", …]`；bridge 检查取值（`_check_event_attrs`），output handler 照旧把 modstr 移到文档级；polarity 仍是字段 |
+| 属性值的引号 | 只含字母、数字、点、连字符的值不加引号（`12306.cn` 裸写） | 只有数字、`-`/`+`、不带点的符号不加引号；网址、域名这类带点的值加引号（output handler 的 `_value` 打补丁；`apply_change` 同一规则） |
+| document 的三步 | 一个 `document` skill | 三个并列的起点 `[modal, temporal, coref]`，步骤 1、2、3 |
 | PropBank | 每个词条一个 XML（中文 24,521 个）；英文查 `arg-descr.txt`；`propbank_lookup` 返回 JSON，只有角色 | 中英文各合并成一个 JSON，带全部例子，放在 `resources/propbank/`，第一次查询时取来；本站的 `propbank.py` 读它，返回 Markdown（角色和全部例子）；中文的 roleset 和角色与原来完全相同，英文 `arg-descr.txt` 的 8,733 个 roleset 全都有 |
 | `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉（同步时不复制）；例子从金标里搜 |
 | 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成（照 umr-tool 的转换）；temporal、coref 各一个 agent 步骤（本站写的 skill.md，由 document 的两节精简而来） |
