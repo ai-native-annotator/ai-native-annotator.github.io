@@ -1631,15 +1631,29 @@ class RegistryEngine:
         return self.episode(w, i)
 
     def set_output(self, w, i, nid, output):
-        """A person's output for the node: it replaces the model's, and the subtree is remade from it."""
+        """A person's output for the node: it replaces the model's, and the steps under it are made
+        again from it. A step under it that is made again with the same skill, input and edge (the
+        edit did not change what it gets: document's temporal and coref under modal, a placeholder
+        whose text stayed) is kept as it was, with everything under it."""
         ep, node = self._node(w, i, nid)
         machine = node.get("machine_output")
         old = node.get("output")
-        for k in self._descendants(ep, nid):
-            del ep["nodes"][k]
+        before = {k: ep["nodes"].pop(k) for k in self._descendants(ep, nid)}
         self._drop_gens(w, i, nid)
         res = self._finish(w, ep, node, output, human=True)
         node["machine_output"] = machine
+        kept = []
+        for c in list(node.get("children") or []):
+            was, now = before.get(c), ep["nodes"].get(c)
+            if was and now and was["status"] != "running" and all(
+                    jsonable(was.get(k)) == jsonable(now.get(k)) for k in ("skill", "input", "edge")):
+                ep["nodes"][c] = was
+                for k, n in before.items():
+                    if under(k, c):
+                        ep["nodes"][k] = n
+                kept.append(c)
+        if kept:
+            node["kept_children"] = kept
         if w == SENTENCE_WAVE and not self.loading and node["status"] == "ok":
             node["doc_followed"] = self.follow_doc_refs(i, node, old, node.get("output"))
         return res

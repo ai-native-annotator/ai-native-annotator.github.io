@@ -259,6 +259,11 @@ const statusIs = (page, re, timeout = 180000) =>
   check("the UMR text's variables are links to the steps that made them, and the UMR text stays", umrVars.includes('s1x')
     && (await page.$eval('.tab[aria-selected="true"]', (e) => e.textContent)) === 'UMR 文本' && !!(await page.$('.tree li[aria-selected="true"]'))
     && !!(await page.$('#output .umr-var.on')), umrVars.join(' '));
+  await page.click('#btn-features');
+  await page.waitForSelector('#modal .features h1', { timeout: 30000 });
+  check('the features button shows what the workbench does', (await page.textContent('#modal .features h1')).includes('功能一览')
+    && (await page.$$('#modal .features h2')).length >= 8);
+  await page.click('#modal-close');
   // the right pane (registry user_panel): a comment, the model's changes (with call_skill), shown
   // in color on the UMR text and the graph, picked, and applied by apply_change
   check('the skills pane lists the user_panel skills (local_change, apply_change, reflect)',

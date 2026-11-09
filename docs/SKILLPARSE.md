@@ -54,6 +54,7 @@
 | `data/skillparse/fs/skillparseumr/` | SkillParseUMR：`src/`（registry、输入输出模块）、`web-procedures/zh`、`web-procedures/en`（两套流程）、`web-procedures/tools/` |
 | `data/skillparse/fs/modular-parsing/resources/` | UMR 列表（CSV） |
 | `data/skillparse/resources/propbank/zh.json` · `en.json` | PropBank：每个 roleset 的角色和全部例子（`web_tools/propbank.py` 读） |
+| `data/skillparse/FEATURES.zh.md` · `FEATURES.en.md` | 给用户看的功能一览：顶栏「?」按钮打开（按界面语言） |
 | `data/skillparse/web_tools/search.py` | 本站自己的两个工具 `search_annotations`、`search_guidelines`，同步时复制到 `web-procedures/tools/` |
 | `data/skillparse/resources/gold/zh/gold.json` · `gold/en/gold.json` | 金标标注，按语言分开：中文 35 篇 2,278 句（SkillParseUMR `newdata/` 31 篇 + modular-parsing `real-umr-data/chinese` 4 篇），英文 580 篇 31,147 句（SkillParseUMR `newdata/umr_en_normalized/`）；来源写在各自的 `SOURCE.md` |
 | `data/skillparse/resources/guidelines/umr_guidelines.md` | UMR 指南全文（umr4nlp/umr-guidelines `guidelines.md`，取自 SkillParseUMR 固定的副本，sha256 校验） |
@@ -123,7 +124,7 @@ Worker 是单线程的，所有 `py()` 调用按顺序排队执行。模型请�
 | `complete(w, i, nid, output)` | 交回模型的 `final_result`；格式不对会要求重答一次 |
 | `fail(w, i, nid, error)` | 页面拿不到回答（没 key、网络、停止），这一步记为出错 |
 | `confirm(w, i, nid)` | 确认这一步 |
-| `set_output(w, i, nid, output)` | 人直接写这一步的输出（算确认），下面的步骤按它重建 |
+| `set_output(w, i, nid, output)` | 人直接写这一步的输出（算确认），下面的步骤按它重建；重建出来技能、输入、挂法都没变的子步骤（document 的 temporal、coref 挂在 modal 下；占位没变的步骤）连同它下面的整棵子树原样保留 |
 | `reset(w, i, nid)` | 清空这一步及下面所有步骤，回到 pending |
 | `set_window(w, var, rng)` | 改上下文窗口（如前 5 句） |
 | `render(auto_align)` | 写整篇 `.umr`（见第 8 节） |

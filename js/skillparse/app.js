@@ -14,7 +14,8 @@ import { openSettings, openImport, exportAs, answerByHand, askRestore, fillSelec
 import { allImports, lastOpen } from './save.js';
 import { py } from './py.js';
 import { MODEL_CHOICES, currentChoice, pickModel, settings } from './models.js';
-import { closeModal, toast, h } from './ui.js';
+import { closeModal, openModal, toast, h } from './ui.js';
+import { renderMarkdown } from './md.js';
 import { applyStatic, getLang, setLang, t } from './i18n.js';
 import './pane-context.js';
 import './pane-skills.js';
@@ -27,6 +28,16 @@ function wire() {
   document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('modal').hidden) closeModal(); });
   document.getElementById('btn-settings').addEventListener('click', openSettings);
+  // what the workbench does, for its users (data/skillparse/FEATURES.<lang>.md)
+  document.getElementById('btn-features').addEventListener('click', async () => {
+    try {
+      const res = await fetch(`data/skillparse/FEATURES.${getLang() === 'en' ? 'en' : 'zh'}.md`, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      openModal(t('features'), h('div', { class: 'md-view features' }, renderMarkdown(await res.text())));
+    } catch (err) {
+      toast(err.message);
+    }
+  });
   document.getElementById('model-pick').addEventListener('change', (e) => {
     const r = pickModel(e.target.value, pickRole());
     fillModels();
