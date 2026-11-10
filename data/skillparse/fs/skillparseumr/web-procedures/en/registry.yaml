@@ -257,12 +257,13 @@ dispatcher:
 
 # ---- 右栏（web）：不属于任何一波；右栏的每一栏都按这里的配置 ----
 # 每一项是一个 skill（path、kind、input、emit，写法和 skills 一样），另外可以有：
-#   title   右栏这一栏的标题        role    用哪个模型角色（顶部的模型设置）
+#   title   右栏这一栏的标题（{zh: …, en: …}，按界面语言显示；也可以只写一个）
+#   role    用哪个模型角色（顶部的模型设置）
 #   review  人审核之后执行的 skill  modes   反思的几种方式
 user_panel:
 
   local_change:                 # 「改这一句的图」：模型读这一句的树和变量表，按人的评论提出一组改动；人审核后交给 review
-    title: 改这一句的图
+    title: {zh: 改这一句的图, en: Change this sentence's graph}
     kind: agent
     path: local_change
     role: generate              # 整句的判断：用 wave 0 那个模型（默认 GPT-6.1 Sol / Opus 5.5）
@@ -278,7 +279,7 @@ user_panel:
     review: apply_change        # 人在 penman 和图上看过、勾选之后，执行改动的 skill
 
   apply_change:                 # 规则（apply_change/apply_change.py）：把勾选的改动用到这一句的图上；网页再把新图拆回步骤（到 stop 为止）
-    title: 执行改动
+    title: {zh: 执行改动, en: Apply the changes}
     kind: rule
     path: apply_change
     input:
@@ -294,7 +295,7 @@ user_panel:
       problems: list[str]
 
   reflect:                      # 「反思这一步」：对选中的那一步，找 skill 的问题、提修改（system 是 reflect/skill.md）
-    title: 反思这一步
+    title: {zh: 反思这一步, en: Reflect on this step}
     kind: agent
     path: reflect
     role: reflect

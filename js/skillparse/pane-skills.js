@@ -5,7 +5,7 @@
  */
 
 import { h, clear, openModal, closeModal, toast, diffView, download } from './ui.js';
-import { S, onRender, render } from './core.js';
+import { S, onRender, render, panelTitle } from './core.js';
 import { py } from './py.js';
 import { addVersion, versions, forget, original, edited } from './store.js';
 import { lineDiff, hunks } from './diff.js';
@@ -64,12 +64,12 @@ function panelSkills(files) {
       const anyEdited = e.files.some((f) => (files[f] || []).length);
       const role = e.role && settings().roles[e.role] ? e.role : null;
       const model = e.kind === 'agent' && role ? currentChoice(role)?.label.replace(/ [\d.]+$/, '') || settings().roles[role].model : null;
-      return h('div', { class: 'skill panel-skill', title: e.title || e.name, onclick: () => e.files[0] && openEditor(e.files[0]) },
+      return h('div', { class: 'skill panel-skill', title: panelTitle(e), onclick: () => e.files[0] && openEditor(e.files[0]) },
         h('div', {}, h('span', { class: 'name', text: e.name }), h('span', { class: `badge ${e.kind}`, text: t(`kinds.${e.kind}`) }),
           model ? h('span', { class: 'badge by-haiku', text: `→ ${model}` }) : null,
           e.review ? h('span', { class: 'badge', text: `→ ${e.review}` }) : null,
           anyEdited ? h('span', { class: 'badge edited', text: '✎' }) : null),
-        e.title ? h('div', { class: 'note', text: e.title }) : null,
+        e.title ? h('div', { class: 'note', text: panelTitle(e) }) : null,
         h('div', { class: 'files' }, e.files.map(fileChip)));
     }));
 }

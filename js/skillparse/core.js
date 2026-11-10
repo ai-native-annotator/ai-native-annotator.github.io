@@ -18,7 +18,7 @@ import { jev, llm, settings } from './models.js';
 import { edited } from './store.js';
 import { toast } from './ui.js';
 import { workKey, getWork, putWork, dropWork, lastOpen } from './save.js';
-import { t } from './i18n.js';
+import { t, getLang } from './i18n.js';
 
 /** The wave whose steps make the sentence graph (wave 0, generate, may come before it). */
 export const SENTENCE_WAVE = 'sentence';
@@ -347,6 +347,13 @@ let controller = null;
 /** The right pane's entries (registry user_panel), by name. */
 export function panelEntry(name) {
   return (S.desc?.user_panel || []).find((e) => e.name === name) || null;
+}
+
+/** A user_panel entry's title in the page's language ({zh, en} in the registry, or one string). */
+export function panelTitle(e) {
+  const tt = e?.title;
+  if (tt && typeof tt === 'object') return tt[getLang()] || tt.zh || tt.en || e.name;
+  return tt || e?.name || '';
 }
 
 export const panelKey = (i = S.item) => `${S.skillset}|${S.doc}|${i}`;

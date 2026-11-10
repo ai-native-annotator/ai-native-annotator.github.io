@@ -13,7 +13,7 @@
  */
 
 import { h, clear, toast, diffView } from './ui.js';
-import { S, onRender, render, nodeKey, runNode, saveOutput, selectNode, assembled, runPanel, applyPanel, panelKey } from './core.js';
+import { S, onRender, render, nodeKey, runNode, saveOutput, selectNode, assembled, runPanel, applyPanel, panelKey, panelTitle } from './core.js';
 import { reflect, applyToFiles } from './reflect.js';
 import { openEditor } from './pane-skills.js';
 import { py } from './py.js';
@@ -223,7 +223,7 @@ async function applyChanges(p) {
     const ok = r.applied.filter((a) => a.ok).length;
     doneNote.set(key, `${t('panelApplied', { ok, n: picked.length, changed: r.changed.join(', ') || '—', kept: r.kept })}`
       + `${r.doc_followed.changed || r.doc_followed.dropped ? ` ${t('panelDoc', r.doc_followed)}` : ''}`
-      + `${r.problems.length ? ` ${r.problems.join('；')}` : ''}`);
+      + `${r.problems.length ? ` ${r.problems.join(t('listSep'))}` : ''}`);
     delete S.panel[key];
     comments.delete(key);
   } catch (err) {
@@ -247,7 +247,7 @@ function proposalBox(p) {
         res && !res.ok ? h('div', { class: 'err', text: t('panelCannot', { why: res.why }) }) : null,
         res?.var && res.var !== c.var ? h('div', { class: 'note', text: t('panelNewVar', { a: c.var, b: res.var }) }) : null);
     })) : h('div', { class: 'note', text: t('panelNoChanges') }),
-    p.lost?.length ? h('div', { class: 'warn', text: p.lost.join('；') }) : null,
+    p.lost?.length ? h('div', { class: 'warn', text: p.lost.join(t('listSep')) }) : null,
     p.toolCalls.length ? h('details', {}, h('summary', { text: t('panelTools', { n: p.toolCalls.length }) }),
       p.toolCalls.map((c) => h('div', { class: 'note mono', text: `${c.tool}(${JSON.stringify(c.args)}) → ${String(c.result).slice(0, 160)}` }))) : null,
     h('div', { class: 'row', style: 'margin-top:8px' },
@@ -267,7 +267,7 @@ function changeCard(entry) {
   area.value = comments.get(key) || '';
   area.addEventListener('input', () => comments.set(key, area.value));
   return h('div', { class: 'mode open local-card', 'data-panel': entry.name },
-    h('div', { class: 'mode-head' }, h('strong', { text: entry.title || entry.name })),
+    h('div', { class: 'mode-head' }, h('strong', { text: panelTitle(entry) })),
     h('div', { class: 'note', text: t('panelDesc', { review: entry.review }) }), area,
     h('div', { class: 'row' },
       h('button', { class: 'btn primary panel-propose', disabled: S.running > 0, text: t('panelPropose'), onclick: () => {
@@ -346,7 +346,7 @@ function draw() {
   const modes = re ? re.modes || ['edit', 'corrected', 'told'] : [];
   clear(el,
     panelCards(),
-    re ? h('div', { class: 'note', style: 'margin-bottom:6px', text: `${re.title ? `${re.title} · ` : ''}${t('aiHead', { node: `#${S.item + 1} · ${d.id} · ${d.skill} (${d.kind})` })}` }) : null,
+    re ? h('div', { class: 'note', style: 'margin-bottom:6px', text: `${re.title ? `${panelTitle(re)} · ` : ''}${t('aiHead', { node: `#${S.item + 1} · ${d.id} · ${d.skill} (${d.kind})` })}` }) : null,
     re ? h('div', { class: 'modes' },
       modes.includes('edit') ? modeCard(1, t('m1'), t('m1Desc'), m1) : null,
       modes.includes('corrected') ? modeCard(2, t('m2'), t('m2Desc'), m2) : null,
