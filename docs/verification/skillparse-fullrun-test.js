@@ -175,6 +175,8 @@ const statusIs = (page, re, timeout = 180000) =>
   await page.fill('#modal input[type=text]', 'hawksbill-gold');
   await page.click('#modal button:text-is("导入")');
   await statusIs(page, /载入了已有标注/);
+  await page.click('.wave-tab:has-text("sentence")');
+  await page.waitForTimeout(300);
   const report = await page.textContent('#status');
   check('a loaded file aligned by words is converted to characters', /3 句.*按词对齐，已转换成按字对齐/.test(report) && !/没能放进来/.test(report), report);
   const loadedTree = await page.$$eval('.tree li', (els) => els.map((e) => [e.querySelector('.sk').textContent, e.querySelector('.st').textContent, !!e.querySelector('.loaded')]));

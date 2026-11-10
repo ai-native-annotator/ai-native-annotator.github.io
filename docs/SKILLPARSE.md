@@ -306,7 +306,7 @@ document 这一波每句三个并列的步骤，互不依赖：registry 里这�
 
 ### wave 0：一次生成整句（`generate`，web）
 
-每套流程（中文、英文、乌兹别克语）最前面多了一波 `generate`，每句一个 episode，按顺序（`parallel: 1`：每句要看前面五句生成的结果）。它是可选的：文档打开时仍停在 sentence 这一波，照原来一步步标也行。
+每套流程（中文、英文、乌兹别克语）最前面多了一波 `generate`，每句一个 episode，按顺序（`parallel: 1`：每句要看前面五句生成的结果）。它是可选的：文档打开时停在这一波（wave 1）；不用它也可以，切到 sentence 这一波照原来一步步标。恢复暂存的进度时回到上次所在的那一波。
 
 **乌兹别克语先分词**：`web-uz` 的 generate 这一波第一步是规则 `tokenizer`（`web_skills/tokenizer/tokenizer.py`，左栏可改），不只按空格切：标点、词首词尾的引号单独成 token，小数（3,5）不拆；oʻ、gʻ 和 tutuq belgisi（ʼ）留在词里（不管打的是 ' ʻ ʼ ‘ ’ ` 哪一个）；数字和词用连字符连着的拆成三个（2023-yil → 2023 | - | yil）；连字符连着的语气词单独成 token（kecha-yu → kecha | -yu；u、yu、chi、ku、mi、da、oq、yoq、gina…）；问号前写在词尾的 mi 拆开（kelasizmi? → kelasiz | mi | ?）；词与词用连字符连成的复合词（ota-ona）和词尾后缀不拆（token 是词，不是语素）。句子去掉空格后的每个字符都恰好在一个 token 里，bridge 会检查。确认后这些 token 就是这一句的 token（`_set_tokens`：后面各步的 span 按它数，导出的 Words: 也是它；保存的进度恢复时重新给这一句），后面的波标成过期。`umr_generate` 从它拿带编号的 token（输入 `tokens`；这一波的 context 不再有 token_sent）。
 

@@ -8,7 +8,7 @@ Step-by-step UMR annotation in the browser: SkillParseUMR's annotation procedure
 - **Wave 1 · generate** (optional): a model writes a sentence's whole graph, alignment and document-level annotation at once, which are then taken apart into the steps of the next two waves.
 - **Wave 2 · sentence**: the sentence graph built step by step, one skill per step.
 - **Wave 3 · document**: the document level, in three steps side by side (1, 2, 3) that do not touch each other: modal, temporal, coref.
-- Wave 1 is optional: you can annotate step by step in wave 2 from the start.
+- A document opens on wave 1; it is optional: switch to wave 2 to annotate step by step from the start.
 
 ## 2. Documents
 

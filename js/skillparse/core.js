@@ -185,7 +185,8 @@ export async function open(skillset, doc) {
     if (!res.ok) problems.push(`${path}: ${res.problem}`);
   }
   if (Object.keys(files).length) S.desc = await py('describe');
-  S.wave = (S.desc.waves.find((w) => w.name === SENTENCE_WAVE) || S.desc.waves[0]).name;
+  // a document opens on wave 1 (generate) when the procedure has it, else on its first wave
+  S.wave = (S.desc.waves.find((w) => w.name === GENERATE_WAVE) || S.desc.waves[0]).name;
   S.item = 0;
   // the work kept in this browser for this document and procedure
   const key = workKey(skillset, doc);

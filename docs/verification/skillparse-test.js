@@ -81,9 +81,11 @@ async function stepThrough(page, max = 80) {
   await statusIs(page, /就绪/);
   check('Python boots and the Chinese procedure opens', (await page.$$('.skill:not(.panel-skill)')).length === 10
     && (await page.$eval('#skillset', (e) => e.value)) === 'web-zh');
-  check('three waves (wave 0 generate, sentence, document); the page opens on the sentence wave',
+  check('three waves (wave 1 generate, sentence, document); the page opens on wave 1 (generate)',
     (await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]))).join(',') === 'generate,sentence,document'
-    && /sentence/.test(await page.textContent('.wave-tab[aria-selected="true"]')));
+    && /generate/.test(await page.textContent('.wave-tab[aria-selected="true"]')));
+  await page.click('.wave-tab:has-text("sentence")');
+  await page.waitForTimeout(300);
   check('for_each items are picked one at a time (no checkboxes)', (await page.$$('#context .items input[type=checkbox]')).length === 0);
   const badges = await page.$$eval('#skills .skill', (els) => Object.fromEntries(els.map((e) => [
     e.querySelector('.name').textContent, e.querySelector('.by-jev, .by-haiku')?.textContent || ''])));
@@ -280,6 +282,8 @@ async function stepThrough(page, max = 80) {
   await page.selectOption('#doc', 'english_umr-0008');
   await statusIs(page, /就绪/);
   check('the English document opens with the English procedure', (await page.$eval('#skillset', (e) => e.value)) === 'web-en');
+  await page.click('.wave-tab:has-text("sentence")');
+  await page.waitForTimeout(300);
   await stepThrough(page);
   const en = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('the English procedure runs', en.length >= 3 && en.every((s) => s === '✓'), en.join(''));
@@ -366,6 +370,8 @@ async function stepThrough(page, max = 80) {
   await statusIs(page, /就绪/);
   check('the Uzbek document opens with the Uzbek procedure (eleven skills: the tokenizer first in wave 0)', (await page.$eval('#skillset', (e) => e.value)) === 'web-uz'
     && (await page.$$('.skill:not(.panel-skill)')).length === 11 && (await page.$$eval('.skill .name', (e) => e.map((x) => x.textContent))).includes('tokenizer'));
+  await page.click('.wave-tab:has-text("sentence")');
+  await page.waitForTimeout(300);
   const nInUz = calls.inputs.length;
   const nJevUz = calls.jevStates.length;
   await stepThrough(page);
