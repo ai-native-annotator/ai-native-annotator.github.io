@@ -751,7 +751,12 @@ class RegistryEngine:
         return ep, ep["nodes"][nid]
 
     def _inputs(self, ep, node):
-        return {**ep["context"], **node["input"]}
+        out = {**ep["context"], **node["input"]}
+        if node["skill"] == CONVERT and isinstance(ep.get("index"), int):
+            # convert checks the alignment against the sentence's tokens as they are now: web-uz cuts
+            # them in its first step (tokenizer), and its wave's context has none of its own
+            out["token_sent"] = [[k, t] for k, t in enumerate(self.doc.sents[ep["index"]].tokenized_text, 1)]
+        return out
 
     def _skill_module(self, skill):
         path = os.path.join(skill.path, skill.name + ".py")

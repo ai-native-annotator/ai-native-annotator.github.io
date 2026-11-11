@@ -261,6 +261,17 @@ const statusIs = (page, re, timeout = 180000) =>
   check("the UMR text's variables are links to the steps that made them, and the UMR text stays", umrVars.includes('s1x')
     && (await page.$eval('.tab[aria-selected="true"]', (e) => e.textContent)) === 'UMR 文本' && !!(await page.$('.tree li[aria-selected="true"]'))
     && !!(await page.$('#output .umr-var.on')), umrVars.join(' '));
+  // the four panes fold to strips, and open again; the open ones share the width
+  const widthOf = (sel) => page.$eval(sel, (e) => e.getBoundingClientRect().width);
+  const workBefore = await widthOf('#pane-work');
+  await page.click('#pane-context .fold-btn');
+  await page.click('#pane-skills .fold-btn');
+  const folded = await page.$$eval('.pane.folded', (e) => e.map((x) => x.id));
+  check('the context and skills panes fold to strips, and the middle grows', folded.join(',') === 'pane-context,pane-skills'
+    && (await widthOf('#pane-context')) < 50 && (await widthOf('#pane-work')) > workBefore + 300, `${folded} ${workBefore} → ${await widthOf('#pane-work')}`);
+  await page.click('#pane-context .fold-strip');
+  await page.click('#pane-skills .fold-strip');
+  check('and open again', (await page.$$('.pane.folded')).length === 0 && (await widthOf('#pane-context')) > 200);
   await page.click('#btn-features');
   await page.waitForSelector('#modal .features h1', { timeout: 30000 });
   check('the features button shows what the workbench does', (await page.textContent('#modal .features h1')).includes('功能一览')

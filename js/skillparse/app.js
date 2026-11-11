@@ -16,6 +16,7 @@ import { py } from './py.js';
 import { MODEL_CHOICES, DEFAULT_CHOICE, currentChoice, pickModel, route } from './models.js';
 import { closeModal, openModal, toast, h } from './ui.js';
 import { renderMarkdown } from './md.js';
+import { setupFolding, relabelFolding } from './layout.js';
 import { applyStatic, getLang, setLang, t } from './i18n.js';
 import './pane-context.js';
 import './pane-skills.js';
@@ -24,6 +25,7 @@ import './pane-ai.js';
 import './timer.js';
 
 function wire() {
+  setupFolding();
   document.getElementById('modal-close').addEventListener('click', closeModal);
   document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('modal').hidden) closeModal(); });
@@ -60,6 +62,7 @@ function wire() {
     setLang(getLang() === 'zh' ? 'en' : 'zh');
     lang.textContent = getLang() === 'zh' ? 'EN' : '中文';
     applyStatic();
+    relabelFolding();
     fillModels();
     render();
   });
@@ -133,7 +136,11 @@ async function boot() {
   const want = params.get('doc') || last?.doc;
   const lang = SKILLSETS.find((s) => s.id === skillset).lang;
   const doc = (S.docs.find((d) => d.id === want) || S.docs.find((d) => d.lang === lang) || S.docs[0]).id;
-  await reopen(skillset, doc);
+  // a document asked for in the address opens with the procedure of its language (unless one is asked for too)
+  const docLang = S.docs.find((d) => d.id === doc)?.lang;
+  const fits = params.get('skills') || !params.get('doc') || !docLang ? skillset
+    : (SKILLSETS.find((s) => s.lang === docLang) || SKILLSETS.find((s) => s.id === skillset)).id;
+  await reopen(fits, doc);
 }
 
 boot().catch(fail);

@@ -40,6 +40,7 @@
 | `js/skillparse/pane-context.js` | 左栏：wave、for_each 项、上下文窗口 |
 | `js/skillparse/pane-skills.js` | Skill 栏、skill 文件编辑器（Markdown 阅读 / 编辑原文 / 版本） |
 | `js/skillparse/pane-work.js` | 中栏：图、输出（Penman + JSON）、输入、问答、提示词、工具调用、UMR 文本；下方步骤树和运行栏 |
+| `js/skillparse/layout.js` | 四栏（上下文、Skill 栏、生成内容、AI）折叠：标题上的按钮把一栏收成带栏名的竖条，点竖条展开；开着的几栏分宽度，折叠状态存在浏览器里 |
 | `js/skillparse/pane-ai.js` · `reflect.js` | 右栏 AI，按 registry 的 `user_panel`：改这一句的图（提出改动、预览、执行），以及三种改 skill 的方式和 AI 自查 |
 | `js/skillparse/graph-view.js` | 把图画成 SVG |
 | `js/skillparse/penman-view.js` | 把一步的输出写成 Penman（`<node: …>` / `<outside: …>`）；document 一步的节点编号写成 full span 和概念，`docNodes` 列出它能指的节点 |
@@ -307,7 +308,7 @@ document 这一波每句三个并列的步骤，互不依赖：registry 里这�
 
 每套流程（中文、英文、乌兹别克语）最前面多了一波 `generate`，每句一个 episode，按顺序（`parallel: 1`：每句要看前面五句生成的结果）。它是可选的：文档打开时停在这一波（wave 1）；不用它也可以，切到 sentence 这一波照原来一步步标。恢复暂存的进度时回到上次所在的那一波。
 
-**乌兹别克语先分词**：`web-uz` 的 generate 这一波第一步是规则 `tokenizer`（`web_skills/tokenizer/tokenizer.py`，左栏可改），不只按空格切：标点、词首词尾的引号单独成 token，小数（3,5）不拆；oʻ、gʻ 和 tutuq belgisi（ʼ）留在词里（不管打的是 ' ʻ ʼ ‘ ’ ` 哪一个）；数字和词用连字符连着的拆成三个（2023-yil → 2023 | - | yil）；连字符连着的语气词单独成 token（kecha-yu → kecha | -yu；u、yu、chi、ku、mi、da、oq、yoq、gina…）；问号前写在词尾的 mi 拆开（kelasizmi? → kelasiz | mi | ?）；词与词用连字符连成的复合词（ota-ona）和词尾后缀不拆（token 是词，不是语素）。句子去掉空格后的每个字符都恰好在一个 token 里，bridge 会检查。确认后这些 token 就是这一句的 token（`_set_tokens`：后面各步的 span 按它数，导出的 Words: 也是它；保存的进度恢复时重新给这一句），后面的波标成过期。`umr_generate` 从它拿带编号的 token（输入 `tokens`；这一波的 context 不再有 token_sent）。
+**乌兹别克语先分词**：`web-uz` 的 generate 这一波第一步是规则 `tokenizer`（`web_skills/tokenizer/tokenizer.py`，左栏可改），不只按空格切：标点、词首词尾的引号单独成 token，小数（3,5）不拆；oʻ、gʻ 和 tutuq belgisi（ʼ）留在词里（不管打的是 ' ʻ ʼ ‘ ’ ` 哪一个）；数字和词用连字符连着的拆成三个（2023-yil → 2023 | - | yil）；连字符连着的语气词单独成 token（kecha-yu → kecha | -yu；u、yu、chi、ku、mi、da、oq、yoq、gina…）；问号前写在词尾的 mi 拆开（kelasizmi? → kelasiz | mi | ?）；词与词用连字符连成的复合词（ota-ona）和词尾后缀不拆（token 是词，不是语素）。句子去掉空格后的每个字符都恰好在一个 token 里，bridge 会检查。确认后这些 token 就是这一句的 token（convert 检查对齐时也按它数，`_inputs` 给 convert 的是这一句当前的 token；`_set_tokens`：后面各步的 span 按它数，导出的 Words: 也是它；保存的进度恢复时重新给这一句），后面的波标成过期。`umr_generate` 从它拿带编号的 token（输入 `tokens`；这一波的 context 不再有 token_sent）。
 
 1. **`umr_generate`**（agent，`web_skills/<lang>/umr_generate/skill.md`）：一次写出这一句的句级图（penman）、每个节点的对齐（`{变量: [首, 尾]}`，页面的 token 编号）和文档级标注（`(s<N>s0 / sentence :temporal … :modal … :coref …)`）。输入是句子、token、句号，以及前五句生成的图和文档级标注（`before`，registry 里 `pick: generated`）。变量以 `s<句号>` 开头，文档级标注用前几句图里的变量名指它们的节点。**模型单独设置**：角色 `generate`，默认 GPT-6.1 Sol（OpenRouter `openai/gpt-6.1-sol`），也可以换成 Opus 5.5；在 generate 这一波时，工具栏的「模型」就是这一波的模型。
 2. **`convert`**（规则，`web_skills/convert/convert.py`）：用 penman 解析图（解析不了、一个变量两个概念、span 超出句子就算出错，让人带提示重跑 umr_generate），检查对齐和文档级标注，`problems` 里列出能载入但可疑的地方。确认它之后，网页（`RegistryEngine._apply_generated` → `umr_load.load_generated`）把它载入 sentence、document 两波：和载入 .umr 文件的同一套办法，每一步标「生成」（算已确认，`origin: generated`）；这一句在这两波原来的步骤会被替换。文档级标注里的变量换成 document 这一波的节点名，和它的节点表一样：一步的第一个节点是 `句号:步骤`（`2:0.1`），片段里的其他节点是 `句号:步骤/变量`。前面各句的变量从它们现在的图里查（`node_refs`：不管是生成的、载入的还是一步步标的）；查不到的变量原样留下，并在 convert 的结果里列出来。
@@ -571,7 +572,7 @@ sentences:
 | GPT-6.1 Sol（wave 1 默认） | OpenAI `gpt-6.1-sol` | `openai/gpt-6.1-sol` |
 | GPT-6 Astra | OpenAI `gpt-6-astra` | `openai/gpt-6-astra` |
 
-- **走哪个服务是自动的**（`route`）：设置里只存选了哪个模型（`roles.<角色>.choice`）。调用时看填了哪些 key：模型自家的 key（Anthropic、OpenAI）在就直连，否则经 OpenRouter；都没有就报错，菜单里这个模型标「没有能用的 key」。以前存的设置（服务商 + 模型名）读的时候换成对应的模型。
+- **走哪个服务是自动的**（`route`）：设置里只存选了哪个模型（`roles.<角色>.choice`）。调用时看填了哪些 key：模型自家的 key（Anthropic、OpenAI）在就直连，否则经 OpenRouter；都没有就报错，菜单里这个模型标「没有能用的 key」。直连出错（请求发不出去，比如网络拦了 api.openai.com；或 401/403/404）而又有 OpenRouter key 时，这次调用改经 OpenRouter 重来；发不出去的那个服务在这次打开页面里记为不通，后面的调用直接走 OpenRouter。以前存的设置（服务商 + 模型名）读的时候换成对应的模型。
 - **记录**：每一步记下生成它的模型（`node.model`，服务那边的名字），输出栏显示「这一步由 X 生成」。
 - **Sonnet 5.5、Opus 5.5、Fable 5.1 的请求差别**：
   - 这三个模型不接受强制调用工具（`tool_choice` 的 any / tool，OpenAI 写法的 `required`）。对它们改用 `auto`，在 system 里要求用 `final_result` 作答；如果第一次用文字回答，会提醒一次。

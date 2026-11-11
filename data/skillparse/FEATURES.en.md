@@ -44,6 +44,7 @@ Step-by-step UMR annotation in the browser: SkillParseUMR's annotation procedure
 - **All sentences: next step** runs each sentence's next step.
 - **Models**: the toolbar switches the model: Anthropic's Haiku, Sonnet, Opus, Fable and OpenAI's GPT-6 Luna, GPT-6.1 Terra, GPT-6.1 Sol, GPT-6 Astra, each from cheap to strong. On wave 1 it picks the model that writes whole sentences; on the other waves, the agent steps' model.
 - **Timer**: per sentence and per wave.
+- **The four panes fold**: context, skills, the work in the middle and AI; the ⟨ in a pane's title folds it to a strip, and the strip opens it again; the other panes widen.
 
 ## 5. Wave 3: the document level
 

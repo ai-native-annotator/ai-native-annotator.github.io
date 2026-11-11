@@ -44,6 +44,7 @@
 - **所有句子：下一步**：每句各跑下一步。
 - **模型**：顶栏切换模型：Anthropic 的 Haiku、Sonnet、Opus、Fable，OpenAI 的 GPT-6 Luna、GPT-6.1 Terra、GPT-6.1 Sol、GPT-6 Astra，各自从便宜到强。在 wave 1 选的是整句生成用的，其他波选的是 agent 步骤用的。
 - **计时器**：每句、每波分开计时。
+- **四栏可以折叠**：上下文、Skill 栏、生成内容、AI 四栏，标题右边的 ⟨ 把这一栏收成一条竖条，点竖条展开；其他栏自动变宽。
 
 ## 5. wave 3：文档级
 

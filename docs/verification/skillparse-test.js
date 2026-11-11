@@ -335,6 +335,31 @@ async function stepThrough(page, max = 80) {
   check('GPT-6.1 Sol has no Anthropic name, so it goes through OpenRouter', sol.length > 0
     && sol.every((b) => b.model === 'openai/gpt-6.1-sol' && b.tool_choice === 'required'),
   JSON.stringify(sol[0]) || `${await page.textContent('#status')} · ${await page.evaluate(() => localStorage.getItem('skillparse_settings_v4'))}`);
+  // an OpenAI key whose direct calls cannot get through (a blocked network): the same model goes
+  // through OpenRouter, and keeps going there for the rest of the visit
+  const errsBefore = errs.length;
+  await page.route('https://api.openai.com/**', (r) => r.abort('failed'));
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('annotator_secrets') || '{}');
+    s.apiKeys = { ...(s.apiKeys || {}), openai: 'test-openai-key' };
+    localStorage.setItem('annotator_secrets', JSON.stringify(s));
+  });
+  await page.selectOption('#model-pick', 'luna');
+  const nLuna = (calls.bodies || []).length;
+  await page.click('#output .review-card button:text-is("↻ 重跑这一步")');
+  await settled(page);
+  const luna = (calls.bodies || []).slice(nLuna);
+  check('a direct OpenAI call that cannot get through goes through OpenRouter instead', luna.length > 0
+    && luna.every((b) => b.model === 'openai/gpt-6-luna') && (await page.textContent('#output')).includes('这一步由'),
+  `${luna.length} · ${await page.textContent('#status')}`);
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('annotator_secrets') || '{}');
+    delete s.apiKeys.openai;
+    localStorage.setItem('annotator_secrets', JSON.stringify(s));
+  });
+  await page.unroute('https://api.openai.com/**');
+  // the blocked request the browser reports is the one this check made
+  errs.splice(errsBefore, errs.length - errsBefore, ...errs.slice(errsBefore).filter((x) => !/ERR_FAILED/.test(x)));
   await page.selectOption('#model-pick', 'haiku');
   check('and back to Haiku', (await page.evaluate(() => JSON.parse(localStorage.getItem('skillparse_settings_v4')).roles.haiku.choice)) === 'haiku');
   await stepThrough(page);

@@ -51,10 +51,15 @@ export const DEFAULT_CHOICE = { haiku: 'haiku', generate: 'sol', reflect: 'sonne
  * How a model is reached with the keys there are (`k`, the saved keys by default): its maker
  * directly when that key is filled in, else OpenRouter; null when no key reaches it.
  */
+// services a direct call could not reach in this visit (blocked network, refused browser request):
+// later calls go through OpenRouter instead
+const unreachable = new Set();
+
 export function route(id, k = keys()) {
   const c = MODEL_CHOICES.find((x) => x.id === id);
   if (!c) return null;
-  const provider = [c.maker, 'openrouter'].find((p) => c[p] && k[p]);
+  const direct = unreachable.has(c.maker) && k.openrouter ? null : c.maker;
+  const provider = [direct, 'openrouter'].find((p) => p && c[p] && k[p]);
   return provider ? { provider, model: c[provider], choice: c } : null;
 }
 
@@ -184,16 +189,29 @@ export async function llm({ role = 'reflect', system = '', instructions, input =
   if (!cfg) {
     throw new Error(`No key reaches ${picked?.label || role}: add ${picked?.maker === 'openai' ? 'an OpenAI' : 'an Anthropic'} or an OpenRouter key in Settings (⚙).`);
   }
-  const key = keys()[cfg.provider];
   const final = { name: 'final_result', description: 'Return the final answer. Call this exactly once, at the end.',
     parameters: schema };
   const all = [...tools, final];
-  if (cfg.provider === 'openai' || cfg.provider === 'openrouter') {
-    const url = cfg.provider === 'openai' ? 'https://api.openai.com/v1/chat/completions'
-      : 'https://openrouter.ai/api/v1/chat/completions';
-    return openaiLoop({ cfg, key, url, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
+  const run = (c) => {
+    const key = keys()[c.provider];
+    if (c.provider === 'openai' || c.provider === 'openrouter') {
+      const url = c.provider === 'openai' ? 'https://api.openai.com/v1/chat/completions'
+        : 'https://openrouter.ai/api/v1/chat/completions';
+      return openaiLoop({ cfg: c, key, url, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
+    }
+    return anthropicLoop({ cfg: c, key, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
+  };
+  try {
+    return await run(cfg);
+  } catch (err) {
+    // the maker's own API refused the key or the model, or the request never got there: the same
+    // model through OpenRouter, when there is an OpenRouter key
+    const viaOr = cfg.provider !== 'openrouter' && keys().openrouter && picked.openrouter
+      && (err?.status === 401 || err?.status === 403 || err?.status === 404 || /did not reach the server/.test(err?.message || ''));
+    if (!viaOr || err?.name === 'AbortError') throw err;
+    if (/did not reach the server/.test(err?.message || '')) unreachable.add(cfg.provider);
+    return run({ provider: 'openrouter', model: picked.openrouter, choice: picked });
   }
-  return anthropicLoop({ cfg, key, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
 }
 
 async function anthropicLoop({ cfg, key, system, instructions, input, all, callTool, maxTurns, signal, onEvent }) {
