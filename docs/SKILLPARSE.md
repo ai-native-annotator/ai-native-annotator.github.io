@@ -68,7 +68,7 @@
 
 `index.html` 加载 `js/skillparse/app.js`，`boot()` 依次：
 
-1. `setLang`、`applyStatic`（界面文字）、`wire()`（按钮）、`setManualAnswerer(answerByHand)`、`setRestoreAsker(askRestore)`，并注册页面隐藏/离开时的 `saveNow()`。
+1. `setLang`、`applyStatic`（界面文字）、`wire()`（按钮）、`setRestoreAsker(askRestore)`，并注册页面隐藏/离开时的 `saveNow()`。
 2. `bootPython()`（`py.js`）新建 Worker `py-worker.js`，发 `__boot`：
    - `importScripts` 加载 `https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js`，`loadPyodide`，`loadPackage(['pyyaml'])`；
    - 读 `data/skillparse/MANIFEST.json`，把其中每个文件写到 `/sp/…`（`fs/x` 写成 `/sp/x`，`bridge/`、`docs/` 原样）；
@@ -227,9 +227,8 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 - 429 / 5xx 会重试，最多 4 次，退避最长 15 秒。
 
 **`jev()`**（`models.js`）：
-- 把问题按每批 40 个，POST 到 `https://openrouter.ai/api/v1/systemone`，模型 `typesafe/jev-1.13`，请求体 `{model, state, questions}`；
+- 把问题按每批 40 个，POST 到设置里选的地方：经 OpenRouter（`https://openrouter.ai/api/v1/systemone`，模型 `typesafe/jev-1.13`，默认）或 TypeSafe 直连（`https://api.typesafe.ai/v1/systemone`，`jev-1.13`），请求体 `{model, state, questions}`；
 - 每个答案标上 `by: 'jev'`，同样的 state + 问题会用缓存；
-- ⚙ 里可以改成「我自己回答」，这时弹 `answerByHand` 对话框；
 - 有提示时，提示放进 state 的 `human提示（务必遵循）` 字段（英文 `Human hint (must be followed)`）。
 
 **`_finish()`**：
@@ -559,33 +558,34 @@ sentences:
 
 ## 13. 设置和模型
 
-**工具栏的「模型」菜单**：选 agent 步骤（discourse、predicate、np_phrase、special_entity、temporal、coref）用哪个模型，从下一步起生效。sent_type 仍然问 Jev。
+**工具栏的「模型」菜单**：选模型，从下一步起生效。在 wave 1 选的是整句生成（和右栏「改这一句的图」）用的模型，其他波选的是 agent 步骤（discourse、predicate、np_phrase、special_entity、temporal、coref）用的模型；sent_type 仍然问 Jev。菜单按厂家分组，各自从便宜到强：
 
-| 选项 | Anthropic API | OpenRouter | OpenAI |
-|---|---|---|---|
-| Haiku 5.5（默认） | `claude-haiku-5-5` | `anthropic/claude-haiku-5.5` | — |
-| Sonnet 5.5 | `claude-sonnet-5-5` | `anthropic/claude-sonnet-5.5` | — |
-| Opus 5.5 | `claude-opus-5-5` | `anthropic/claude-opus-5.5` | — |
-| Fable 5.1 | `claude-fable-5-1` | `anthropic/claude-fable-5.1` | — |
-| GPT-6.1 Sol | — | `openai/gpt-6.1-sol` | `gpt-6.1-sol` |
+| 选项 | 直连名 | OpenRouter |
+|---|---|---|
+| Haiku 5.5（agent 步骤默认） | Anthropic `claude-haiku-5-5` | `anthropic/claude-haiku-5.5` |
+| Sonnet 5.5（反思默认） | Anthropic `claude-sonnet-5-5` | `anthropic/claude-sonnet-5.5` |
+| Opus 5.5 | Anthropic `claude-opus-5-5` | `anthropic/claude-opus-5.5` |
+| Fable 5.1 | Anthropic `claude-fable-5-1` | `anthropic/claude-fable-5.1` |
+| GPT-6 Luna | OpenAI `gpt-6-luna` | `openai/gpt-6-luna` |
+| GPT-6.1 Terra | OpenAI `gpt-6.1-terra` | `openai/gpt-6.1-terra` |
+| GPT-6.1 Sol（wave 1 默认） | OpenAI `gpt-6.1-sol` | `openai/gpt-6.1-sol` |
+| GPT-6 Astra | OpenAI `gpt-6-astra` | `openai/gpt-6-astra` |
 
-- **走哪个 key**（`pickModel`）：现在用的服务商有这个模型就继续用它，否则换成第一个有这个模型、而且填了 key 的服务商。
-- **记录**：每一步记下生成它的模型（`node.model`），输出栏显示「这一步由 X 生成」。
+- **走哪个服务是自动的**（`route`）：设置里只存选了哪个模型（`roles.<角色>.choice`）。调用时看填了哪些 key：模型自家的 key（Anthropic、OpenAI）在就直连，否则经 OpenRouter；都没有就报错，菜单里这个模型标「没有能用的 key」。以前存的设置（服务商 + 模型名）读的时候换成对应的模型。
+- **记录**：每一步记下生成它的模型（`node.model`，服务那边的名字），输出栏显示「这一步由 X 生成」。
 - **Sonnet 5.5、Opus 5.5、Fable 5.1 的请求差别**：
   - 这三个模型不接受强制调用工具（`tool_choice` 的 any / tool，OpenAI 写法的 `required`）。对它们改用 `auto`，在 system 里要求用 `final_result` 作答；如果第一次用文字回答，会提醒一次。
   - 直连 Anthropic 时，加上服务器端拒答回退：请求头 `anthropic-beta: server-side-fallback-2026-07-01`，请求体 `fallbacks: "default"`。
   - 模型拒答（`stop_reason: "refusal"`，或 OpenAI 写法的 `content_filter`）时，这一步出错并写明原因。
-- 自定义的模型名仍可在 ⚙ 里填，菜单里会显示成「模型名（服务商）」。
 
-⚙ 设置（`openSettings`）：
+⚙ 设置（`openSettings`）分四块，每块都能折叠：
 
-| 项 | 默认 |
+| 块 | 内容 |
 |---|---|
-| API key | OpenRouter / Anthropic / OpenAI 各一个 |
-| Haiku（跑 agent skill） | OpenRouter `anthropic/claude-haiku-5.5`；换成 Anthropic key 时是 `claude-haiku-5-5` |
-| 反思 | OpenRouter `anthropic/claude-sonnet-5.5`；Anthropic 是 `claude-sonnet-5-5` |
-| sent_type 的封闭问题 | Jev（`https://openrouter.ai/api/v1/systemone`，`typesafe/jev-1.13`，默认用 OpenRouter key），或「我自己回答」 |
-| 同时运行的步数 | 6 |
+| API key | OpenRouter、Anthropic、OpenAI、TypeSafe（Jev）各一个，只存在这个浏览器 |
+| 模型 | 不用选：列出 agent 步骤、wave 1、反思现在用的模型和走的服务（按上面正在填的 key 即时更新），以及所有模型现在能不能用 |
+| Jev | TypeSafe 直连（`https://api.typesafe.ai/v1/systemone`，`jev-1.13`，TypeSafe key）或经 OpenRouter（`https://openrouter.ai/api/v1/systemone`，`typesafe/jev-1.13`，OpenRouter key），默认 OpenRouter |
+| 其他 | 同时运行的步数（默认 6） |
 
 **页面发出的外部请求**：
 

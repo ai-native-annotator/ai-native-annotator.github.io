@@ -1,57 +1,71 @@
 /** Settings, import, export, and answering Jev's questions by hand. */
 
-import { h, openModal, closeModal, toast, download, pretty } from './ui.js';
+import { h, clear, openModal, closeModal, toast, download } from './ui.js';
 import { S, SKILLSETS, assembled, loadDocs, open, forgetChanges } from './core.js';
-import { settings, saveSettings, keys, saveKey, ROLES, PROVIDERS, MODEL_DEFAULTS, shapeAnswers } from './models.js';
+import { settings, saveSettings, keys, saveKey, ROLES, KEY_NAMES, MODEL_CHOICES, JEV_VIA, currentChoice, route } from './models.js';
 import { bundle } from './store.js';
 import { putImport, dropWork, workKey } from './save.js';
 import { py } from './py.js';
 import { t } from './i18n.js';
 
+/**
+ * Settings, in four parts that fold: the API keys; the models (no choosing here: each role runs
+ * the model picked in the toolbar, through the service the keys reach, shown as it is now); Jev,
+ * through TypeSafe or OpenRouter; and how many steps run at once.
+ */
 export function openSettings() {
   const cfg = settings();
   const k = keys();
-  const keyInputs = PROVIDERS.map((p) => {
-    const inp = h('input', { type: 'password', value: k[p] || '', placeholder: { openrouter: 'sk-or-…', anthropic: 'sk-ant-…', openai: 'sk-…' }[p], autocomplete: 'off' });
-    return [p, inp];
-  });
-  // which key each model role uses; the model name follows the provider unless it was typed in
-  const roleInputs = Object.keys(ROLES).map((r) => {
-    const prov = h('select', { 'aria-label': t(`roleNames.${r}`) },
-      PROVIDERS.map((p) => h('option', { value: p, text: t(`via.${p}`), selected: cfg.roles[r].provider === p })));
-    const model = h('input', { type: 'text', value: cfg.roles[r].model, 'aria-label': t('model') });
-    prov.addEventListener('change', () => {
-      const known = Object.values(MODEL_DEFAULTS[r] || {});
-      if (!model.value.trim() || known.includes(model.value.trim())) model.value = MODEL_DEFAULTS[r]?.[prov.value] || '';
-    });
-    return [r, prov, model];
-  });
-  const backend = h('select', {},
-    [['jev', 'Jev'], ['manual', t('jevManual')]].map(([v, l]) => h('option', { value: v, text: l, selected: cfg.jev.backend === v })));
-  const url = h('input', { type: 'text', value: cfg.jev.url });
-  const jmodel = h('input', { type: 'text', value: cfg.jev.model });
-  const jkey = h('input', { type: 'password', value: cfg.jev.key || '', autocomplete: 'off', placeholder: t('jevKeyHint') });
-  const conc = h('input', { type: 'number', min: 1, max: 20, value: cfg.concurrency, style: 'width:5em' });
+  const keyInputs = KEY_NAMES.map((p) => [p, h('input', { type: 'password', value: k[p] || '', autocomplete: 'off', id: `key-${p}`,
+    placeholder: { openrouter: 'sk-or-…', anthropic: 'sk-ant-…', openai: 'sk-…', typesafe: 'ts-…' }[p] })]);
+  const typed = () => Object.fromEntries(keyInputs.map(([p, inp]) => [p, inp.value.trim()]));
+  const models = h('div', { class: 'settings-models' });
+  const jevVia = h('div', { class: 'row', role: 'radiogroup' }, Object.keys(JEV_VIA).map((v) => h('label', { class: 'row' },
+    h('input', { type: 'radio', name: 'jev-via', value: v, checked: cfg.jev.via === v }), h('span', { text: t(`jevVia.${v}`) }))));
+  const jevNote = h('div', { class: 'note' });
+  const conc = h('input', { type: 'number', min: 1, max: 20, value: cfg.concurrency, style: 'width:5em', id: 'set-concurrency' });
 
-  const body = h('div', { style: 'display:grid;gap:12px' },
-    h('h4', { text: t('keys') }),
-    h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' }, keyInputs.map(([p, inp]) => [h('label', { text: p }), inp])),
-    h('h4', { text: t('roles') }),
-    h('div', { class: 'form-grid' },
-      h('span'), h('span', { class: 'note', text: t('whichKey') }), h('span', { class: 'note', text: t('model') }),
-      roleInputs.map(([r, prov, model]) => [h('label', { text: t(`roleNames.${r}`) }), prov, model])),
-    h('h4', { text: t('jevBackend') }),
-    h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' },
-      h('label', { text: t('jevBackend') }), backend,
-      h('label', { text: t('jevUrl') }), url,
-      h('label', { text: t('jevModel') }), jmodel,
-      h('label', { text: t('jevKey') }), jkey,
-      h('label', { text: t('concurrency') }), conc),
+  // what the keys typed so far reach: each role's model and its service, and every model
+  function show() {
+    const ks = typed();
+    const how = (id) => {
+      const r = route(id, ks);
+      return r ? `${r.model} · ${t(`via.${r.provider}`)}` : t('needsKey');
+    };
+    clear(models,
+      h('div', { class: 'note', text: t('modelsNote') }),
+      h('table', { class: 'legend settings-roles' }, h('tbody', {}, Object.keys(ROLES).map((r) => {
+        const c = currentChoice(r);
+        return h('tr', {}, h('td', { text: t(`roleNames.${r}`) }), h('td', {}, h('strong', { text: c?.label || '—' })),
+          h('td', { class: route(c?.id, ks) ? 'note' : 'warn', text: c ? how(c.id) : '' }));
+      }))),
+      h('details', {}, h('summary', { text: t('modelsAll') }),
+        h('table', { class: 'legend' }, h('tbody', {}, MODEL_CHOICES.map((c) => h('tr', {},
+          h('td', { text: c.maker === 'openai' ? 'OpenAI' : 'Anthropic' }), h('td', { text: c.label }),
+          h('td', { class: route(c.id, ks) ? 'note' : 'warn', text: how(c.id) })))))));
+    const via = jevVia.querySelector('input:checked')?.value || 'openrouter';
+    jevNote.textContent = ks[JEV_VIA[via].key] ? t('jevUses', { model: JEV_VIA[via].model, key: t(`keyNames.${JEV_VIA[via].key}`) })
+      : t('jevNoKey', { key: t(`keyNames.${JEV_VIA[via].key}`) });
+    jevNote.className = ks[JEV_VIA[via].key] ? 'note' : 'warn';
+  }
+  keyInputs.forEach(([, inp]) => inp.addEventListener('input', show));
+  jevVia.addEventListener('change', show);
+  show();
+
+  const part = (title, ...kids) => h('details', { class: 'settings-part', open: true }, h('summary', { text: title }),
+    h('div', { class: 'settings-body' }, kids));
+  const body = h('div', { style: 'display:grid;gap:10px' },
+    part(t('keys'),
+      h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' },
+        keyInputs.map(([p, inp]) => [h('label', { for: inp.id, text: t(`keyNames.${p}`) }), inp]))),
+    part(t('roles'), models),
+    part(t('jevBackend'), jevVia, jevNote),
+    part(t('otherSettings'), h('div', { class: 'row' }, h('label', { for: conc.id, text: t('concurrency') }), conc)),
     h('div', { class: 'row' }, h('button', { class: 'btn primary', text: t('saveSettings'), onclick: () => {
       keyInputs.forEach(([p, inp]) => saveKey(p, inp.value));
       saveSettings({
-        roles: Object.fromEntries(roleInputs.map(([r, prov, model]) => [r, { provider: prov.value, model: model.value.trim() }])),
-        jev: { ...cfg.jev, backend: backend.value, url: url.value.trim(), model: jmodel.value.trim(), key: jkey.value.trim() },
+        roles: cfg.roles,
+        jev: { ...cfg.jev, via: jevVia.querySelector('input:checked')?.value || 'openrouter' },
         concurrency: Math.max(1, Number(conc.value) || 6),
       });
       closeModal();
@@ -144,36 +158,6 @@ export async function exportAs(kind) {
     download(`${S.skillset}.edited-skills.json`, JSON.stringify({ skillset: S.skillset, files }, null, 1), 'application/json');
     toast(`${t('exported')} ${Object.keys(files).length} files`);
   }
-}
-
-/** Jev's questions put to the person: returns answers in Jev's shape. */
-export function answerByHand(state, questions) {
-  return new Promise((resolve, reject) => {
-    const picks = {};
-    const rows = Object.entries(questions).map(([id, q]) => {
-      const ins = typeof q.instructions === 'string' ? q.instructions : Object.entries(q.instructions || {}).map(([a, b]) => `${a}: ${b}`).join(' · ');
-      let control;
-      if (q.type === 'choice') {
-        const opts = Object.keys(q.criteria || {});
-        picks[id] = opts[0];
-        control = h('select', { onchange: (e) => { picks[id] = e.target.value; } },
-          opts.map((o) => h('option', { value: o, text: `${o}${q.criteria[o] ? ` — ${String(q.criteria[o]).slice(0, 90)}` : ''}` })));
-      } else if (q.type === 'noul') {
-        picks[id] = 'no';
-        control = h('select', { onchange: (e) => { picks[id] = e.target.value; } }, h('option', { value: 'no', text: t('no') }), h('option', { value: 'yes', text: t('yes') }));
-      } else {
-        picks[id] = '0';
-        control = h('select', { onchange: (e) => { picks[id] = e.target.value; } }, (q.criteria || []).map((d, n) => h('option', { value: String(n), text: `${n}: ${d}` })));
-      }
-      return h('div', { class: 'qa' }, h('div', { class: 'q' }, h('code', { text: id }), ` ${ins}`), control);
-    });
-    let done = false;
-    const body = h('div', { style: 'display:grid;gap:6px' },
-      h('details', {}, h('summary', { text: 'state' }), h('pre', { class: 'block', text: pretty(state) })),
-      rows,
-      h('div', {}, h('button', { class: 'btn primary', text: t('manualGo'), onclick: () => { done = true; closeModal(); resolve(shapeAnswers(questions, picks)); } })));
-    openModal(t('manualTitle', { n: rows.length }), body, { close: () => { if (!done) reject(new Error(t('stopped'))); } });
-  });
 }
 
 /** Go on from the work kept in this browser for the document being opened, or start over? */

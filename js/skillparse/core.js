@@ -14,7 +14,7 @@
  */
 
 import { py } from './py.js';
-import { jev, llm, settings } from './models.js';
+import { jev, llm, settings, modelFor } from './models.js';
 import { edited } from './store.js';
 import { toast } from './ui.js';
 import { workKey, getWork, putWork, dropWork, lastOpen } from './save.js';
@@ -49,8 +49,6 @@ const renderers = new Set();
 export function onRender(fn) { renderers.add(fn); }
 export function render() { renderers.forEach((fn) => fn()); }
 
-let manualAnswerer = null;
-export function setManualAnswerer(fn) { manualAnswerer = fn; }
 
 /** The results changed: the assembled .umr and the drawn graphs are out of date. */
 export function changed() {
@@ -314,12 +312,12 @@ export async function drive(w, i, nid, signal, { hint } = {}) {
         const n = Object.keys(r.questions || {}).length;
         working({ kind: 'jev', round: r.round, questions: n });
         status(t('running', { what: `${nid} ${r.skill} · Jev · ${t('round', { n: r.round })} · ${t('questions', { n })}` }));
-        const answers = await withSlot(() => jev(r.state, r.questions, { onManual: manualAnswerer, signal }));
+        const answers = await withSlot(() => jev(r.state, r.questions, { signal }));
         r = await py('answer', { w, i, nid, answers });
       } else if (r.need === 'llm') {
         // the role the bridge names: wave 0's own (umr_generate) or the agent skills'
         const role = settings().roles[r.role] ? r.role : 'haiku';
-        const model = settings().roles[role].model;
+        const model = modelFor(role);
         working({ kind: 'llm', model, retry: r.retry });
         status(t('running', { what: `${nid} ${r.skill} · ${model}${r.retry ? ' · retry' : ''}` }));
         const out = await withSlot(() => llm({
@@ -369,7 +367,7 @@ export async function runPanel(name, i, comment) {
     let r = await py('panel_start', { name, i, comment });
     while (r.need === 'llm') {
       const role = settings().roles[r.role] ? r.role : 'haiku';
-      const model = settings().roles[role].model;
+      const model = modelFor(role);
       status(t('running', { what: `#${i + 1} ${name} · ${model}${r.retry ? ' · retry' : ''}` }));
       const out = await withSlot(() => llm({
         role, system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],

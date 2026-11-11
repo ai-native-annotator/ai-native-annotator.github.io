@@ -27,7 +27,7 @@ function modelBadge(kind, skill = '') {
   if (kind === 'agent') {
     // wave 0's umr_generate has a model of its own (GPT-6.1 Sol by default)
     const role = skill === 'umr_generate' ? 'generate' : 'haiku';
-    const name = currentChoice(role)?.label.replace(/ [\d.]+$/, '') || settings().roles[role].model;
+    const name = currentChoice(role)?.label.replace(/ [\d.]+$/, '') || role;
     return h('span', { class: 'badge by-haiku', title: t('haikuTitle'), text: `→ ${name}` });
   }
   return null;
@@ -63,7 +63,7 @@ function panelSkills(files) {
     entries.map((e) => {
       const anyEdited = e.files.some((f) => (files[f] || []).length);
       const role = e.role && settings().roles[e.role] ? e.role : null;
-      const model = e.kind === 'agent' && role ? currentChoice(role)?.label.replace(/ [\d.]+$/, '') || settings().roles[role].model : null;
+      const model = e.kind === 'agent' && role ? currentChoice(role)?.label.replace(/ [\d.]+$/, '') || role : null;
       return h('div', { class: 'skill panel-skill', title: panelTitle(e), onclick: () => e.files[0] && openEditor(e.files[0]) },
         h('div', {}, h('span', { class: 'name', text: e.name }), h('span', { class: `badge ${e.kind}`, text: t(`kinds.${e.kind}`) }),
           model ? h('span', { class: 'badge by-haiku', text: `→ ${model}` }) : null,

@@ -288,13 +288,20 @@ async function stepThrough(page, max = 80) {
   const en = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('the English procedure runs', en.length >= 3 && en.every((s) => s === '✓'), en.join(''));
 
-  // Settings: Haiku through the Anthropic key instead of OpenRouter
+  // Settings: four parts that fold; no model is chosen there: an Anthropic key makes Haiku go to
+  // Anthropic directly; Jev goes through TypeSafe or OpenRouter, its key with the others
   await page.click('#btn-settings');
-  const sel = await page.$('#modal select[aria-label^="Haiku"]');
-  await sel.selectOption('anthropic');
-  const haikuModel = await page.$eval('#modal select[aria-label^="Haiku"] + input', (e) => e.value);
-  check('choosing the Anthropic key switches the model name', haikuModel === 'claude-haiku-5-5', haikuModel);
-  await page.fill('#modal input[placeholder="sk-ant-…"]', 'test-anthropic-key');
+  check('Settings fold into four parts; the models part has nothing to choose; Jev is TypeSafe or OpenRouter, with no answer-it-yourself',
+    (await page.$$('#modal details.settings-part')).length === 4 && !(await page.$('#modal .settings-models select, #modal .settings-models input'))
+    && (await page.$$eval('#modal input[name=jev-via]', (e) => e.map((x) => x.value))).join(',') === 'typesafe,openrouter'
+    && !!(await page.$('#modal #key-typesafe')) && !(await page.textContent('#modal')).includes('我自己回答'));
+  const rolesBefore = await page.textContent('#modal .settings-roles');
+  await page.fill('#key-anthropic', 'test-anthropic-key');
+  const rolesAfter = await page.textContent('#modal .settings-roles');
+  check('the models part shows what the keys typed reach (Haiku: OpenRouter, then Anthropic directly)',
+    rolesBefore.includes('anthropic/claude-haiku-5.5') && rolesAfter.includes('claude-haiku-5-5') && rolesAfter.includes('Anthropic 直连'), rolesAfter);
+  await page.click('#modal .settings-part summary >> nth=0');
+  check('a part folds', !(await page.isVisible('#modal #key-openrouter')));
   await page.click('#modal button:text-is("保存")');
   const before = calls.haiku;
   await page.click('button:text-is("↻ 重新开始")');
@@ -307,8 +314,8 @@ async function stepThrough(page, max = 80) {
 
   // the toolbar switches the model of the agent steps; each step says which model wrote it
   const opts = await page.$$eval('#model-pick option', (e) => e.map((x) => x.value));
-  check('the toolbar offers Haiku (default), Sonnet 5.5, Opus 5.5, Fable 5.1 and GPT-6.1 Sol',
-    ['haiku', 'sonnet', 'opus', 'fable', 'sol'].every((v) => opts.includes(v)) && (await page.$eval('#model-pick', (e) => e.value)) === 'haiku', opts.join(','));
+  check('the toolbar offers Anthropic (Haiku default, Sonnet, Opus, Fable) and OpenAI (Luna, Terra, Sol, Astra), cheap to strong',
+    opts.join(',') === 'haiku,sonnet,opus,fable,luna,terra,sol,astra' && (await page.$eval('#model-pick', (e) => e.value)) === 'haiku', opts.join(','));
   await page.selectOption('#model-pick', 'sonnet');
   await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
   await page.click('.tab:text-is("输出")');
@@ -329,7 +336,7 @@ async function stepThrough(page, max = 80) {
     && sol.every((b) => b.model === 'openai/gpt-6.1-sol' && b.tool_choice === 'required'),
   JSON.stringify(sol[0]) || `${await page.textContent('#status')} · ${await page.evaluate(() => localStorage.getItem('skillparse_settings_v4'))}`);
   await page.selectOption('#model-pick', 'haiku');
-  check('and back to Haiku', (await page.evaluate(() => JSON.parse(localStorage.getItem('skillparse_settings_v4')).roles.haiku.model)) === 'anthropic/claude-haiku-5.5');
+  check('and back to Haiku', (await page.evaluate(() => JSON.parse(localStorage.getItem('skillparse_settings_v4')).roles.haiku.choice)) === 'haiku');
   await stepThrough(page);
 
   // a model at work is shown at work: the step spins in the tree, its sentence pulses, the output

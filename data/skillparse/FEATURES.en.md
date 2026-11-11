@@ -42,7 +42,7 @@ Step-by-step UMR annotation in the browser: SkillParseUMR's annotation procedure
   - Graph (click a node to go to the step that wrote it, hover to see its aligned words);
   - UMR text (the variables are links).
 - **All sentences: next step** runs each sentence's next step.
-- **Models**: the toolbar switches the model each kind of step uses.
+- **Models**: the toolbar switches the model: Anthropic's Haiku, Sonnet, Opus, Fable and OpenAI's GPT-6 Luna, GPT-6.1 Terra, GPT-6.1 Sol, GPT-6 Astra, each from cheap to strong. On wave 1 it picks the model that writes whole sentences; on the other waves, the agent steps' model.
 - **Timer**: per sentence and per wave.
 
 ## 5. Wave 3: the document level
@@ -82,6 +82,9 @@ Step-by-step UMR annotation in the browser: SkillParseUMR's annotation procedure
 
 ## 9. Settings (⚙)
 
-- The service and model for each kind of call (the agent steps, wave 1 generation, reflection), and its API key (kept in this browser only).
-- How many model calls run at once.
+Four parts, each of which folds:
+- **API keys**: OpenRouter, Anthropic, OpenAI, TypeSafe (Jev), kept in this browser only.
+- **Models**: nothing to choose here; models are picked in the toolbar. The service follows the keys: the maker's own key (Anthropic, OpenAI) directly when it is there, else OpenRouter. You see what each kind of call runs now, through which service, and which models can run.
+- **Jev**: through TypeSafe directly or through OpenRouter.
+- **Other**: how many model calls run at once.
 - The interface language: the EN / 中文 button in the toolbar.

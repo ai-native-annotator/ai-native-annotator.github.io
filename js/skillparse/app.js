@@ -9,11 +9,11 @@
  */
 
 import { bootPython, onProgress } from './py.js';
-import { S, SKILLSETS, loadDocs, render, onRender, setManualAnswerer, setRestoreAsker, status, stop, runNextAll, saveNow } from './core.js';
-import { openSettings, openImport, exportAs, answerByHand, askRestore, fillSelectors, reopen } from './dialogs.js';
+import { S, SKILLSETS, loadDocs, render, onRender, setRestoreAsker, status, stop, runNextAll, saveNow } from './core.js';
+import { openSettings, openImport, exportAs, askRestore, fillSelectors, reopen } from './dialogs.js';
 import { allImports, lastOpen } from './save.js';
 import { py } from './py.js';
-import { MODEL_CHOICES, currentChoice, pickModel, settings } from './models.js';
+import { MODEL_CHOICES, DEFAULT_CHOICE, currentChoice, pickModel, route } from './models.js';
 import { closeModal, openModal, toast, h } from './ui.js';
 import { renderMarkdown } from './md.js';
 import { applyStatic, getLang, setLang, t } from './i18n.js';
@@ -42,7 +42,7 @@ function wire() {
     const r = pickModel(e.target.value, pickRole());
     fillModels();
     render();
-    if (r) toast(t('modelPicked', { model: r.model, via: t(`via.${r.provider}`) }));
+    toast(r ? t('modelPicked', { model: r.model, via: t(`via.${r.provider}`) }) : t('modelNoKey'));
   });
   document.addEventListener('settings-changed', fillModels);
   onRender(() => { if (document.getElementById('model-pick').dataset.role !== pickRole()) fillModels(); });
@@ -85,17 +85,18 @@ function wire() {
 /** The toolbar's model menu: which model runs the agent skills from the next step on. */
 /** The model picker is for the wave shown: wave 0's own model (umr_generate), else the agent skills'. */
 const pickRole = () => (S.desc?.waves?.[0]?.name === S.wave && S.wave === 'generate' ? 'generate' : 'haiku');
-const DEFAULT_CHOICE = { haiku: 'haiku', generate: 'sol' };
-
 function fillModels() {
   const sel = document.getElementById('model-pick');
   const role = pickRole();
   const now = currentChoice(role);
-  const { provider, model } = settings().roles[role];
+  // every model, by maker; one no key reaches says so (it can still be picked, for a key to come)
+  const opt = (c) => h('option', { value: c.id, selected: now?.id === c.id,
+    text: `${c.label}${c.id === DEFAULT_CHOICE[role] ? `（${t('defaultTag')}）` : ''}${route(c.id) ? '' : ` · ${t('needsKey')}`}` });
   sel.replaceChildren(
-    ...MODEL_CHOICES.map((c) => h('option', { value: c.id, text: c.id === DEFAULT_CHOICE[role] ? `${c.label}（${t('defaultTag')}）` : c.label, selected: now?.id === c.id })),
-    now ? null : h('option', { value: '', text: `${model}（${provider}）`, selected: true }));
-  sel.title = `${t(role === 'generate' ? 'modelPickGen' : 'modelPickTitle')} · ${model} · ${t(`via.${provider}`)}`;
+    h('optgroup', { label: 'Anthropic' }, MODEL_CHOICES.filter((c) => c.maker === 'anthropic').map(opt)),
+    h('optgroup', { label: 'OpenAI' }, MODEL_CHOICES.filter((c) => c.maker === 'openai').map(opt)));
+  const r = now && route(now.id);
+  sel.title = `${t(role === 'generate' ? 'modelPickGen' : 'modelPickTitle')} · ${r ? `${r.model} · ${t(`via.${r.provider}`)}` : t('needsKey')}`;
   sel.dataset.role = role;
 }
 
@@ -111,7 +112,6 @@ async function boot() {
   applyStatic();
   wire();
   fillModels();
-  setManualAnswerer(answerByHand);
   setRestoreAsker(askRestore);
   // keep the work when the page is left or hidden (a pending save would otherwise be lost)
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });

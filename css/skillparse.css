@@ -325,3 +325,9 @@ body.busy .status::before { content: ""; display: inline-block; width: 10px; hei
 .change-item.failed { border-color: var(--danger); }
 .change-item label { display: flex; gap: 6px; align-items: baseline; }
 .change-op { font-family: var(--mono); font-size: 12px; }
+
+/* Settings: four parts that fold */
+.settings-part { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 10px; }
+.settings-part > summary { cursor: pointer; font-weight: 600; padding: 2px 0; }
+.settings-body { display: grid; gap: 8px; padding-top: 8px; }
+.settings-roles td { padding: 2px 8px 2px 0; vertical-align: top; }

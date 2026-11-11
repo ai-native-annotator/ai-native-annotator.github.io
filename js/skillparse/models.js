@@ -6,65 +6,84 @@
  *   kind: agent (every other model skill) its skill.md prompt goes to Haiku, with the skill's tools;
  *               the answer comes back through the `final_result` output tool (src/agent.py)
  *
- *   jev(state, questions, {onManual}) -> answers in Jev's shape
+ *   jev(state, questions) -> answers in Jev's shape
  *   llm({role, system, instructions, input, tools, callTool, schema}) -> the final_result object
  *
- * One OpenRouter key runs both. Keys are read from the same localStorage entry as the classic
- * workbench (`annotator_secrets`). Calls go from the browser straight to the provider.
+ * Which model a role runs is chosen in the toolbar (a MODEL_CHOICES id); which service it goes
+ * through follows the keys filled in: the model's own provider directly (Anthropic, OpenAI) when
+ * that key is there, else OpenRouter. Jev goes through TypeSafe or OpenRouter, as Settings say.
+ * Keys are read from the same localStorage entry as the classic workbench (`annotator_secrets`).
+ * Calls go from the browser straight to the provider.
  */
 
 const SECRETS = 'annotator_secrets';
 const SETTINGS = 'skillparse_settings_v4';
 
 export const ROLES = {
-  haiku: 'Haiku: runs every kind: agent skill (its skill.md prompt)',
+  haiku: 'The agent steps: every kind: agent skill (its skill.md prompt)',
   generate: 'Wave 0 (umr_generate): writes a whole sentence\'s UMR at once',
   reflect: 'Reflection (finds skill problems, proposes edits)',
 };
 
 export const PROVIDERS = ['openrouter', 'anthropic', 'openai'];
-
-/** The model name each provider knows a role's model by (OpenRouter and Anthropic name Haiku differently). */
-export const MODEL_DEFAULTS = {
-  haiku: { openrouter: 'anthropic/claude-haiku-5.5', anthropic: 'claude-haiku-5-5', openai: '' },
-  generate: { openrouter: 'openai/gpt-6.1-sol', anthropic: 'claude-opus-5-5', openai: 'gpt-6.1-sol' },
-  reflect: { openrouter: 'anthropic/claude-sonnet-5.5', anthropic: 'claude-sonnet-5-5', openai: '' },
-};
+/** The keys Settings asks for: the three model services, and TypeSafe's own (Jev). */
+export const KEY_NAMES = ['openrouter', 'anthropic', 'openai', 'typesafe'];
 
 /**
- * The models the toolbar switches the agent skills between, by the name each provider knows them
- * by. Haiku is the default; a stronger model is there for the steps Haiku gets wrong.
+ * The models the toolbar offers, by the name each service knows them by: Anthropic's and
+ * OpenAI's, each from the cheapest to the strongest. Every one also goes through OpenRouter.
  */
 export const MODEL_CHOICES = [
-  { id: 'haiku', label: 'Haiku 5.5', anthropic: 'claude-haiku-5-5', openrouter: 'anthropic/claude-haiku-5.5' },
-  { id: 'sonnet', label: 'Sonnet 5.5', anthropic: 'claude-sonnet-5-5', openrouter: 'anthropic/claude-sonnet-5.5' },
-  { id: 'opus', label: 'Opus 5.5', anthropic: 'claude-opus-5-5', openrouter: 'anthropic/claude-opus-5.5' },
-  { id: 'fable', label: 'Fable 5.1', anthropic: 'claude-fable-5-1', openrouter: 'anthropic/claude-fable-5.1' },
-  { id: 'sol', label: 'GPT-6.1 Sol', openai: 'gpt-6.1-sol', openrouter: 'openai/gpt-6.1-sol' },
+  { id: 'haiku', label: 'Haiku 5.5', maker: 'anthropic', anthropic: 'claude-haiku-5-5', openrouter: 'anthropic/claude-haiku-5.5' },
+  { id: 'sonnet', label: 'Sonnet 5.5', maker: 'anthropic', anthropic: 'claude-sonnet-5-5', openrouter: 'anthropic/claude-sonnet-5.5' },
+  { id: 'opus', label: 'Opus 5.5', maker: 'anthropic', anthropic: 'claude-opus-5-5', openrouter: 'anthropic/claude-opus-5.5' },
+  { id: 'fable', label: 'Fable 5.1', maker: 'anthropic', anthropic: 'claude-fable-5-1', openrouter: 'anthropic/claude-fable-5.1' },
+  { id: 'luna', label: 'GPT-6 Luna', maker: 'openai', openai: 'gpt-6-luna', openrouter: 'openai/gpt-6-luna' },
+  { id: 'terra', label: 'GPT-6.1 Terra', maker: 'openai', openai: 'gpt-6.1-terra', openrouter: 'openai/gpt-6.1-terra' },
+  { id: 'sol', label: 'GPT-6.1 Sol', maker: 'openai', openai: 'gpt-6.1-sol', openrouter: 'openai/gpt-6.1-sol' },
+  { id: 'astra', label: 'GPT-6 Astra', maker: 'openai', openai: 'gpt-6-astra', openrouter: 'openai/gpt-6-astra' },
 ];
 
-/** Which of MODEL_CHOICES a role runs now, or null (a model typed in Settings). */
-export function currentChoice(role = 'haiku') {
-  const { provider, model } = settings().roles[role];
-  return MODEL_CHOICES.find((c) => c[provider] === model) || null;
-}
+/** Each role's model when none was picked: Haiku for the agent steps, Sol for wave 1, Sonnet for reflection. */
+export const DEFAULT_CHOICE = { haiku: 'haiku', generate: 'sol', reflect: 'sonnet' };
 
 /**
- * Switch a role to one of MODEL_CHOICES: through the provider it uses now when that provider has
- * the model, else the first one that does and has a key (else simply the first one).
+ * How a model is reached with the keys there are (`k`, the saved keys by default): its maker
+ * directly when that key is filled in, else OpenRouter; null when no key reaches it.
  */
-export function pickModel(id, role = 'haiku') {
-  const choice = MODEL_CHOICES.find((c) => c.id === id);
-  if (!choice) return null;
-  const cfg = settings();
-  const k = keys();
-  const offered = PROVIDERS.filter((p) => choice[p]);
-  const provider = choice[cfg.roles[role].provider] ? cfg.roles[role].provider
-    : offered.find((p) => k[p]) || offered[0];
-  cfg.roles[role] = { provider, model: choice[provider] };
-  saveSettings(cfg);
-  return cfg.roles[role];
+export function route(id, k = keys()) {
+  const c = MODEL_CHOICES.find((x) => x.id === id);
+  if (!c) return null;
+  const provider = [c.maker, 'openrouter'].find((p) => c[p] && k[p]);
+  return provider ? { provider, model: c[provider], choice: c } : null;
 }
+
+/** Which of MODEL_CHOICES a role runs now. */
+export function currentChoice(role = 'haiku') {
+  const id = settings().roles[role]?.choice || DEFAULT_CHOICE[role];
+  return MODEL_CHOICES.find((c) => c.id === id) || null;
+}
+
+/** The model name a role's calls carry now (the service's own name), or the model's label with no key. */
+export function modelFor(role = 'haiku') {
+  const c = currentChoice(role);
+  return (c && route(c.id)?.model) || c?.label || '';
+}
+
+/** Switch a role to one of MODEL_CHOICES; returns how it is reached now (or null: no key yet). */
+export function pickModel(id, role = 'haiku') {
+  if (!MODEL_CHOICES.some((c) => c.id === id)) return null;
+  const cfg = settings();
+  cfg.roles[role] = { choice: id };
+  saveSettings(cfg);
+  return route(id);
+}
+
+/** Jev through TypeSafe's own API (a TypeSafe key) or through OpenRouter (an OpenRouter key). */
+export const JEV_VIA = {
+  typesafe: { url: 'https://api.typesafe.ai/v1/systemone', model: 'jev-1.13', key: 'typesafe' },
+  openrouter: { url: 'https://openrouter.ai/api/v1/systemone', model: 'typesafe/jev-1.13', key: 'openrouter' },
+};
 
 // models that refuse a forced tool call (tool_choice any / tool, OpenAI-style "required"): the
 // answer is still asked for through final_result, with tool_choice auto and an instruction
@@ -75,16 +94,10 @@ const ANSWER_NOTE = 'When you have the answer, call the final_result tool with i
 const REMIND = 'Call the final_result tool now with your answer.';
 
 const DEFAULTS = {
-  roles: {
-    haiku: { provider: 'openrouter', model: 'anthropic/claude-haiku-5.5' },
-    // wave 0 writes a whole sentence's graph: a strong model (GPT-6.1 Sol, or Opus 5.5)
-    generate: { provider: 'openrouter', model: 'openai/gpt-6.1-sol' },
-    reflect: { provider: 'openrouter', model: 'anthropic/claude-sonnet-5.5' },
-  },
+  // a role is the model picked for it (wave 1 writes a whole sentence's graph: a strong model)
+  roles: { haiku: { choice: 'haiku' }, generate: { choice: 'sol' }, reflect: { choice: 'sonnet' } },
   // rsi-batch/run_tests.sh: JEV_URL=https://openrouter.ai/api/v1/systemone JEV_MODEL=typesafe/jev-1.13
-  // backend "jev" (Jev answers) or "manual" (the person does)
-  jev: { backend: 'jev', url: 'https://openrouter.ai/api/v1/systemone', model: 'typesafe/jev-1.13',
-    key: '', batch: 40 },
+  jev: { via: 'openrouter', batch: 40 },
   concurrency: 6,
 };
 
@@ -98,11 +111,16 @@ function writeJson(key, value) {
 
 export function settings() {
   const s = readJson(SETTINGS);
-  return {
-    roles: { ...DEFAULTS.roles, ...(s.roles || {}) },
-    jev: { ...DEFAULTS.jev, ...(s.jev || {}) },
-    concurrency: s.concurrency || DEFAULTS.concurrency,
-  };
+  // settings from before named a role's model and service: the model is kept, the service is not
+  const roles = {};
+  for (const [r, dflt] of Object.entries(DEFAULTS.roles)) {
+    const v = (s.roles || {})[r] || {};
+    const old = v.model && MODEL_CHOICES.find((c) => PROVIDERS.some((p) => c[p] === v.model));
+    roles[r] = MODEL_CHOICES.some((c) => c.id === v.choice) ? { choice: v.choice } : old ? { choice: old.id } : dflt;
+  }
+  const j = s.jev || {};
+  const via = JEV_VIA[j.via] ? j.via : String(j.url || '').includes('typesafe.ai') ? 'typesafe' : 'openrouter';
+  return { roles, jev: { ...DEFAULTS.jev, via }, concurrency: s.concurrency || DEFAULTS.concurrency };
 }
 
 export function saveSettings(next) {
@@ -161,9 +179,12 @@ async function withRetry(fn, tries = 4) {
  */
 export async function llm({ role = 'reflect', system = '', instructions, input = '', tools = [], callTool,
   schema, maxTurns = 10, signal, onEvent }) {
-  const cfg = settings().roles[role] || DEFAULTS.roles[role];
+  const picked = currentChoice(settings().roles[role] ? role : 'haiku');
+  const cfg = picked && route(picked.id);
+  if (!cfg) {
+    throw new Error(`No key reaches ${picked?.label || role}: add ${picked?.maker === 'openai' ? 'an OpenAI' : 'an Anthropic'} or an OpenRouter key in Settings (⚙).`);
+  }
   const key = keys()[cfg.provider];
-  if (!key) throw new Error(`No ${cfg.provider} key: add one in Settings (⚙).`);
   const final = { name: 'final_result', description: 'Return the final answer. Call this exactly once, at the end.',
     parameters: schema };
   const all = [...tools, final];
@@ -274,32 +295,27 @@ async function openaiLoop({ cfg, key, url, system, instructions, input, all, cal
 
 const jevCache = new Map();
 
-/** Answers keyed like `questions`, in Jev's shape (from Jev, or from the person). */
-export async function jev(state, questions, { onManual, signal } = {}) {
+/** Answers keyed like `questions`, in Jev's shape (from Jev, through TypeSafe or OpenRouter). */
+export async function jev(state, questions, { signal } = {}) {
   const ids = Object.keys(questions || {});
   if (!ids.length) return {};
-  const cfg = settings().jev;
-  const who = cfg.backend === 'manual' ? 'manual' : 'jev';
-  const cacheKey = JSON.stringify([who, cfg.model, state, questions]);
+  const { via, batch } = settings().jev;
+  const cfg = { ...JEV_VIA[via], via, batch };
+  const cacheKey = JSON.stringify([cfg.model, state, questions]);
   if (jevCache.has(cacheKey)) return jevCache.get(cacheKey);
-  let answers;
-  if (who === 'manual') {
-    answers = await onManual(state, questions);
-  } else {
-    const pieces = [];
-    for (let k = 0; k < ids.length; k += cfg.batch) {
-      pieces.push(Object.fromEntries(ids.slice(k, k + cfg.batch).map((id) => [id, questions[id]])));
-    }
-    answers = Object.assign({}, ...(await Promise.all(pieces.map((q) => askJev(state, q, cfg, signal)))));
+  const pieces = [];
+  for (let k = 0; k < ids.length; k += cfg.batch) {
+    pieces.push(Object.fromEntries(ids.slice(k, k + cfg.batch).map((id) => [id, questions[id]])));
   }
-  for (const id of Object.keys(answers)) answers[id] = { ...answers[id], by: who };
+  const answers = Object.assign({}, ...(await Promise.all(pieces.map((q) => askJev(state, q, cfg, signal)))));
+  for (const id of Object.keys(answers)) answers[id] = { ...answers[id], by: 'jev' };
   jevCache.set(cacheKey, answers);
   return answers;
 }
 
 async function askJev(state, questions, cfg, signal) {
-  const key = cfg.key || (cfg.url.includes('openrouter.ai') ? keys().openrouter : '');
-  if (!key) throw new Error('No Jev key: add an OpenRouter key (or a Jev key) in Settings (⚙).');
+  const key = keys()[cfg.key];
+  if (!key) throw new Error(`No ${cfg.via === 'typesafe' ? 'TypeSafe' : 'OpenRouter'} key for Jev: add it in Settings (⚙), or let Jev go through the other.`);
   // src/jev.py: servers other than TypeSafe refuse an empty option description
   const qs = cfg.url.includes('typesafe') ? questions : Object.fromEntries(Object.entries(questions).map(([k, q]) => [k,
     q.type === 'choice' && q.criteria && typeof q.criteria === 'object'
@@ -310,27 +326,4 @@ async function askJev(state, questions, cfg, signal) {
   const missing = Object.keys(questions).filter((k) => !(k in (data.answers || {})));
   if (missing.length) throw new Error(`Jev left out ${missing.join(', ')}`);
   return data.answers;
-}
-
-/**
- * Picked answers in Jev's shape: the chosen option with probability 1 (src/jev.py _ask_claude); an
- * answer that is not an option becomes the first option. Used for the person's answers.
- */
-export function shapeAnswers(questions, got) {
-  const answers = {};
-  for (const [k, q] of Object.entries(questions)) {
-    const a = String(got?.[k] ?? '').trim();
-    if (q.type === 'choice') {
-      const opts = Object.keys(q.criteria);
-      let pick = opts.includes(a) ? a : opts.find((o) => o.split(' (')[0] === a || o.toLowerCase() === a.toLowerCase());
-      pick = pick || opts[0];
-      answers[k] = { type: 'choice', choice: pick, confidence: 1, probabilities: Object.fromEntries(opts.map((o) => [o, o === pick ? 1 : 0])) };
-    } else if (q.type === 'noul') {
-      answers[k] = { type: 'noul', noul: /^(yes|true|是)/i.test(a) ? 1 : 0 };
-    } else {
-      const n = /^\d+$/.test(a) ? Number(a) : 0;
-      answers[k] = { type: 'score', score: n, confidence: 1, probabilities: Object.fromEntries((q.criteria || []).map((_, i) => [String(i), i === n ? 1 : 0])) };
-    }
-  }
-  return answers;
 }
