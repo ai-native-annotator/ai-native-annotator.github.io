@@ -1,11 +1,6 @@
-# Tells GitHub Pages to serve this repository as-is instead of running Jekyll.
+# Tells GitHub Pages not to run Jekyll over this site.
 #
-# Without it Jekyll silently drops every path whose name starts with "_", and
-# two of those are load-bearing: js/domain/_value.js (imported by eight
-# modules) and data/skills/shared/_node_schema.md (part of four prompts). A
-# 404 anywhere in an ES module graph fails the WHOLE graph, so the deployed
-# site rendered its static layout and ran no JavaScript at all.
-#
-# Nothing local can catch this: serve.py serves the underscore files happily,
-# so every test passed while the public site was dead. scripts/check-deploy.mjs
-# is the check that looks at what the host actually serves.
+# Jekyll drops every path whose name starts with "_", and the page's Python
+# imports two packages by their __init__.py (data/skillparse/fs/skillparseumr/src/):
+# a 404 there stops Python from booting while the page still draws. See
+# test/repository-integrity.test.mjs and scripts/check-deploy.mjs.

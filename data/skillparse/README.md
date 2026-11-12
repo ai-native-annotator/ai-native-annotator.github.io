@@ -1,20 +1,34 @@
 # data/skillparse — what index.html runs
 
-Everything under `fs/` is copied by `scripts/sync_skillparse.py` from two private repositories and
-written into the browser's Python (Pyodide) file system under `/sp/`:
+The page's Python (Pyodide) runs from a file system under `/sp/`, which the worker fills at boot
+from `MANIFEST.json`: `{path under /sp: the file here that holds it}`. Three folders hold those
+files, each file once:
 
-| here | from | what |
+- `fs/`: what `scripts/sync_skillparse.py` copies from two private repositories (and patches);
+- `web_skills/`, `web_tools/`: the site's own skills and tools, which the manifest puts into
+  every procedure that uses them;
+- `bridge/`, `docs/`: the page's Python and the sample documents, at the same paths under `/sp/`.
+
+A file several procedures share (`prompt_loader.py`, the site's `convert.py`, …) is not copied
+into each: the manifest points their paths at the one file, so an edit is made in one place.
+After adding or removing a file, `python3 scripts/sync_skillparse.py --manifest` writes the
+manifest again (and deletes a copy under `fs/` of a file kept elsewhere);
+`test/repository-integrity.test.mjs` fails on a copy or a path with no file.
+
+What is under `/sp/`, and where it came from:
+
+| under `/sp/` | from | what |
 |---|---|---|
-| `fs/skillparseumr/web-procedures/zh/` | sxndqc/SkillParseUMR @ 4534a9f: `experiment/decision-orchestration/umr-zh-frag/versions/R42`, with `sent_type` from `umr-zh-v11/versions/V12` | **the Chinese procedure**: R42's registry, agent skills (`skill.md`, `tools/`; their `reference/example.md` is left out) and rules; `sent_type` is V12's `kind: jev` skill with the modules it imports (`jevlib.py`, `prompt_loader.py`, `event_modifiers.*`) |
-| `fs/skillparseumr/web-procedures/en/` | 〃: `skillsets/umr-tree`, with `sent_type` from `umr-en-v11/versions/V12` | **the English procedure**, composed the same way (decision-orchestration has no English agent version) |
-| `fs/skillparseumr/web-procedures/*/umr_generate/`, `convert/` | this site: `web_skills/<lang>/umr_generate`, `web_skills/convert` | **wave 0** (`generate`, added to every procedure): `umr_generate` writes a sentence's whole graph, alignment and document-level annotation at once (its own model, GPT-6.1 Sol by default); the rule `convert` checks it, and the bridge loads it into the sentence and document waves as a `.umr` file is loaded |
-| `fs/skillparseumr/web-procedures/*/local_change/`, `apply_change/`, `reflect/` | this site: `web_skills/local_change`, `web_skills/apply_change`, `web_skills/reflect` | **the right pane** (registry `user_panel`, not a wave; registry.py is patched to allow the key): `local_change` proposes changes to one sentence's graph from a person's comment (its tool `call_skill` reads a skill of the procedure), `apply_change` (a rule) applies the ones the person picked and the bridge makes the sentence's steps again from the new graph, `reflect` is the reflection on one step |
-| `fs/skillparseumr/web-procedures/uz/` | the English procedure above, composed again | **the Uzbek procedure**: the English registry, sent_type and jevlib (told about Uzbek: its function words and pronouns), with this site's Uzbek skill files (`web_skills/uz/`); wave 0 starts with the rule `tokenizer` (`web_skills/tokenizer`), whose tokens become the sentence's. Uzbek has no PropBank (an event is its verb stem, with the general participant roles) and no gold: `propbank_lookup` and `search_annotations` answer nothing for it |
-| `fs/skillparseumr/web-procedures/tools/` | this site: `web_tools/propbank.py`, `web_tools/search.py` | `propbank_lookup`, `search_annotations`, `search_guidelines`: the general tools, found next to the procedures as `experiment/rsi-zh2/skills/tools` is found next to its versions (upstream's `get_example` is left out, and the skills' sentences that point to it now point to the two search tools) |
-| `fs/skillparseumr/src/` | 〃 | `registry.py` (REGISTRY.md parser and expressions), the UMR input / output handlers (the output handler writes the `.umr` file and its alignment) |
-| `fs/skillparseumr/skillsets/tools/propbank.py` | this site: `web_tools/propbank.py` | the PropBank lookup `jevlib.py` loads (its `_rolesets`) |
-| `fs/modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV) |
-| `resources/propbank/zh.json`, `en.json` | 〃: `resources/chinese-propbank/*.xml`, `resources/english-propbank/propbank-amr-frames-xml-2018-01-25/*.xml` | PropBank, each folder of one XML file per lemma merged into one file: every roleset with its roles and all its examples (a Chinese example's words from its treebank parse, traces kept); fetched by `propbank_lookup` on its first call, which answers in Markdown |
+| `skillparseumr/web-procedures/zh/` | sxndqc/SkillParseUMR @ 4534a9f: `experiment/decision-orchestration/umr-zh-frag/versions/R42`, with `sent_type` from `umr-zh-v11/versions/V12` | **the Chinese procedure**: R42's registry, agent skills (`skill.md`, `tools/`; their `reference/example.md` is left out) and rules; `sent_type` is V12's `kind: jev` skill with the modules it imports (`jevlib.py`, `prompt_loader.py`, `event_modifiers.*`) |
+| `skillparseumr/web-procedures/en/` | 〃: `skillsets/umr-tree`, with `sent_type` from `umr-en-v11/versions/V12` | **the English procedure**, composed the same way (decision-orchestration has no English agent version) |
+| `skillparseumr/web-procedures/*/umr_generate/`, `convert/` | this site: `web_skills/<lang>/umr_generate`, `web_skills/convert` | **wave 0** (`generate`, added to every procedure): `umr_generate` writes a sentence's whole graph, alignment and document-level annotation at once (its own model, GPT-6.1 Sol by default); the rule `convert` checks it, and the bridge loads it into the sentence and document waves as a `.umr` file is loaded |
+| `skillparseumr/web-procedures/*/local_change/`, `apply_change/`, `reflect/` | this site: `web_skills/local_change`, `web_skills/apply_change`, `web_skills/reflect` | **the right pane** (registry `user_panel`, not a wave; registry.py is patched to allow the key): `local_change` proposes changes to one sentence's graph from a person's comment (its tool `call_skill` reads a skill of the procedure), `apply_change` (a rule) applies the ones the person picked and the bridge makes the sentence's steps again from the new graph, `reflect` is the reflection on one step |
+| `skillparseumr/web-procedures/uz/` | the English procedure above, composed again | **the Uzbek procedure**: the English registry, sent_type and jevlib (told about Uzbek: its function words and pronouns), with this site's Uzbek skill files (`web_skills/uz/`); wave 0 starts with the rule `tokenizer` (`web_skills/tokenizer`), whose tokens become the sentence's. Uzbek has no PropBank (an event is its verb stem, with the general participant roles) and no gold: `propbank_lookup` and `search_annotations` answer nothing for it |
+| `skillparseumr/web-procedures/tools/` | this site: `web_tools/propbank.py`, `web_tools/search.py` | `propbank_lookup`, `search_annotations`, `search_guidelines`: the general tools, found next to the procedures as `experiment/rsi-zh2/skills/tools` is found next to its versions (upstream's `get_example` is left out, and the skills' sentences that point to it now point to the two search tools) |
+| `skillparseumr/src/` | 〃 | `registry.py` (REGISTRY.md parser and expressions), the UMR input / output handlers (the output handler writes the `.umr` file and its alignment) |
+| `skillparseumr/skillsets/tools/propbank.py` | this site: `web_tools/propbank.py` | the PropBank lookup `jevlib.py` loads (its `_rolesets`) |
+| `modular-parsing/resources/` | sxndqc/modular-parsing @ 54f1fa3 | UMR lists (CSV) |
+| `resources/propbank/zh.json`, `en.json` (here, not under `/sp/`) | 〃: `resources/chinese-propbank/*.xml`, `resources/english-propbank/propbank-amr-frames-xml-2018-01-25/*.xml` | PropBank, each folder of one XML file per lemma merged into one file: every roleset with its roles and all its examples (a Chinese example's words from its treebank parse, traces kept); fetched by `propbank_lookup` on its first call, which answers in Markdown |
 
 `resources/` is not written into the Python file system when the page starts; the search tools
 fetch a file the first time they need it (`SP_BASE` + `resources/…`, through Pyodide's
@@ -84,7 +98,8 @@ human-driven (see `js/skillparse/reflect.js`).
 - `vendor/` — penman 1.3.1 (MIT), unpacked into the Python path at boot. There is no word
   segmenter: the input handler numbers Chinese one character per token, and nothing cuts words.
 
-To refresh after the procedures change upstream:
+To refresh after the procedures change upstream (this writes `fs/`, `resources/`, `docs/` and the
+manifest again):
 
 ```bash
 python3 scripts/sync_skillparse.py ../skillparseumr ../modular-parsing <penman wheel>

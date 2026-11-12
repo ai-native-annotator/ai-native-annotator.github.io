@@ -1,2 +1,0 @@
-f7c32852
-vendored from sxndqc/modular-parsing @ f7c32852 (umr_parser/)

@@ -1,6 +1,7 @@
 """Copy the SkillParseUMR skills this site runs into data/skillparse/fs/, and rebuild its data files.
 
     python3 scripts/sync_skillparse.py ../skillparseumr ../modular-parsing [penman wheel]
+    python3 scripts/sync_skillparse.py --manifest      # only rewrite MANIFEST.json (see write_manifest)
 
 The page (index.html) runs these files with SkillParseUMR's own registry semantics (src/runner.py,
 src/skill_callable.py), in the browser (Pyodide). Two procedures are composed here, one per language,
@@ -25,6 +26,7 @@ data/skillparse/resources/ (not loaded at start). Two web changes are made while
 no longer uses jieba (patch_jevlib): sent_type does not need a sentence cut into words, so a Chinese
 piece is cut only at punctuation, and English keeps its tokens.
 """
+import hashlib
 import json
 import os
 import re
@@ -928,6 +930,52 @@ def write_docs(sp):
             f.write("\n\n".join(blocks) + "\n")
 
 
+def _sha(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def write_manifest(fresh=False):
+    """Write MANIFEST.json: {path under /sp in the browser's Python: the file here that holds it}.
+
+    A file is kept once. A copy under fs/ of one of the site's own files (web_skills, web_tools) is
+    deleted and its path points at that file; of the copies fs/ holds of one upstream file (a module
+    every procedure has), the first path stays and the others point at it. Run alone
+    (sync_skillparse.py --manifest) after adding or removing a file here, without the upstream
+    repositories: a path whose copy an earlier run deleted then keeps pointing at its file
+    (fresh=False), which a full sync, having written fs/ again, does not need.
+    """
+    def walk(root):
+        return sorted(os.path.relpath(os.path.join(base, n), OUT).replace(os.sep, "/")
+                      for base, _, names in os.walk(root) for n in names if not n.endswith(".pyc"))
+
+    before = {}
+    if not fresh and os.path.isfile(os.path.join(OUT, "MANIFEST.json")):
+        with open(os.path.join(OUT, "MANIFEST.json"), encoding="utf-8") as f:
+            before = json.load(f)["files"]
+        if not isinstance(before, dict):        # the earlier manifest: a list of files, nothing deleted yet
+            before = {}
+    kept = {}                                   # content -> the file that holds it
+    for src in walk(WEB_SKILLS) + walk(WEB_TOOLS):
+        kept.setdefault(_sha(os.path.join(OUT, src)), src)
+    files = {src: src for root in ("bridge", "docs") for src in walk(os.path.join(OUT, root))}
+    files.update({dest: src for dest, src in before.items()
+                  if not os.path.isfile(os.path.join(FS, dest)) and os.path.isfile(os.path.join(OUT, src))})
+    for src in walk(FS):
+        first = kept.setdefault(_sha(os.path.join(OUT, src)), src)
+        files[src[len("fs/"):]] = first
+        if first != src:
+            os.remove(os.path.join(OUT, src))
+    for base, _, _ in os.walk(FS, topdown=False):
+        if not os.listdir(base):
+            os.rmdir(base)
+    with open(os.path.join(OUT, "MANIFEST.json"), "w", encoding="utf-8") as f:
+        json.dump({"files": dict(sorted(files.items())), "vendor": ["vendor/penman-1.3.1-py3-none-any.whl"]},
+                  f, ensure_ascii=False, indent=0)
+        f.write("\n")
+    return files
+
+
 def main(sp, mp, penman_whl=None):
     for d in (FS, os.path.join(OUT, "docs")):
         if os.path.isdir(d):
@@ -986,16 +1034,7 @@ def main(sp, mp, penman_whl=None):
                           for kv in PROPBANK.items()))
     write_docs(sp)
     write_uz_docs()
-    files = []
-    for root in (FS, os.path.join(OUT, "bridge"), os.path.join(OUT, "docs")):
-        for base, _, names in os.walk(root):
-            for n in sorted(names):
-                if n.endswith(".pyc"):
-                    continue
-                files.append(os.path.relpath(os.path.join(base, n), OUT).replace(os.sep, "/"))
-    with open(os.path.join(OUT, "MANIFEST.json"), "w", encoding="utf-8") as f:
-        json.dump({"files": sorted(files), "vendor": ["vendor/penman-1.3.1-py3-none-any.whl"]},
-                  f, ensure_ascii=False, indent=0)
+    files = write_manifest(fresh=True)
     vendor = os.path.join(OUT, "vendor")
     os.makedirs(vendor, exist_ok=True)
     if penman_whl:
@@ -1004,4 +1043,7 @@ def main(sp, mp, penman_whl=None):
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:])
+    if sys.argv[1:] == ["--manifest"]:
+        print("wrote", len(write_manifest()), "paths to MANIFEST.json")
+    else:
+        main(*sys.argv[1:])

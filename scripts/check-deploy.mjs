@@ -6,15 +6,15 @@
  * Every other check in this repo runs against `serve.py`, which serves the
  * working tree exactly as it is on disk. A host does not have to. GitHub Pages
  * runs Jekyll unless told not to, and Jekyll silently drops every path whose
- * name begins with "_" — which took the whole site down: `js/domain/_value.js`
- * is imported by eight modules, and a 404 anywhere in an ES module graph fails
- * the entire graph, so the page rendered its static layout and ran no
- * JavaScript at all. Locally everything passed, because locally everything was
- * there.
+ * name begins with "_" — which once took the whole site down: a 404 anywhere
+ * in an ES module graph fails the entire graph, and a missing `__init__.py`
+ * stops the page's Python from booting. Locally everything passed, because
+ * locally everything was there.
  *
  * So this check asks the only question that matters after a deploy: walk the
- * module graph from index.html and classic.html, fetch every module and every data file the
- * code names, and report anything the host will not hand over.
+ * module graph from index.html, fetch every module, every file the Python
+ * manifest names and every data file the code names, and report anything the
+ * host will not hand over.
  *
  *   node scripts/check-deploy.mjs                       # the public site
  *   node scripts/check-deploy.mjs http://localhost:8899 # or any other origin
@@ -22,16 +22,8 @@
 
 const BASE = (process.argv[2] || 'https://ai-native-annotator.github.io').replace(/\/$/, '');
 
-/**
- * Paths named as strings in the source rather than imported — fetched at
- * runtime. Two spellings, because core/skills.js prepends `data/` itself: the
- * code says `'skills/shared/_node_schema.md'` and the browser asks for
- * `data/skills/shared/_node_schema.md`. Matching only the written form would
- * have missed one of the two files this whole check exists for.
- */
-const RUNTIME_ASSET =
-  /['"`]((?:data\/|skills\/|importers\/|reference\/|demo\/|samples\/|resources\/)[A-Za-z0-9_./-]+\.(?:md|json|js|txt|py))['"`]/g;
-const DATA_PREFIXED = /^(?:skills|importers|reference|demo|samples|resources)\//;
+/** Paths named as strings in the source rather than imported — fetched at runtime. */
+const RUNTIME_ASSET = /['"`](data\/[A-Za-z0-9_./-]+\.(?:md|json|txt|py))['"`]/g;
 const IMPORT_SPECIFIER = /(?:^|[^\w$])(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
 const DYNAMIC_IMPORT = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
 const SCRIPT_SRC = /<script[^>]+src=["']([^"']+)["']/g;
@@ -63,7 +55,6 @@ function enqueue(path) {
 async function main() {
   console.log(`checking ${BASE}`);
   enqueue('index.html');
-  enqueue('classic.html');
   // index.html's worker fetches the Python sources listed in this manifest
   enqueue('js/skillparse/py-worker.js');
   enqueue('data/skillparse/MANIFEST.json');
@@ -92,7 +83,7 @@ async function main() {
 
     if (path === 'data/skillparse/MANIFEST.json') {
       const manifest = JSON.parse(body);
-      for (const file of [...manifest.files, ...manifest.vendor])
+      for (const file of [...Object.values(manifest.files), ...manifest.vendor])
         enqueue(`data/skillparse/${file}`);
     }
     if (path.endsWith('.html')) {
@@ -104,9 +95,7 @@ async function main() {
           if (spec.startsWith('.') || spec.startsWith('/')) enqueue(resolvePath(path, spec));
         }
       }
-      for (const [, asset] of body.matchAll(RUNTIME_ASSET)) {
-        enqueue(DATA_PREFIXED.test(asset) ? `data/${asset}` : asset);
-      }
+      for (const [, asset] of body.matchAll(RUNTIME_ASSET)) enqueue(asset);
     }
   }
 

@@ -12,7 +12,7 @@
  * Which model a role runs is chosen in the toolbar (a MODEL_CHOICES id); which service it goes
  * through follows the keys filled in: the model's own provider directly (Anthropic, OpenAI) when
  * that key is there, else OpenRouter. Jev goes through TypeSafe or OpenRouter, as Settings say.
- * Keys are read from the same localStorage entry as the classic workbench (`annotator_secrets`).
+ * Keys are kept in localStorage (`annotator_secrets`).
  * Calls go from the browser straight to the provider.
  */
 

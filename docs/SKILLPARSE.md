@@ -1,6 +1,6 @@
 # SkillParse 工作台（`index.html`）：调用方式
 
-这份文档写的是网页现在怎么运行：从点一个按钮，到浏览器里的 Python、模型服务，再到写出 `.umr` 文件，每一层谁调用谁、传什么、存在哪。旧的标注工作台在 `classic.html`，不在本文范围内。
+这份文档写的是网页现在怎么运行：从点一个按钮，到浏览器里的 Python、模型服务，再到写出 `.umr` 文件，每一层谁调用谁、传什么、存在哪。
 
 ---
 
@@ -20,7 +20,7 @@
 ```
 
 - **没有服务器**：页面是 GitHub Pages 上的静态文件。Python 在浏览器的 Web Worker 里运行（Pyodide），模型请求由浏览器用你填的 key 直接发给服务商。
-- **Python 原样运行 SkillParseUMR**：`data/skillparse/fs/` 下是从 SkillParseUMR 和 modular-parsing 复制来的文件（`scripts/sync_skillparse.py` 负责组装），启动时写进 Pyodide 的虚拟文件系统 `/sp`。新写的 Python 只有 `data/skillparse/bridge/` 下的两个文件。
+- **Python 原样运行 SkillParseUMR**：`data/skillparse/fs/` 下是从 SkillParseUMR 和 modular-parsing 复制来的文件（`scripts/sync_skillparse.py` 负责组装），和本站自己的 skill、工具（`web_skills/`、`web_tools/`）一起，启动时写进 Pyodide 的虚拟文件系统 `/sp`。每个文件只存一份：几套流程共用的文件，由 `MANIFEST.json` 把 `/sp` 下的几个路径指到同一个文件。新写的 Python 只有 `data/skillparse/bridge/` 下的两个文件。
 - **一步一步来**：每一句是一个 episode，里面是一棵步骤树。每一步跑完都要人确认（或修改、带提示重跑）后，这一句才能跑下一步。
 
 ---
@@ -49,14 +49,15 @@
 | `js/skillparse/save.js` | IndexedDB：暂存的工作、导入过的文档 |
 | `js/skillparse/store.js` | localStorage：改过的 skill 文件及其版本 |
 | `js/skillparse/i18n.js` · `ui.js` | 中英文字符串、DOM 小工具 |
-| `data/skillparse/MANIFEST.json` | Worker 要写进 `/sp` 的文件清单 |
+| `data/skillparse/MANIFEST.json` | Worker 要写进 `/sp` 的文件清单：`{/sp 下的路径: 存这个文件的地方}`（`python3 scripts/sync_skillparse.py --manifest` 重写） |
 | `data/skillparse/bridge/sp_bridge.py` | Python 一侧：`Session`（文档、文件）和 `RegistryEngine`（一步步跑 registry） |
 | `data/skillparse/bridge/umr_load.py` | 把已有 `.umr` 的标注拆成步骤 |
-| `data/skillparse/fs/skillparseumr/` | SkillParseUMR：`src/`（registry、输入输出模块）、`web-procedures/zh`、`web-procedures/en`（两套流程）、`web-procedures/tools/` |
+| `data/skillparse/fs/skillparseumr/` | SkillParseUMR：`src/`（registry、输入输出模块）、`web-procedures/zh`、`en`、`uz`（三套流程里上游来的文件；一样的文件只在第一套里存） |
+| `data/skillparse/web_skills/` | 本站自己写的 skill（wave 0、document 的三步、右栏、乌兹别克语），由清单放进每套流程 |
 | `data/skillparse/fs/modular-parsing/resources/` | UMR 列表（CSV） |
 | `data/skillparse/resources/propbank/zh.json` · `en.json` | PropBank：每个 roleset 的角色和全部例子（`web_tools/propbank.py` 读） |
 | `data/skillparse/FEATURES.zh.md` · `FEATURES.en.md` | 给用户看的功能一览：顶栏「?」按钮打开（按界面语言） |
-| `data/skillparse/web_tools/search.py` | 本站自己的两个工具 `search_annotations`、`search_guidelines`，同步时复制到 `web-procedures/tools/` |
+| `data/skillparse/web_tools/search.py` | 本站自己的两个工具 `search_annotations`、`search_guidelines`，由清单放到 `web-procedures/tools/` |
 | `data/skillparse/resources/gold/zh/gold.json` · `gold/en/gold.json` | 金标标注，按语言分开：中文 35 篇 2,278 句（SkillParseUMR `newdata/` 31 篇 + modular-parsing `real-umr-data/chinese` 4 篇），英文 580 篇 31,147 句（SkillParseUMR `newdata/umr_en_normalized/`）；来源写在各自的 `SOURCE.md` |
 | `data/skillparse/resources/guidelines/umr_guidelines.md` | UMR 指南全文（umr4nlp/umr-guidelines `guidelines.md`，取自 SkillParseUMR 固定的副本，sha256 校验） |
 | `data/skillparse/docs/` | 两篇样例文档（只有句子） |
@@ -72,7 +73,7 @@
 1. `setLang`、`applyStatic`（界面文字）、`wire()`（按钮）、`setRestoreAsker(askRestore)`，并注册页面隐藏/离开时的 `saveNow()`。
 2. `bootPython()`（`py.js`）新建 Worker `py-worker.js`，发 `__boot`：
    - `importScripts` 加载 `https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js`，`loadPyodide`，`loadPackage(['pyyaml'])`；
-   - 读 `data/skillparse/MANIFEST.json`，把其中每个文件写到 `/sp/…`（`fs/x` 写成 `/sp/x`，`bridge/`、`docs/` 原样）；
+   - 读 `data/skillparse/MANIFEST.json`，按其中的 `{路径: 文件}` 把每个文件写到 `/sp/路径`（几个路径共用的文件只取一次）；
    - 解压 `vendor/penman-1.3.1-py3-none-any.whl` 到 `/sp/vendor`；
    - `sys.path` 加上 `/sp/bridge`，`import sp_bridge`，调 `boot`。
    - 进度通过 `{type: 'progress', text}` 消息显示在状态栏。

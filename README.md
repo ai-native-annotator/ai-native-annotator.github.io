@@ -1,90 +1,44 @@
-# Annotation Workbench · AI 标注助手
+# SkillParse Workbench · SkillParse 标注工作台
 
-A workbench for structured annotation — UMR, dependency-style graphs, sentiment, whatever you
-define — where **the method is a set of skills you can read, edit, and argue with.** Static site:
-no backend, no build step, no account. Your model key stays in your browser.
+Annotate UMR one step at a time in the browser: every step is one **skill** of a SkillParseUMR
+registry, a file you can read, edit and argue with; a person confirms, corrects or re-runs each step,
+and a correction can be turned into a change of the skill. Static site: no backend, no build step,
+no account. Your model keys stay in your browser.
 
-→ **[ai-native-annotator.github.io](https://ai-native-annotator.github.io/)** — the front page is the
-**SkillParse workbench** (below); the earlier workbench described in the rest of this file is at
-[`classic.html`](https://ai-native-annotator.github.io/classic.html).
+→ **[ai-native-annotator.github.io](https://ai-native-annotator.github.io/)**
 
 ## Run it locally
 
 ```bash
-npm run serve     # then open http://localhost:8899/ (SkillParse) or /classic.html
+npm run serve     # then open http://localhost:8899/
 ```
 
-**Do not double-click the HTML files.** The code is ES modules, and over `file://` the browser
-refuses to load anything under `js/` on CORS grounds. The page still draws, so it looks like it
-works — but not one line of JavaScript has run, and every button is dead. A red banner at the top
-says so when that happens.
+**Do not double-click `index.html`.** The code is ES modules, and over `file://` the browser
+refuses to load anything under `js/`. The page still draws, with a red banner saying it did not
+start.
 
-Use the bundled `serve.py` rather than `python3 -m http.server`: the only difference is that it
-disables caching, which matters more than it sounds. `http.server` answers `304 Not Modified` per
-file, so after a `git pull` you can end up running a new `i18n.js` against an old `state.js`. One
-module importing a name its neighbour does not export yet fails the **whole module graph** — again
-with a page that renders perfectly and does nothing.
+Use the bundled `serve.py` rather than `python3 -m http.server`: it disables caching. `http.server`
+answers `304 Not Modified` per file, so after a `git pull` a new module can run against an old one,
+and one module importing a name its neighbour does not export yet fails the **whole module graph**.
 
 ## Development checks
 
-The deployed site still has no build step. Node is used only for reproducible development checks:
+The deployed site has no build step. Node is used only for development checks:
 
 ```bash
 npm install
-npm run check                 # Node tests, lint, gradual JS type-check, formatting
+npm run check                 # Node tests, lint, type-check, formatting
 npx playwright install chromium
-npm run test:browser          # starts the local server and runs browser verification
+npm run test:browser          # starts the local server and runs the browser verification
 ```
 
-Run one browser regression with `npm run test:browser -- provider-test.js`. The runner uses the
-Chromium installed by this project's Playwright dependency; set `CHROME` only when deliberately
-testing a different browser executable.
+Run one browser check with `npm run test:browser -- skillparse-test.js`. The page loads Pyodide
+from a CDN, so the browser checks need the network for that; every model is a stand-in. See
+[`docs/verification/`](docs/verification/).
 
 ## What it does
 
-**Annotation is adding information to text, and each kind of information is one skill's job.**
-A skill is a markdown file of instructions — the same files the research pipeline uses — sent to a
-model you choose with a key you own.
-
-Three shapes of work, because tasks genuinely differ:
-
-| Shape         | What a call owns                                | Example                                                           |
-| ------------- | ----------------------------------------------- | ----------------------------------------------------------------- |
-| **Recursive** | a span, which it decomposes into more spans     | UMR: a clause spawns its arguments, which spawn noun phrases      |
-| **Flat**      | the whole sentence, independently of the others | sentiment: polarity, aspect, intensity in any order               |
-| **Chained**   | the whole graph, which it rewrites              | refine: one-shot draft, then roleset → aspect → entity → validate |
-
-A document is text; which shape you use is a separate choice you can change at any time, and each
-method keeps its own work — annotate with skills, switch to refinement, switch back, nothing is lost.
-
-**Step by step, not one shot.** Import an unannotated file and the tree shows rows waiting to run.
-Click one and it makes a real call, splices the result in, and reveals what comes next. Or press
-_Run the rest_ and independent slots go out in parallel.
-
-**Everything the model produced is editable, and the edit is the annotation.** Correct a node in
-Penman and the finished graph changes immediately — not a copy of it, the thing itself.
-
-**Skills evolve from evidence, with a human-controlled publish step.** A correction, re-run, swapped
-skill, or chat objection becomes feedback tied to the exact Skill revision and model call. After a
-human keeps the useful evidence, reflection generates a versioned candidate and evaluates it against
-targeted and holdout cases. Only a passing candidate that a human publishes reaches the next prompt;
-every version remains auditable and reversible.
-
-## What you can change
-
-| Thing                  | Where                                                                                                                                                           |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **How a file is read** | Import ▸ _File reader…_ — per format, edit it, or describe your files and have one drafted. Ships with plain-text and CoNLL-U readers. Dry-run before adopting. |
-| **What a skill says**  | Skills pane ▸ any skill ▸ _Skill file_ — it is the prompt; edit and save, the next call uses it.                                                                |
-| **What a skill does**  | Some steps are programs, not prompts. The refine chain's `validate` pass is JavaScript you can edit (`data/reference/refine/validate.js`).                      |
-| **A whole new format** | _Format studio_, or a `js/formats/*.js` module.                                                                                                                 |
-
-Authored code runs in a Web Worker with no DOM, no storage, no network and a deadline. The page
-itself never evaluates a string.
-
-## SkillParse steps (`index.html`, the front page)
-
-The front page runs a **SkillParseUMR registry the way `src/runner.py` runs it**, in the browser:
+The page runs a **SkillParseUMR registry the way `src/runner.py` runs it**, in the browser:
 the Python files run in Pyodide in a Web Worker (`data/skillparse/`, `js/skillparse/`). Only
 `sent_type` is `kind: jev` (rules list the options, **Jev** answers the closed questions, from
 decision-orchestration V12); every other model skill (`discourse`, `predicate`, `np_phrase`,
@@ -133,120 +87,65 @@ and proposes the skill edit that would have produced it; **(3)** say what is wro
 edit the skill. Edits are versioned in the browser and the step can be re-run to check them.
 Export writes the `.umr` file, with alignments left at `0-0` filled in from the words.
 
-Settings can also have you answer sent_type's questions instead of Jev.
+The feature list people see in the page (the **?** button) is
+[`data/skillparse/FEATURES.en.md`](data/skillparse/FEATURES.en.md) ·
+[`FEATURES.zh.md`](data/skillparse/FEATURES.zh.md).
 
 ## Keys and privacy
 
-There is no server in this project. In live mode your browser calls Anthropic or OpenAI directly.
-
-- **Model keys** live in `localStorage` only. Export them to a JSON file for backup, import on
-  another machine. Nothing is transmitted anywhere except to the provider you picked.
-- **Google Drive** needs your own OAuth Client ID; **GitHub** needs your own Personal Access Token.
-  A static site has no backend to hold credentials on your behalf, and that is the trade.
+There is no server in this project. Model keys (OpenRouter, Anthropic, OpenAI, TypeSafe) live in
+`localStorage` only, and the browser calls the service you picked directly. Annotation work is
+kept in IndexedDB in the same browser.
 
 ## Layout
 
 ```
-index.html  (SkillParse) css/skillparse.css  js/skillparse/  data/skillparse/
-classic.html  css/app.css  serve.py
-js/
-  domain/   immutable feedback, Skill revisions, candidates, evaluations, run records
-  application/  Skill evolution use cases: propose, evaluate, publish, roll back
-  adapters/ browser storage behind a small replaceable interface
-  core/     state work registry providers runner pipeline chain flat edits
-            compatibility facades, reflection, importers, sandbox, penman, i18n
-  formats/  umr sentiment refine declarative
-  io/       document boundary, sources, drive, github
-  ui/       panes tree assistant chain chat skill-panel importer-panel
-            studio settings-panel github-panel iaa log-panel toast
-  app.js  boot-guard.js  sandbox-worker.js  voice.js
-data/
-  skills/     skill instructions (verbatim from the modular-parsing repo)
-  reference/  the implementations those instructions were ported from
-  importers/  the shipped file readers, as editable source
-  demo/       recorded corpora (replay mode)
-  samples/    unannotated documents
-docs/verification/   Playwright checks — see its README
+index.html  css/skillparse.css  serve.py
+js/skillparse/     the page: core (state, running steps), the four panes, models, the Python worker
+data/skillparse/   what the Python runs — see its README
+  bridge/            the page's own Python: runs a registry one step at a time, loads .umr files
+  fs/                files copied from SkillParseUMR and modular-parsing (scripts/sync_skillparse.py)
+  web_skills/ web_tools/   the site's own skills and tools
+  MANIFEST.json      which file holds each path of the Python file system (every file is kept once)
+  resources/         gold annotations, UMR guidelines, PropBank: fetched when a tool first needs them
+  docs/              sample documents
+docs/SKILLPARSE.md   how the page calls everything (中文)
+docs/verification/   Playwright checks
+scripts/  test/      sync, deploy check, test runners; Node tests
 ```
 
-Reusable by design: `core/pipeline.js`, `core/chain.js`, `core/flat.js` and `core/providers.js`
-know nothing about the UI; a format module only decides how two panes draw.
-
-## Reading the code
-
-Start with **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** (中文) for dependency direction,
-non-negotiable invariants, the feedback-to-Skill lifecycle, and extension points.
-
-**[`docs/CODE_WALKTHROUGH.md`](docs/CODE_WALKTHROUGH.md)** (中文) is a file-by-file, function-by-function
-tour: the core data structures, the full call chain behind one click, and a "to change X, edit Y" table.
-
-**[`docs/verification/`](docs/verification/)** holds the Playwright checks. They are in the repo on
-purpose — each one exists because something broke, and its header says what.
-
-## "Chrome says CSP blocks eval"
-
-That error is not from this page. This project ships no CSP at all and never evaluates a string;
-`docs/verification/csp-test.js` proves the page boots with **zero violations** under
-`script-src 'self'` (no `unsafe-eval`, no `unsafe-inline`). So the block comes from outside the page:
-open an incognito window (extensions off) — if it works, it is an extension; expand the Issues entry
-and look at _Source location_; check `chrome://policy` for an enterprise policy.
+The workbench this page replaced (recursive / flat / chained annotation with editable importers,
+sentiment and refine formats, Drive and GitHub sources) is no longer in this tree; it is in the
+git history and on the `obsolete` branch.
 
 ## Deploying
 
-Pushing to `main` deploys (the earlier default branch is kept as `obsolete`). Two things about GitHub Pages have already bitten this
-project, so they are worth stating:
+`.github/workflows/pages.yml` publishes the repository root from the default branch.
 
-- **`.nojekyll` is load-bearing.** While Pages is set to deploy _from a branch_, GitHub runs its own
-  Jekyll build over the repository, and Jekyll silently drops every path whose name starts with `_`.
-  Two of ours do — `js/domain/_value.js`, which eight modules import, and
-  `data/skills/shared/_node_schema.md`, which four prompts include. A 404 anywhere in an ES module
-  graph fails the **whole** graph, so the site served its static layout and ran no JavaScript at all
-  while every local check passed. `.nojekyll` turns that build off.
+- **`.nojekyll` is load-bearing.** While Pages deploys _from a branch_, GitHub runs Jekyll over the
+  repository, and Jekyll silently drops every path whose name starts with `_`: the page's Python
+  packages have `__init__.py` files, and without them Python does not boot. `.nojekyll` turns that
+  build off.
 - **Check the deploy, not just the checkout.** Everything else here runs against `serve.py`, which
   serves the working tree exactly as it is; a host does not have to.
 
 ```bash
-npm run check:deploy      # walks the live module graph and reports anything the host won't serve
+npm run check:deploy      # fetches every file the live page reaches for and reports what is missing
 ```
-
-Setting **Settings → Pages → Source = "GitHub Actions"** makes `.github/workflows/pages.yml` the
-only publisher and removes the Jekyll build from the picture entirely. Until someone with admin
-rights does that, GitHub's automatic `pages build and deployment` also runs on every push and
-whichever finishes last wins.
 
 ---
 
 ## 中文说明
 
-这是一个**结构化标注工作台**：UMR、依存式图结构、情感标注，或者你自己定义的格式。核心想法是
-**标注方法本身就是一组 skill，你可以读它、改它、跟它吵架**。纯静态站点，无后端、无构建步骤，
-模型 key 只存在你自己的浏览器里。
+在浏览器里一步一步标注 UMR：每一步是 SkillParseUMR registry 里的一个 **skill**，一个可以读、可以改的文件；
+每一步由人确认、修改或带提示重跑，修改还能变成对 skill 的修改。纯静态站点，无后端、无构建步骤，模型 key
+只存在你自己的浏览器里。
 
-**本地运行**：`python3 serve.py`，然后打开 `http://localhost:8899/`。
-**不要双击 HTML 文件** —— ES module 在 `file://` 下会被浏览器以 CORS 为由全部拒绝加载，页面照样
-画得出来，但一行 JS 都没跑，所有按钮都是死的（页面顶部有红色横幅专门说明这件事）。请用仓库自带的
-`serve.py` 而不是 `python3 -m http.server`：区别只有「禁用缓存」一条，但 `git pull` 之后新旧模块
-混用会让整张模块图链接失败，而页面看起来完全正常。
+**本地运行**：`npm run serve`，然后打开 `http://localhost:8899/`。不要双击 `index.html`（`file://` 下
+ES module 不加载，页面顶部会有红色横幅）；请用仓库自带的 `serve.py`（禁用缓存），不要用
+`python3 -m http.server`。
 
-**三种标注形状**：递归（一次调用负责一个片段，并把它拆成更多片段 —— UMR）、并行（每次调用负责整句，
-彼此独立 —— 情感）、串联（每次调用负责整张图并重写它 —— 精修）。**文档是文本，用哪种方法是另一件事**，
-随时可以换，而且每种方法各自保存自己的成果，换来换去不会丢。
-
-**逐步标注，不是一次性生成**：导入未标注文件后，标注树里会出现「待运行」的行，点一个就发起一次真实
-调用，把结果接回树里，并亮出下一步。也可以按「跑完本句」，互不依赖的位置会并行发出。
-
-**模型产出的一切都可以改，而且改完就是标注本身** —— 用 Penman 改一个节点，右边的成品图当场变化。
-
-**技能会从证据中演化，但发布权在人手里**：人工修改、重跑、换技能、对话异议都会绑定到精确的
-Skill 修订与调用；审核保留后，AI 自动生成带版本的候选并做 targeted / holdout / schema 检查，只有
-通过且由人确认发布的候选才进入下一次提示词。所有历史都可审计、可回滚。
-
-**可以改什么**：文件导入方法（「导入 ▸ 文件导入方法…」，每种格式一份，可以让模型按你的描述生成，
-保存前先试跑）、技能说明（技能面板里直接编辑，保存后下一次调用即生效）、技能的代码（精修链最后
-一步 `validate` 是真的在跑的 JavaScript）。人写的代码在 Web Worker 沙箱里执行 —— 无 DOM、无存储、
-无网络、有超时；页面本身永远不求值字符串。
-
-**SkillParse 逐步标注（首页 `index.html`；原来的工作台在 `classic.html`）**：严格按 SkillParseUMR 的
+**它做什么**：严格按 SkillParseUMR 的
 Runner（`src/runner.py`、`src/skill_callable.py`）在浏览器里跑一个 registry（Pyodide，Python 文件不改）：
 只有 sent_type 是 `kind: jev`（规则列选项，Jev 回答封闭问题，来自决策编排 V12）；其余调模型的 skill
 （discourse、predicate、np_phrase、special_entity、document）都是 `kind: agent`：skill.md 就是提示词，
@@ -270,9 +169,10 @@ Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<n
 网页每一层怎么调用（按钮 → 浏览器里的 Python → 模型服务 → .umr），详见
 **[`docs/SKILLPARSE.md`](docs/SKILLPARSE.md)**。
 
-**Key 存在哪**：只存本机 `localStorage`，live 模式下浏览器直连厂商 API，不经过本项目的任何服务器
-（本项目也没有服务器）。Google Drive 需要你自己的 OAuth Client ID，GitHub 需要你自己的 PAT。
+**Key 存在哪**：只存本机 `localStorage`，浏览器直连模型服务（OpenRouter、Anthropic、OpenAI、TypeSafe），
+不经过任何服务器（本项目也没有服务器）。标注进度存在同一个浏览器的 IndexedDB 里。
 
-先看 **[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)** 理解依赖方向和不变量，再看
-**[`docs/CODE_WALKTHROUGH.md`](docs/CODE_WALKTHROUGH.md)** 逐文件阅读；验收脚本在
-**[`docs/verification/`](docs/verification/)**，每一个都是因为出过事才写的，头注释里写着守的是什么。
+**以前的工作台**（递归 / 并行 / 串联三种标注方式、可改的导入方法、情感和精修格式）已经不在这个目录树里，
+在 git 历史和 `obsolete` 分支上。
+
+验收脚本在 **[`docs/verification/`](docs/verification/)**。

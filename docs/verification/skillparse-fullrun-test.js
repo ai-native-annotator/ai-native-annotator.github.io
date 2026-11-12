@@ -81,7 +81,7 @@ const statusIs = (page, re, timeout = 180000) =>
   // 2. every sentence runs its next step side by side; each step is confirmed before its sentence goes on
   const settled = () => page.waitForFunction(() => (document.body.dataset.running || '0') === '0', null, { timeout: 120000 });
   const ranOf = (msg) => Number((/运行了 (\d+) 步/.exec(msg) || [])[1]);
-  // the classic path: sentence and document, step by step (wave 0 is tested below)
+  // the step-by-step path: sentence and document, step by step (wave 0 is tested below)
   const waves = (await page.$$eval('.wave-tab', (e) => e.map((x) => x.textContent.split(' · ')[1]))).filter((w) => w !== 'generate');
   let total = 0;
   for (const [k, w] of waves.entries()) {

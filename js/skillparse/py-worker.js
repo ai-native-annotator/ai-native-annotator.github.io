@@ -2,8 +2,8 @@
 /**
  * The Python side of index.html, in a Web Worker.
  *
- * Loads Pyodide, writes SkillParseUMR's files (data/skillparse/MANIFEST.json) into its
- * file system under /sp, unpacks the vendored penman, and answers
+ * Loads Pyodide, writes SkillParseUMR's files into its file system under /sp
+ * (data/skillparse/MANIFEST.json says which file here holds each path there), unpacks the vendored penman, and answers
  * {id, method, args} messages by calling sp_bridge.call(method, json). The skills run
  * here exactly as they run from the command line; nothing in the page evaluates them.
  *
@@ -32,13 +32,16 @@ async function boot(base) {
 
   const root = `${base}data/skillparse/`;
   const manifest = JSON.parse(await fetchOk(`${root}MANIFEST.json`));
-  progress(`copying ${manifest.files.length} skill files …`);
-  const texts = await Promise.all(manifest.files.map((f) => fetchOk(root + f)));
-  manifest.files.forEach((f, k) => {
-    const dest = f.startsWith('fs/') ? `/sp/${f.slice(3)}` : `/sp/${f}`;
+  // {path under /sp: the file that holds it}; a file several paths share is fetched once
+  const paths = Object.entries(manifest.files);
+  progress(`copying ${paths.length} skill files …`);
+  const sources = [...new Set(Object.values(manifest.files))];
+  const texts = new Map(await Promise.all(sources.map(async (src) => [src, await fetchOk(root + src)])));
+  for (const [path, src] of paths) {
+    const dest = `/sp/${path}`;
     py.FS.mkdirTree(dest.slice(0, dest.lastIndexOf('/')));
-    py.FS.writeFile(dest, texts[k]);
-  });
+    py.FS.writeFile(dest, texts.get(src));
+  }
 
   progress('unpacking penman …');
   py.FS.mkdirTree('/sp/vendor');

@@ -2,7 +2,7 @@
  * Edited skill files, kept in this browser.
  *
  * Every save of a file is a version {at, content, note, source}; the last version is the one
- * the skills run with. The originals stay on the server (data/skillparse/fs/), so "back to the
+ * the skills run with. The originals stay on the server (data/skillparse/), so "back to the
  * original" is a fetch, never a lost edit. One record per skillset:
  *
  *   localStorage["skillparse_files:<skillset>"] = {"<path under /sp>": [version, ...]}
@@ -48,11 +48,21 @@ export function forget(sid, path) {
   return write(sid, data);
 }
 
-export async function original(path) {
-  const url = new URL(`../../data/skillparse/fs/${path}`, import.meta.url);
+const ROOT = new URL('../../data/skillparse/', import.meta.url);
+let manifest = null;
+
+async function fetchOk(url) {
   const res = await fetch(url, { cache: 'no-cache' });
-  if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
-  return res.text();
+  if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+  return res;
+}
+
+/** A file as the site ships it; MANIFEST.json says which file holds a path of the Python file system. */
+export async function original(path) {
+  manifest ||= fetchOk(new URL('MANIFEST.json', ROOT)).then((res) => res.json());
+  const src = (await manifest).files[path];
+  if (!src) throw new Error(`${path}: not a file of the site`);
+  return (await fetchOk(new URL(src, ROOT))).text();
 }
 
 /** Every edited file of a skillset as one JSON object {path: content}, for download. */

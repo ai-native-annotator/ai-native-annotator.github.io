@@ -8,7 +8,7 @@ const commonGlobals = {
 
 export default [
   {
-    ignores: ['node_modules/**', 'test-results/**', 'playwright-report/**', 'data/reference/**'],
+    ignores: ['node_modules/**', 'test-results/**', 'playwright-report/**'],
   },
   {
     files: ['js/**/*.js'],
@@ -18,19 +18,6 @@ export default [
       globals: commonGlobals,
       sourceType: 'module',
     },
-    rules: {
-      // Existing modules intentionally expose a few browser callbacks and keep
-      // intermediate values for diagnostics. Turn this on file-by-file as the
-      // affected modules are refactored instead of hiding the real errors in a
-      // baseline-suppression list.
-      'no-unused-vars': 'off',
-    },
-  },
-  {
-    // The block above replaces the recommended rules with its own `rules`, so
-    // no-undef and the rest are off for js/; the SkillParse page gets them back
-    // (an undefined name in its settings dialog once reached the deployed site).
-    files: ['js/skillparse/**/*.js'],
     rules: {
       ...js.configs.recommended.rules,
       'no-unused-vars': 'off',

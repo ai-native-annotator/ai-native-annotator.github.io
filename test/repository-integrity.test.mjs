@@ -1,6 +1,7 @@
 // @ts-check
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
 import { test } from 'node:test';
@@ -50,54 +51,69 @@ test('every static relative module import resolves to a file', async () => {
   assert.deepEqual(failures, []);
 });
 
-test('demo manifest entries point to matching, well-sized documents', async () => {
-  const demoDirectory = join(root, 'data', 'demo');
-  const manifest = JSON.parse(await readFile(join(demoDirectory, 'index.json'), 'utf8'));
-  const ids = manifest.map((entry) => entry.id);
-  assert.equal(new Set(ids).size, ids.length, 'demo ids must be unique');
-
-  for (const entry of manifest) {
-    const document = JSON.parse(await readFile(join(demoDirectory, `${entry.id}.json`), 'utf8'));
-    assert.equal(document.id, entry.id, `${entry.id}: document id`);
-    assert.equal(document.sentences.length, entry.sentences, `${entry.id}: sentence count`);
+test('every path of the Python manifest is held by a file, and no file is kept twice', async () => {
+  const base = join(root, 'data', 'skillparse');
+  const manifest = JSON.parse(await readFile(join(base, 'MANIFEST.json'), 'utf8'));
+  const missing = [];
+  for (const source of [...Object.values(manifest.files), ...manifest.vendor]) {
+    if (!(await isFile(join(base, source)))) missing.push(source);
   }
+  assert.deepEqual(missing, []);
+
+  // scripts/sync_skillparse.py --manifest deletes a copy and points its path at the file kept;
+  // a copy left behind is a file that will be edited in one place and not the other
+  const held = new Set(Object.values(manifest.files));
+  const sources = (await walk(base))
+    .map((file) => file.slice(base.length + 1))
+    .filter((path) => /^(?:fs|web_skills|web_tools)\//.test(path));
+  const byContent = new Map();
+  for (const path of sources) {
+    const digest = createHash('sha256')
+      .update(await readFile(join(base, path)))
+      .digest('hex');
+    byContent.set(digest, [...(byContent.get(digest) || []), path]);
+  }
+  assert.deepEqual(
+    [...byContent.values()].filter((paths) => paths.length > 1),
+    [],
+    'run: python3 scripts/sync_skillparse.py --manifest',
+  );
+  assert.deepEqual(
+    sources.filter((path) => path.startsWith('fs/') && !held.has(path)),
+    [],
+    'a file under fs/ that no path of the manifest uses',
+  );
 });
 
-for (const page of ['index.html', 'classic.html']) {
-  test(`${page} has unique ids and valid local scripts and stylesheets`, async () => {
-    const html = await readFile(join(root, page), 'utf8');
-    const ids = [...html.matchAll(/\sid=['"]([^'"]+)['"]/g)].map((match) => match[1]);
-    const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-    assert.deepEqual([...new Set(duplicates)], []);
+test('index.html has unique ids and valid local scripts and stylesheets', async () => {
+  const html = await readFile(join(root, 'index.html'), 'utf8');
+  const ids = [...html.matchAll(/\sid=['"]([^'"]+)['"]/g)].map((match) => match[1]);
+  const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+  assert.deepEqual([...new Set(duplicates)], []);
 
-    const resources = [...html.matchAll(/<(?:script|link)\b[^>]+(?:src|href)=['"]([^'"]+)['"]/g)]
-      .map((match) => match[1])
-      .filter((path) => !/^(?:data:|https?:|\/\/|#)/.test(path));
-    const missing = [];
-    for (const resource of resources) {
-      if (!(await isFile(join(root, resource)))) missing.push(resource);
-    }
-    assert.deepEqual(missing, []);
-  });
-}
+  const resources = [...html.matchAll(/<(?:script|link)\b[^>]+(?:src|href)=['"]([^'"]+)['"]/g)]
+    .map((match) => match[1])
+    .filter((path) => !/^(?:data:|https?:|\/\/|#)/.test(path));
+  const missing = [];
+  for (const resource of resources) {
+    if (!(await isFile(join(root, resource)))) missing.push(resource);
+  }
+  assert.deepEqual(missing, []);
+});
 
 test('the host is told not to run Jekyll over the site', async () => {
   // GitHub Pages runs Jekyll unless a `.nojekyll` file says otherwise, and
-  // Jekyll drops every path whose name starts with "_". Two of ours do:
-  // js/domain/_value.js, which eight modules import, and
-  // data/skills/shared/_node_schema.md, which four prompts include. A 404
-  // anywhere in an ES module graph fails the whole graph, so the deployed site
-  // served its static layout and ran no JavaScript at all — while every local
-  // check passed, because serve.py hands over the underscore files happily.
+  // Jekyll drops every path whose name starts with "_". The page's Python
+  // imports two packages by their __init__.py, which the worker fetches; a 404
+  // there stops Python from booting, while every local check passes, because
+  // serve.py hands over the underscore files happily.
   assert.ok(
     await isFile(join(root, '.nojekyll')),
     '.nojekyll is missing: the deployed site will 404 every "_"-prefixed path',
   );
 
   // If that file is ever lost, these are the paths that take the site down
-  // with it. Listing them keeps the cost of removing it visible. The two
-  // __init__.py files are SkillParseUMR's Python packages, which the
-  // index.html worker fetches; a 404 there stops Python from booting.
+  // with it. Listing them keeps the cost of removing it visible.
   const atRisk = (await walk(join(root, 'js')))
     .concat(await walk(join(root, 'data')))
     .map((file) => file.slice(root.length + 1))
@@ -107,8 +123,6 @@ test('the host is told not to run Jekyll over the site', async () => {
     [
       'data/skillparse/fs/skillparseumr/src/input_handler/__init__.py',
       'data/skillparse/fs/skillparseumr/src/output_handler/__init__.py',
-      'data/skills/shared/_node_schema.md',
-      'js/domain/_value.js',
     ],
     'a new "_"-prefixed runtime path appeared; keep .nojekyll and update this list',
   );

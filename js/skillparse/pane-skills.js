@@ -147,8 +147,4 @@ export async function openEditor(path) {
   show(mode);
 }
 
-export function closeEditor() {
-  closeModal();
-}
-
 onRender(draw);
