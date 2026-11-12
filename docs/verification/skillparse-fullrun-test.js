@@ -191,6 +191,12 @@ const statusIs = (page, re, timeout = 180000) =>
     JSON.stringify({ vars, al }));
   const before = calls.haiku;
   await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
+  // a step no model ran gets its skill's PropBank call made for it, whichever way it was loaded
+  // (a file here, wave 0 below): once only wave 0 did
+  await page.click('.tab:text-is("工具调用")');
+  const loadedTools = await page.textContent('#output');
+  check("a loaded step's PropBank call is made for it, as a generated step's is",
+    /propbank_lookup/.test(loadedTools) && loadedTools.includes('替这一步模拟的调用'), loadedTools.slice(0, 120));
   await page.click('.tab:text-is("输出")');
   await page.click('#output .review-card button:text-is("↻ 重跑这一步")');
   await page.waitForFunction(() => (document.body.dataset.running || '0') === '0');
@@ -247,7 +253,7 @@ const statusIs = (page, re, timeout = 180000) =>
   await page.click('.tree li:has(.sk:text-is("predicate")) >> nth=0');
   await page.click('.tab:text-is("工具调用")');
   const toolsText = await page.textContent('#output');
-  check("a generated step's PropBank call is made for it, to look at", /propbank_lookup/.test(toolsText) && toolsText.includes('转换时模拟的调用'), toolsText.slice(0, 120));
+  check("a generated step's PropBank call is made for it, to look at", /propbank_lookup/.test(toolsText) && toolsText.includes('替这一步模拟的调用'), toolsText.slice(0, 120));
   await page.selectOption('#output .tool-form select', 'search_guidelines');
   await page.fill('#output .tool-form textarea', '{"keywords": ["aspect"]}');
   await page.click('#output .tool-call');

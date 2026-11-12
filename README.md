@@ -104,14 +104,15 @@ index.html  css/skillparse.css  serve.py
 js/skillparse/     the page: core (state, running steps), the four panes, models, the Python worker
 data/skillparse/   what the Python runs — see its README
   bridge/            the page's own Python: runs a registry one step at a time, loads .umr files
-  fs/                files copied from SkillParseUMR and modular-parsing (scripts/sync_skillparse.py)
-  web_skills/ web_tools/   the site's own skills and tools
-  MANIFEST.json      which file holds each path of the Python file system (every file is kept once)
+  skills/            every skill: <lang>/ is a procedure (registry.yaml and its skills), shared/ what
+                     several procedures use, tools/ the tools any skill may call
+  engine/            the registry parser and the UMR input and output handlers
+  MANIFEST.json      which file holds each path of the Python file system (scripts/build_manifest.py)
   resources/         gold annotations, UMR guidelines, PropBank: fetched when a tool first needs them
   docs/              sample documents
 docs/SKILLPARSE.md   how the page calls everything (中文)
 docs/verification/   Playwright checks
-scripts/  test/      sync, deploy check, test runners; Node tests
+scripts/  test/      manifest and resource builders, deploy check, test runners; Node tests
 ```
 
 The workbench this page replaced (recursive / flat / chained annotation with editable importers,

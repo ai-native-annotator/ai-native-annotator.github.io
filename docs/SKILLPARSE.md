@@ -20,7 +20,7 @@
 ```
 
 - **没有服务器**：页面是 GitHub Pages 上的静态文件。Python 在浏览器的 Web Worker 里运行（Pyodide），模型请求由浏览器用你填的 key 直接发给服务商。
-- **Python 原样运行 SkillParseUMR**：`data/skillparse/fs/` 下是从 SkillParseUMR 和 modular-parsing 复制来的文件（`scripts/sync_skillparse.py` 负责组装），和本站自己的 skill、工具（`web_skills/`、`web_tools/`）一起，启动时写进 Pyodide 的虚拟文件系统 `/sp`。每个文件只存一份：几套流程共用的文件，由 `MANIFEST.json` 把 `/sp` 下的几个路径指到同一个文件。新写的 Python 只有 `data/skillparse/bridge/` 下的两个文件。
+- **Python 在浏览器里跑流程**：`data/skillparse/skills/` 是全部 skill，统一放在一处：`skills/<语言>/` 是一套流程（`registry.yaml` 和它的 skill），`skills/shared/` 是几套流程共用的文件（某套流程自己的目录里有同路径的文件就用自己的），`skills/tools/` 是所有 skill 都能用的工具。`engine/` 是 registry 的解析和 UMR 输入输出模块。这些文件启动时写进 Pyodide 的虚拟文件系统 `/sp`（路径相同；共用文件由 `MANIFEST.json` 放进每套流程）。页面自己的 Python 只有 `data/skillparse/bridge/` 下的两个文件。
 - **一步一步来**：每一句是一个 episode，里面是一棵步骤树。每一步跑完都要人确认（或修改、带提示重跑）后，这一句才能跑下一步。
 
 ---
@@ -49,20 +49,21 @@
 | `js/skillparse/save.js` | IndexedDB：暂存的工作、导入过的文档 |
 | `js/skillparse/store.js` | localStorage：改过的 skill 文件及其版本 |
 | `js/skillparse/i18n.js` · `ui.js` | 中英文字符串、DOM 小工具 |
-| `data/skillparse/MANIFEST.json` | Worker 要写进 `/sp` 的文件清单：`{/sp 下的路径: 存这个文件的地方}`（`python3 scripts/sync_skillparse.py --manifest` 重写） |
+| `data/skillparse/MANIFEST.json` | Worker 要写进 `/sp` 的文件清单：`{/sp 下的路径: 存这个文件的地方}`（增删文件后 `python3 scripts/build_manifest.py` 重写） |
 | `data/skillparse/bridge/sp_bridge.py` | Python 一侧：`Session`（文档、文件）和 `RegistryEngine`（一步步跑 registry） |
 | `data/skillparse/bridge/umr_load.py` | 把已有 `.umr` 的标注拆成步骤 |
-| `data/skillparse/fs/skillparseumr/` | SkillParseUMR：`src/`（registry、输入输出模块）、`web-procedures/zh`、`en`、`uz`（三套流程里上游来的文件；一样的文件只在第一套里存） |
-| `data/skillparse/web_skills/` | 本站自己写的 skill（wave 0、document 的三步、右栏、乌兹别克语），由清单放进每套流程 |
-| `data/skillparse/fs/modular-parsing/resources/` | UMR 列表（CSV） |
-| `data/skillparse/resources/propbank/zh.json` · `en.json` | PropBank：每个 roleset 的角色和全部例子（`web_tools/propbank.py` 读） |
+| `data/skillparse/skills/zh` · `en` · `uz` | 三套流程：`registry.yaml`、各自的 skill.md、`jevlib.py` |
+| `data/skillparse/skills/shared/` | 共用的 skill 和模块：`convert`、`apply_change`、`modal`、`local_change`、`reflect`、`sent_type`（英文和乌兹别克语用；中文有自己的）、`prompt_loader.py`、`event_modifiers.*` |
+| `data/skillparse/skills/tools/` | 通用工具：`propbank.py`（`propbank_lookup`）、`search.py`（`search_annotations`、`search_guidelines`） |
+| `data/skillparse/engine/` | `registry.py`（registry 的解析和表达式）、UMR 输入输出模块 |
+| `data/skillparse/umr/SP_and_Discourse.csv` | UMR 的篇章关系列表（载入 `.umr` 时用来认 discourse 节点） |
+| `data/skillparse/resources/propbank/zh.json` · `en.json` | PropBank：每个 roleset 的角色和全部例子（`skills/tools/propbank.py` 读） |
 | `data/skillparse/FEATURES.zh.md` · `FEATURES.en.md` | 给用户看的功能一览：顶栏「?」按钮打开（按界面语言） |
-| `data/skillparse/web_tools/search.py` | 本站自己的两个工具 `search_annotations`、`search_guidelines`，由清单放到 `web-procedures/tools/` |
 | `data/skillparse/resources/gold/zh/gold.json` · `gold/en/gold.json` | 金标标注，按语言分开：中文 35 篇 2,278 句（SkillParseUMR `newdata/` 31 篇 + modular-parsing `real-umr-data/chinese` 4 篇），英文 580 篇 31,147 句（SkillParseUMR `newdata/umr_en_normalized/`）；来源写在各自的 `SOURCE.md` |
 | `data/skillparse/resources/guidelines/umr_guidelines.md` | UMR 指南全文（umr4nlp/umr-guidelines `guidelines.md`，取自 SkillParseUMR 固定的副本，sha256 校验） |
 | `data/skillparse/docs/` | 两篇样例文档（只有句子） |
 | `data/skillparse/vendor/` | penman 1.3.1 |
-| `scripts/sync_skillparse.py` | 从 SkillParseUMR 组装上面这些文件 |
+| `scripts/build_manifest.py` · `build_resources.py` | 重写文件清单；从上游数据重建 `resources/`（金标、指南、PropBank） |
 
 ---
 
@@ -209,7 +210,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 数据在 `data/skillparse/resources/`，启动时不加载（英文金标 24.7 MB）：第一次搜索时由 Python 用 Pyodide 的 `open_url` 从 `SP_BASE + "resources/…"` 取来并缓存（本地跑时先看 `$SP_RESOURCES`）。
 
-**PropBank**（`propbank_lookup`，本站写的 `data/skillparse/web_tools/propbank.py`，同步时放到 `web-procedures/tools/` 和 `skillsets/tools/`，SkillParseUMR 自己的几份 propbank.py 不再用）：数据是同步脚本把 modular-parsing 的帧文件合并成的 `data/skillparse/resources/propbank/zh.json`（`chinese-propbank/*.xml`，24,521 个词条，6.0 MB）、`en.json`（`propbank-amr-frames-xml-2018-01-25/*.xml`，按 `<predicate>` 的 lemma 分，5.4 MB），每个 roleset 带全部角色和**全部例子**（中文例句由树库句法树的词拼成，*OP*、*T*-1、*pro* 这些空语类保留；英文例句原样，*trace* 保留），格式 `{lemma: [[roleset id, name, [[n, descr]], [[例子名, 例句, [[论元, 文字]], rel]]]]}`。启动时不加载，第一次查询时取来。工具返回 Markdown：每个词一节 `## 词`（找到的是变体就注明 found as），每个 roleset 一节 `### 吃-01 (名称)`，列出角色，再列每个例子（`Example 1: 例句`，下面每个论元一行，最后 `rel`）；查不到写 `Not in PropBank.`；超过 20 个、没查的词写在最后一行。页面「工具调用」页把同一段 Markdown 渲染出来给人看（工具调用的结果最多存 200,000 字）。jevlib（sent_type）读的是数据（`_rolesets`），不是 Markdown。
+**PropBank**（`propbank_lookup`，`data/skillparse/skills/tools/propbank.py`，jevlib 用的也是这一份）：数据是 `scripts/build_resources.py` 把 modular-parsing 的帧文件合并成的 `data/skillparse/resources/propbank/zh.json`（`chinese-propbank/*.xml`，24,521 个词条，6.0 MB）、`en.json`（`propbank-amr-frames-xml-2018-01-25/*.xml`，按 `<predicate>` 的 lemma 分，5.4 MB），每个 roleset 带全部角色和**全部例子**（中文例句由树库句法树的词拼成，*OP*、*T*-1、*pro* 这些空语类保留；英文例句原样，*trace* 保留），格式 `{lemma: [[roleset id, name, [[n, descr]], [[例子名, 例句, [[论元, 文字]], rel]]]]}`。启动时不加载，第一次查询时取来。工具返回 Markdown：每个词一节 `## 词`（找到的是变体就注明 found as），每个 roleset 一节 `### 吃-01 (名称)`，列出角色，再列每个例子（`Example 1: 例句`，下面每个论元一行，最后 `rel`）；查不到写 `Not in PropBank.`；超过 20 个、没查的词写在最后一行。页面「工具调用」页把同一段 Markdown 渲染出来给人看（工具调用的结果最多存 200,000 字）。jevlib（sent_type）读的是数据（`_rolesets`），不是 Markdown。
 
 **工具模块只加载一次**（`_tools_in` 的 `_TOOL_MODULES`，按文件的路径、修改时间、大小）：每个 agent 步骤和每次工具调用都要找工具，以前每次都重新执行工具文件，模块里的缓存跟着丢掉，于是每次 `propbank_lookup` 都把整个 PropBank 重新解析一遍、每次搜索都把金标重新下载解析一遍。改过工具文件，修改时间变了，会重新加载。几份 `propbank.py`（jevlib 的、predicate 的、共用的）还共用同一份解析好的中文 PropBank（同步时打的补丁）。浏览器里实测（Pyodide）：
 
@@ -278,7 +279,7 @@ py('step') ─┬─ kind: rule  → Python run(**inputs) 立即算出 → _fini
 
 ### 文档级：modal、temporal、coref 三步（web 改过）
 
-document 这一波每句三个并列的步骤，互不依赖：registry 里这一波的 `start` 是一个列表 `[modal, temporal, coref]`（同步时给 `registry.py` 打补丁，允许一波有几个起点），每个起点自己是一棵树的第一步，编号 1、2、3（只有一个起点的波仍是 0）。1 是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），2、3 是 `temporal`、`coref` 两个 agent 步骤；三步的输入一样（前五句和这一句的节点表），改其中一步不会碰另外两步。以前存下的进度（modal 0 下挂 temporal 0.0、coref 0.1）恢复时自动改成 1、2、3（`_side_by_side`）。`temporal`、`coref` 是本站自己写的 skill（`data/skillparse/web_skills/<lang>/temporal`、`coref`，同步时复制进 `web-procedures/<lang>/`，原来的 `document/` 不再用）：由原来 `document/skill.md` 的 temporal、coref 两节精简、按主题重排而来（中文 temporal 9.2 KB → 6.0 KB，coref 5.7 KB → 4.0 KB），规则内容保留；开头写明两条要求：**写全**（temporal：这一句的每个事件和时间表达都有且只有一个父节点；coref：这一句里每个提到过的东西都连到最近的前一次提及），**只管这一句**（target 一定是这一句的节点，source 是这一句、前面几句的节点或常量）。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
+document 这一波每句三个并列的步骤，互不依赖：registry 里这一波的 `start` 是一个列表 `[modal, temporal, coref]`（`registry.py` 允许一波有几个起点），每个起点自己是一棵树的第一步，编号 1、2、3（只有一个起点的波仍是 0）。1 是 `modal`（`kind: rule`，`modal/modal.py`，不调模型），2、3 是 `temporal`、`coref` 两个 agent 步骤；三步的输入一样（前五句和这一句的节点表），改其中一步不会碰另外两步。以前存下的进度（modal 0 下挂 temporal 0.0、coref 0.1）恢复时自动改成 1、2、3（`_side_by_side`）。`temporal`、`coref` 是本站自己写的 skill（`data/skillparse/web_skills/<lang>/temporal`、`coref`，同步时复制进 `web-procedures/<lang>/`，原来的 `document/` 不再用）：由原来 `document/skill.md` 的 temporal、coref 两节精简、按主题重排而来（中文 temporal 9.2 KB → 6.0 KB，coref 5.7 KB → 4.0 KB），规则内容保留；开头写明两条要求：**写全**（temporal：这一句的每个事件和时间表达都有且只有一个父节点；coref：这一句里每个提到过的东西都连到最近的前一次提及），**只管这一句**（target 一定是这一句的节点，source 是这一句、前面几句的节点或常量）。写 .umr 时三步的 relations 合在一起交给 output handler（`_worktree_out`）。
 
 **modal 规则**（`modal/modal.py`）：照 UMR 标注工具（umr-tool.cs.brandeis.edu，jinzhao3611/umr-annotation-tool 的 `modal_converter.py`，依据 "UMR Simplified Modal Annotation to Modal Dependency Structure"）的转换规则，只是不读整句图，而读节点表里 predicate 那一行的 `modstr` 和 `roles`（`_roles`：quote、purpose、condition、modal-predicate，以及 ARG0 / actor / experiencer / causer）。E、M、S、C 是事件，E′ 等是它们的 modstr（没有就是 unspecified）：
 
@@ -298,7 +299,7 @@ document 这一波每句三个并列的步骤，互不依赖：registry 里这�
 
 ### 乌兹别克语流程（`web-uz`）
 
-`web-procedures/uz` 由同步脚本做出（`compose_uz`）：拿组好的英文流程（registry、sent_type 和它的 jevlib，两波、modal 规则都一样），换上本站写的乌兹别克语 skill.md（`data/skillparse/web_skills/uz/`：discourse、predicate、np_phrase、special_entity、temporal、coref，以英文版为底，加上中文版里不限于中文的规则，改成乌兹别克语的写法），再给 jevlib 打补丁：Jev 看到的语言是 Uzbek，加上乌兹别克语的虚词表（连词、后置词、语气词）和代词（各个格的形式）。
+乌兹别克语流程（`skills/uz`）以英文流程为底（registry、sent_type 和它的 jevlib，两波、modal 规则都一样），换上乌兹别克语的 skill.md（`data/skillparse/skills/uz/`：discourse、predicate、np_phrase、special_entity、temporal、coref，以英文版为底，加上中文版里不限于中文的规则，改成乌兹别克语的写法），jevlib 也改过：Jev 看到的语言是 Uzbek，加上乌兹别克语的虚词表（连词、后置词、语气词）和代词（各个格的形式）。
 
 - **没有 PropBank**：照 UMR 指南 Part 3-2-1-1（Stage 0），动词概念用词干、不带义项号（`ochdi` → `och`），参与者用通用角色（`actor`、`undergoer`、`theme`、`recipient`、`experiencer` 等）；抽象概念（`identity-91`、`have-org-role-92`…）照旧用编号角色；`frame` 写 `{}`。
 - **没有金标**：`propbank_lookup` 对乌兹别克语回答 "There is no PropBank for this language"，`search_annotations` 回答 "There is no gold data for 'uz'"；`search_guidelines` 照常能用。
@@ -309,12 +310,12 @@ document 这一波每句三个并列的步骤，互不依赖：registry 里这�
 
 每套流程（中文、英文、乌兹别克语）最前面多了一波 `generate`，每句一个 episode，按顺序（`parallel: 1`：每句要看前面五句生成的结果）。它是可选的：文档打开时停在这一波（wave 1）；不用它也可以，切到 sentence 这一波照原来一步步标。恢复暂存的进度时回到上次所在的那一波。
 
-**乌兹别克语先分词**：`web-uz` 的 generate 这一波第一步是规则 `tokenizer`（`web_skills/tokenizer/tokenizer.py`，左栏可改），不只按空格切：标点、词首词尾的引号单独成 token，小数（3,5）不拆；oʻ、gʻ 和 tutuq belgisi（ʼ）留在词里（不管打的是 ' ʻ ʼ ‘ ’ ` 哪一个）；数字和词用连字符连着的拆成三个（2023-yil → 2023 | - | yil）；连字符连着的语气词单独成 token（kecha-yu → kecha | -yu；u、yu、chi、ku、mi、da、oq、yoq、gina…）；问号前写在词尾的 mi 拆开（kelasizmi? → kelasiz | mi | ?）；词与词用连字符连成的复合词（ota-ona）和词尾后缀不拆（token 是词，不是语素）。句子去掉空格后的每个字符都恰好在一个 token 里，bridge 会检查。确认后这些 token 就是这一句的 token（convert 检查对齐时也按它数，`_inputs` 给 convert 的是这一句当前的 token；`_set_tokens`：后面各步的 span 按它数，导出的 Words: 也是它；保存的进度恢复时重新给这一句），后面的波标成过期。`umr_generate` 从它拿带编号的 token（输入 `tokens`；这一波的 context 不再有 token_sent）。
+**乌兹别克语先分词**：`web-uz` 的 generate 这一波第一步是规则 `tokenizer`（`skills/uz/tokenizer/tokenizer.py`，左栏可改），不只按空格切：标点、词首词尾的引号单独成 token，小数（3,5）不拆；oʻ、gʻ 和 tutuq belgisi（ʼ）留在词里（不管打的是 ' ʻ ʼ ‘ ’ ` 哪一个）；数字和词用连字符连着的拆成三个（2023-yil → 2023 | - | yil）；连字符连着的语气词单独成 token（kecha-yu → kecha | -yu；u、yu、chi、ku、mi、da、oq、yoq、gina…）；问号前写在词尾的 mi 拆开（kelasizmi? → kelasiz | mi | ?）；词与词用连字符连成的复合词（ota-ona）和词尾后缀不拆（token 是词，不是语素）。句子去掉空格后的每个字符都恰好在一个 token 里，bridge 会检查。确认后这些 token 就是这一句的 token（convert 检查对齐时也按它数，`_inputs` 给 convert 的是这一句当前的 token；`_set_tokens`：后面各步的 span 按它数，导出的 Words: 也是它；保存的进度恢复时重新给这一句），后面的波标成过期。`umr_generate` 从它拿带编号的 token（输入 `tokens`；这一波的 context 不再有 token_sent）。
 
-1. **`umr_generate`**（agent，`web_skills/<lang>/umr_generate/skill.md`）：一次写出这一句的句级图（penman）、每个节点的对齐（`{变量: [首, 尾]}`，页面的 token 编号）和文档级标注（`(s<N>s0 / sentence :temporal … :modal … :coref …)`）。输入是句子、token、句号，以及前五句生成的图和文档级标注（`before`，registry 里 `pick: generated`）。变量以 `s<句号>` 开头，文档级标注用前几句图里的变量名指它们的节点。**模型单独设置**：角色 `generate`，默认 GPT-6.1 Sol（OpenRouter `openai/gpt-6.1-sol`），也可以换成 Opus 5.5；在 generate 这一波时，工具栏的「模型」就是这一波的模型。
-2. **`convert`**（规则，`web_skills/convert/convert.py`）：用 penman 解析图（解析不了、一个变量两个概念、span 超出句子就算出错，让人带提示重跑 umr_generate），检查对齐和文档级标注，`problems` 里列出能载入但可疑的地方。确认它之后，网页（`RegistryEngine._apply_generated` → `umr_load.load_generated`）把它载入 sentence、document 两波：和载入 .umr 文件的同一套办法，每一步标「生成」（算已确认，`origin: generated`）；这一句在这两波原来的步骤会被替换。文档级标注里的变量换成 document 这一波的节点名，和它的节点表一样：一步的第一个节点是 `句号:步骤`（`2:0.1`），片段里的其他节点是 `句号:步骤/变量`。前面各句的变量从它们现在的图里查（`node_refs`：不管是生成的、载入的还是一步步标的）；查不到的变量原样留下，并在 convert 的结果里列出来。
+1. **`umr_generate`**（agent，`skills/<lang>/umr_generate/skill.md`）：一次写出这一句的句级图（penman）、每个节点的对齐（`{变量: [首, 尾]}`，页面的 token 编号）和文档级标注（`(s<N>s0 / sentence :temporal … :modal … :coref …)`）。输入是句子、token、句号，以及前五句生成的图和文档级标注（`before`，registry 里 `pick: generated`）。变量以 `s<句号>` 开头，文档级标注用前几句图里的变量名指它们的节点。**模型单独设置**：角色 `generate`，默认 GPT-6.1 Sol（OpenRouter `openai/gpt-6.1-sol`），也可以换成 Opus 5.5；在 generate 这一波时，工具栏的「模型」就是这一波的模型。
+2. **`convert`**（规则，`skills/shared/convert/convert.py`）：用 penman 解析图（解析不了、一个变量两个概念、span 超出句子就算出错，让人带提示重跑 umr_generate），检查对齐和文档级标注，`problems` 里列出能载入但可疑的地方。确认它之后，网页（`RegistryEngine._apply_generated` → `umr_load.load_generated`）把它载入 sentence、document 两波：和载入 .umr 文件的同一套办法，每一步标「生成」（算已确认，`origin: generated`）；这一句在这两波原来的步骤会被替换。文档级标注里的变量换成 document 这一波的节点名，和它的节点表一样：一步的第一个节点是 `句号:步骤`（`2:0.1`），片段里的其他节点是 `句号:步骤/变量`。前面各句的变量从它们现在的图里查（`node_refs`：不管是生成的、载入的还是一步步标的）；查不到的变量原样留下，并在 convert 的结果里列出来。
 
-**模拟的工具调用**：载入（生成的，或从 .umr 载入的）每一步，凡是有带义项号的概念，都替它调一次 `propbank_lookup`，记在这一步的「工具调用」里，标「转换时模拟的调用」（`_simulate_tools`）。
+**模拟的工具调用**：没有模型跑过的步骤（wave 0 生成的、从 `.umr` 载入的、右栏改图之后重新拆出来的，都经过 `umr_load` 的 `Loader`，都标了 `loaded`），凡是输出里有带义项号的概念，页面都替它调一次 `propbank_lookup`，在这一步的「工具调用」里显示，标「替这一步模拟的调用」（`_simulated_tools`）。这些调用不存下来：每次看这一步时按它现在的输出算（`node`），所以人改了输出，查的词也跟着变；重跑之后这一步是模型跑的，显示的就是模型自己的调用。
 
 **生成整篇**：generate 这一波的运行栏有「▶▶ 生成整篇」（`generateAll`）：每一句依次生成、转换，跑完的步骤直接确认；遇到出错的步骤就停在那一句。
 
@@ -340,7 +341,7 @@ document 这一波每句三个并列的步骤，互不依赖：registry 里这�
 
 ## 7. 流程（registry）：两波
 
-两套流程在 `web-procedures/zh/registry.yaml` 和 `web-procedures/en/registry.yaml`，结构一样。
+流程在 `skills/zh/registry.yaml`、`skills/en/registry.yaml`（和 `skills/uz/`），结构一样。
 
 | wave | for_each | 起点 | 读什么 |
 |---|---|---|---|
@@ -603,7 +604,7 @@ sentences:
 
 ## 14. 和 SkillParseUMR 的差别
 
-`scripts/sync_skillparse.py` 组装 `web-procedures/<lang>` 时做了这些改动，重新同步不会还原：
+这些流程最初取自 SkillParseUMR，之后做了下面这些改动。现在 `skills/` 下的文件由本站自己维护，不再从上游同步：
 
 | 改动 | 原来 | 现在 |
 |---|---|---|
@@ -622,7 +623,7 @@ sentences:
 | 属性值的引号 | 只含字母、数字、点、连字符的值不加引号（`12306.cn` 裸写） | 只有数字、`-`/`+`、不带点的符号不加引号；网址、域名这类带点的值加引号（output handler 的 `_value` 打补丁；`apply_change` 同一规则） |
 | document 的三步 | 一个 `document` skill | 三个并列的起点 `[modal, temporal, coref]`，步骤 1、2、3 |
 | PropBank | 每个词条一个 XML（中文 24,521 个）；英文查 `arg-descr.txt`；`propbank_lookup` 返回 JSON，只有角色 | 中英文各合并成一个 JSON，带全部例子，放在 `resources/propbank/`，第一次查询时取来；本站的 `propbank.py` 读它，返回 Markdown（角色和全部例子）；中文的 roleset 和角色与原来完全相同，英文 `arg-descr.txt` 的 8,733 个 roleset 全都有 |
-| `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉（同步时不复制）；例子从金标里搜 |
+| `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉；例子从金标里搜 |
 | 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成（照 umr-tool 的转换）；temporal、coref 各一个 agent 步骤（本站写的 skill.md，由 document 的两节精简而来） |
 | 步骤编号 | `0`、`0.0`、`0.0.0`…（sent_type 和它派生的一步各占一层） | `0B`、`0`、`0.0B`、`0.0`…（sent_type 带 B，派生的一步用同一个号），长度减半 |
 | outside | 写参与者的 text、span（np_phrase 还有 `at`），写 .umr 时按 span 找节点；sent_type 也可以写 | 写已有节点表里的编号 `node`，写 .umr 时直接接到那个节点；sent_type 不写 |

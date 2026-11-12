@@ -1,8 +1,7 @@
 """propbank_lookup: the PropBank rolesets of a lemma, with their roles and examples, as Markdown (web).
 
-The site's PropBank tool, in place of SkillParseUMR's skillsets/tools/propbank.py and the copies
-the procedures keep (scripts/sync_skillparse.py puts this file in both places). The data is the
-frame files merged by the sync script, every roleset with all its examples:
+The one PropBank tool: the agent skills call it, and jevlib.py (sent_type) reads its data. The
+data is the frame files merged by scripts/build_resources.py, every roleset with all its examples:
 
     resources/propbank/zh.json   chinese-propbank/<lemma>.xml (an example's words come from its
                                  treebank parse, traces such as *OP* *T*-1 *pro* kept)

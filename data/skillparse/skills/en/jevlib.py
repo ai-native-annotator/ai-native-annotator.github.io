@@ -18,12 +18,10 @@ from dataclasses import dataclass
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = HERE
-while not os.path.isdir(os.path.join(ROOT, "skillsets")) and os.path.dirname(ROOT) != ROOT:
-    ROOT = os.path.dirname(ROOT)        # the repository, however deep this copy of the skills is
 
+# the PropBank tool every skill uses: tools/ next to the procedures
 _spec = importlib.util.spec_from_file_location(
-    "jevumr_propbank", os.path.join(ROOT, "skillsets", "tools", "propbank.py"))
+    "jevumr_propbank", os.path.join(os.path.dirname(HERE), "tools", "propbank.py"))
 _propbank = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_propbank)
 

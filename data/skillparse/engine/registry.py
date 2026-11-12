@@ -1,4 +1,4 @@
-"""Parser for a skillset's registry.yaml. The syntax is in skillsets/REGISTRY.md.
+"""Parser for a skillset's registry.yaml. The syntax is in skills/REGISTRY.md.
 
 Registry.load() reads the file into Wave / Skill / Rule objects and runs every
 load-time check of REGISTRY.md section 7. All problems are collected and

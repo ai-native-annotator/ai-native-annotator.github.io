@@ -5,7 +5,7 @@ in Markdown, as the model and the page's tool-calls tab read them.
                                             keywords
     search_guidelines(keywords)             the sections of the UMR guidelines that contain them
 
-The data is under data/skillparse/resources/ (built by scripts/sync_skillparse.py):
+The data is under data/skillparse/resources/ (built by scripts/build_resources.py):
 gold/zh/gold.json, gold/en/gold.json and guidelines/umr_guidelines.md. It is not loaded when the
 page starts (the English gold is 27 MB): the first search reads it, from $SP_RESOURCES when that
 folder has it, else from the site ($SP_BASE + "resources/...") in the browser.

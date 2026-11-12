@@ -1,6 +1,6 @@
 # Tells GitHub Pages not to run Jekyll over this site.
 #
 # Jekyll drops every path whose name starts with "_", and the page's Python
-# imports two packages by their __init__.py (data/skillparse/fs/skillparseumr/src/):
+# imports two packages by their __init__.py (data/skillparse/engine/):
 # a 404 there stops Python from booting while the page still draws. See
 # test/repository-integrity.test.mjs and scripts/check-deploy.mjs.

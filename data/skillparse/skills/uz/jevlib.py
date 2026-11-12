@@ -18,12 +18,10 @@ from dataclasses import dataclass
 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = HERE
-while not os.path.isdir(os.path.join(ROOT, "skillsets")) and os.path.dirname(ROOT) != ROOT:
-    ROOT = os.path.dirname(ROOT)        # the repository, however deep this copy of the skills is
 
+# the PropBank tool every skill uses: tools/ next to the procedures
 _spec = importlib.util.spec_from_file_location(
-    "jevumr_propbank", os.path.join(ROOT, "skillsets", "tools", "propbank.py"))
+    "jevumr_propbank", os.path.join(os.path.dirname(HERE), "tools", "propbank.py"))
 _propbank = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_propbank)
 
@@ -44,6 +42,13 @@ a an the of to in on at by for with from as into onto upon about and or but nor 
 because although though while whereas whether than then who whom whose which that where when
 is am are was were be been being has have had having do does did will would shall should can
 could may might must not n't never 's
+""".split())
+
+# web: Uzbek conjunctions, postpositions and particles
+FUNCTION_UZ = set("""
+va hamda yoki yo lekin ammo biroq balki esa ham chunki agar garchi go'yo deb ki-ku
+bilan uchun haqida kabi singari sari tomon orqali keyin so'ng oldin beri qadar sababli tufayli
+emas edi ekan emish bo'lsa ham-da
 """.split())
 
 
@@ -72,7 +77,11 @@ def words(token_sent, lang):
 @functools.lru_cache(maxsize=4096)
 def _words(tokens, lang):
     if lang != "zh":
-        return tuple(Word(k, k, t) for k, t in tokens)
+        def _clean(t):
+            m = re.match(r"^([^\W\d_]+)[,;]", t)
+            c = m.group(1) if m else t.strip(".,;:!?\"'")
+            return c or t
+        return tuple(Word(k, k, _clean(t)) for k, t in tokens)
     # web: no jieba. sent_type needs no words, so a Chinese piece is cut only at punctuation: a
     # run of tokens between punctuation marks is one word, each mark a word of its own
     out = []
@@ -176,7 +185,8 @@ def is_punct(w):
 
 
 def is_function(w, lang):
-    return is_punct(w) or (w.text.lower() in (FUNCTION_ZH if lang == "zh" else FUNCTION_EN))
+    return is_punct(w) or (w.text.lower() in (FUNCTION_ZH if lang == "zh" else FUNCTION_UZ if lang == "uz"
+                                              else FUNCTION_EN))
 
 
 def content(ws, lang):
@@ -190,7 +200,7 @@ def state(sent, token_sent, span, lang, **more):
     toks = [(int(k), str(t)) for k, t in token_sent]
     marked = sep.join(("【" if k == span[0] else "") + t + ("】" if k == span[1] else "") for k, t in toks)
     return {"sentence": sent, "piece": text(token_sent, span, lang), "sentence_with_piece_marked": marked,
-            "language": "Chinese" if lang == "zh" else "English", **more}
+            "language": {"zh": "Chinese", "uz": "Uzbek"}.get(lang, "English"), **more}
 
 
 def by_key(ws):
@@ -339,6 +349,13 @@ def roleset_text(r):
 # -- pronouns ----------------------------------------------------------------
 
 PRONOUNS = {
+    # web: Uzbek, with the case forms a pronoun takes
+    "uz": {**{w: ("person", "1st", "singular") for w in "men meni menga menda mendan mening".split()},
+           **{w: ("person", "2nd", "singular") for w in "sen seni senga senda sendan sening".split()},
+           **{w: ("person", "3rd", "singular") for w in "u uni unga unda undan uning".split()},
+           **{w: ("person", "1st", "plural") for w in "biz bizni bizga bizda bizdan bizning".split()},
+           **{w: ("person", "2nd", "plural") for w in "siz sizni sizga sizda sizdan sizning".split()},
+           **{w: ("person", "3rd", "plural") for w in "ular ularni ularga ularda ulardan ularning".split()}},
     "zh": {"我": ("person", "1st", "singular"), "你": ("person", "2nd", "singular"),
            "您": ("person", "2nd", "singular"), "他": ("person", "3rd", "singular"),
            "她": ("person", "3rd", "singular"), "它": ("thing", "3rd", "singular"),
@@ -361,6 +378,11 @@ def pronoun(word_text, lang):
     t = word_text.strip().lower()
     if lang == "zh":
         t = t[:-1] if t.endswith("的") and t[:-1] in PRONOUNS["zh"] else t
+    elif lang == "en":
+        for suf in ("'s", "\u2019s", "'ll", "'d", "'m", "'re", "'ve"):
+            if t.endswith(suf) and t[:-len(suf)] in PRONOUNS["en"]:
+                t = t[:-len(suf)]     # he's / you're / I'll: the pronoun plus a contracted verb
+                break
     return PRONOUNS.get(lang, {}).get(t)
 
 

@@ -18,6 +18,7 @@ alignments already count characters is read as it is. English words are the toke
 """
 import os
 import re
+import sys
 
 import penman
 
@@ -137,7 +138,7 @@ def discourse_relations():
     """UMR's discourse relations (the "discourse relations" group of SP_and_Discourse.csv), and the
     reified ones the discourse skill writes."""
     import csv
-    path = os.path.join(os.environ.get("PROPBANK_DIR", ""), "SP_and_Discourse.csv")
+    path = os.path.join(sys.modules["sp_bridge"].UMR_LISTS, "SP_and_Discourse.csv")
     out, group = set(), ""
     try:
         with open(path, encoding="utf-8") as f:
@@ -436,7 +437,7 @@ class Loader:
         e = self.e
         self.lang = e.doc.lang
         sk = e.reg.skills
-        # which nodes are discourse relations: UMR's list (modular-parsing SP_and_Discourse.csv) and
+        # which nodes are discourse relations: UMR's list (SP_and_Discourse.csv) and
         # the reified relations the discourse skill.md describes; the skill's emit no longer lists them
         listed = sk["discourse"].emit.get("relation") if "discourse" in sk else None
         self.relations = (set(listed) if isinstance(listed, list) else discourse_relations()) - {"none"}

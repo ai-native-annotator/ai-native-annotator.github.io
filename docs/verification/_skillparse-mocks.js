@@ -99,7 +99,7 @@ module.exports = function mocks() {
     const user = body.messages.find((m) => m.role === 'user')?.content || '';
     if (sys.includes('maintain the skills')) {
       calls.reflect++;
-      const m = /## (skillparseumr\/[^\n]*\.(?:md|py))\n```/.exec(user);
+      const m = /## (skills\/[^\n]*\.(?:md|py))\n```/.exec(user);
       return reply(route, 'final_result', { diagnosis: 'test diagnosis', layer: 'instructions',
         edits: [{ file: m ? m[1] : 'none', op: 'add', find: '', replace: '<!-- edit proposed by the test -->', why: 'test' }] });
     }

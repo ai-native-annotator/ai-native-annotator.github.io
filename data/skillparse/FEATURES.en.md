@@ -25,7 +25,7 @@ Step-by-step UMR annotation in the browser: SkillParseUMR's annotation procedure
 - **convert** checks the result (does the graph parse, are the alignments inside the sentence, are the variables in the document-level annotation there) and, once confirmed, takes it apart into steps of waves 2 and 3, tagged "generated".
 - **▶▶ Generate all** generates and converts every sentence in turn, and stops at a sentence that fails.
 - **Uzbek is tokenized first**: the rule step tokenizer does more than split at spaces. Punctuation and quotes are split off, forms like 2023-yil, kecha-yu and kelasizmi? are split, and compounds and suffixes are not.
-- On conversion, the page runs a PropBank lookup for each concept with a sense number; you can see them in the "Tool calls" tab.
+- For a step no model ran (generated in wave 1, or loaded from a .umr file), the page runs a PropBank lookup for each concept with a sense number; you can see them in the "Tool calls" tab.
 
 ## 4. Wave 2: step by step
 

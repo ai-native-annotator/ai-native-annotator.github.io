@@ -1,14 +1,12 @@
-# web-procedures/uz, the Uzbek procedure (web): web-procedures/en below, with the site's Uzbek
-# skill.md files (web_skills/uz; Uzbek has no PropBank: an event is its verb stem with the general
-# participant roles) and jevlib.py told about Uzbek. No Uzbek gold data.
-# web-procedures/uz, composed by ai-native-annotator.github.io scripts/sync_skillparse.py:
-# skillsets/umr-tree, with sent_type from experiment/decision-orchestration/umr-en-v11/versions/V12 (kind: jev, and jevlib.py, prompt_loader.py, event_modifiers.py, event_modifiers.yaml it imports).
-# Every other model skill is kind: agent: its skill.md, answered by Haiku.
-# Left out on the web: coverage, antecedent (outside stays in the step) and the reentrancy wave
-# (nodes with the same span and concept, and each outside participant with the node it names, are
-# merged when the .umr is written). discourse's relation is any string (not checked against a list).
+# The English procedure.
+# sent_type is kind: jev (with jevlib.py, prompt_loader.py, event_modifiers.*); every other model
+# skill is kind: agent: its skill.md, answered by the model picked in the toolbar. A file that is
+# not in this folder is skills/shared's (data/skillparse/README.md).
+# There is no coverage, antecedent (outside stays in the step) or reentrancy wave (nodes with the
+# same span and concept, and each outside participant with the node it names, are merged when the
+# .umr is written). discourse's relation is any string (not checked against a list).
 # jevlib.py cuts a Chinese piece only at punctuation (no jieba).
-# umr-tree skillset. 语法说明见 skillsets/REGISTRY.md。
+# 语法说明见 skills/REGISTRY.md。
 #
 # 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时合并：span 和概念都一样的节点是同一个，
 # outside 里的每个参与者按它写的节点编号（node）接到那个节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
@@ -40,7 +38,7 @@
 waves:
 
   - name: generate                      # web：wave 0，一次生成整句的图和文档级标注，规则检查后转成后面两波的步骤
-    start: tokenizer                    # web-uz：先分词（规则，tokenizer/tokenizer.py），再整句生成
+    start: umr_generate
     parallel: 1                         # 每句要看前面几句生成的图：按顺序
     init_input:
       for_each:
@@ -48,6 +46,7 @@ waves:
       context:
         index: sentence.index
         sent: sentence.text
+        token_sent: sentence.numbered_tokens
         lang: annotation.lang
       input:
         before:                         # 前五句生成的图和文档级标注（这一波确认过的）
@@ -90,21 +89,10 @@ skills:
 
   # ---- wave 0（web）----
 
-  tokenizer:                    # web-uz：规则（tokenizer/tokenizer.py），把句子切成 token（不只按空格）；网页把这些 token 给这一句
-    path: tokenizer
-    kind: rule
-    input:
-      before: list[dict]        # 原样交给 umr_generate
-    emit:
-      tokens: list[str]
-      numbered: str             # [1]token [2]token …
-    store: [tokens]
-
   umr_generate:                 # 整句的 UMR 图（penman）、对齐、文档级标注，一次写出；模型默认 GPT-6.1 Sol / Opus 5.5
     path: umr_generate
     input:
       before: list[dict]
-      tokens: str               # web-uz：tokenizer 切出的 token，带编号
     emit:
       graph: str                # 句级图，penman
       alignment: dict           # 变量 → [首, 尾]（Tokens 的编号）
@@ -150,7 +138,7 @@ skills:
     store: [relation]
 
   # 一个从句：查 PropBank 定义项，按框架直接写出这个事件的图片段；论元写成占位，交给下游。
-  predicate:                    # 用通用工具 propbank_lookup（skillsets/tools/）
+  predicate:                    # 用通用工具 propbank_lookup（skills/tools/）
     path: predicate
     input:
       text: str                 # 这一块的原文
@@ -203,7 +191,7 @@ skills:
       relations: list[dict]
     store: [relations]
 
-  temporal:                     # 时间依存（本站的 skill：web_skills/<lang>/temporal）
+  temporal:                     # 时间依存
     path: temporal
     input:
       sentences: list[dict]
@@ -211,7 +199,7 @@ skills:
       relations: list[dict]
     store: [relations]
 
-  coref:                        # 共指（本站的 skill：web_skills/<lang>/coref）
+  coref:                        # 共指
     path: coref
     input:
       sentences: list[dict]
@@ -223,10 +211,6 @@ skills:
 # 每个 skill 跑完之后起哪些新 skill。
 # 每条规则都会检查，命中的都执行（不是 if/elif）。
 dispatcher:
-
-  # web-uz：先分词，再生成
-  tokenizer:
-    - {run: umr_generate, input: {before: before, tokens: tokenizer_emit.numbered}}
 
   # web：wave 0 生成之后，规则检查并转换
   umr_generate:

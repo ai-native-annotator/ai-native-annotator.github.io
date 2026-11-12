@@ -1,11 +1,10 @@
-"""The Python half of index.html: SkillParseUMR's decision-orchestration procedures, run one node
-at a time.
+"""The Python half of index.html: a procedure (a registry.yaml and its skills), run one node at
+a time.
 
-Everything under /sp/skillparseumr and /sp/modular-parsing is the SkillParseUMR (and
-modular-parsing) source as composed by scripts/sync_skillparse.py (a few patches; the site's own
-skills and tools from data/skillparse/web_skills and web_tools; propbank.py reads the merged
-PropBank file). This file, with umr_load.py, is the page's Python. It does what src/runner.py
-does, split so the page drives it:
+/sp/skills/<lang> is a procedure, /sp/skills/tools the tools every skill may use, /sp/engine the
+registry parser and the UMR input and output handlers (data/skillparse/README.md). This file,
+with umr_load.py, is the page's Python. It does what SkillParseUMR's src/runner.py does, split so
+the page drives it:
 
   - a node is made but not run until someone clicks it, and a finished step must be confirmed
     (or corrected) before the next step of its episode can start: an episode never runs on by
@@ -30,25 +29,23 @@ import sys
 import traceback
 
 FS = os.environ.get("SP_FS", "/sp")
-SP = FS + "/skillparseumr"
-MP = FS + "/modular-parsing"
+SKILLS = FS + "/skills"
 DOCS = FS + "/docs"
-for p in (SP + "/src", FS + "/vendor"):
+UMR_LISTS = FS + "/umr"                 # UMR's own lists (SP_and_Discourse.csv)
+for p in (FS + "/engine", FS + "/vendor"):
     if p not in sys.path:
         sys.path.insert(0, p)
-os.environ.setdefault("PROPBANK_DIR", MP + "/resources")
 # what search_annotations / search_guidelines read: a local copy here, else (in the browser) the
 # site's data/skillparse/resources/, from $SP_BASE, which the worker sets
 os.environ.setdefault("SP_RESOURCES", FS + "/resources")
 sys.dont_write_bytecode = True
 
-DO = SP + "/experiment/decision-orchestration"
-# web-procedures/<lang>: composed by scripts/sync_skillparse.py (sent_type kind: jev, the other
-# model skills kind: agent); see the header of each registry.yaml
+# one procedure per language (sent_type kind: jev, the other model skills kind: agent); see the
+# header of each registry.yaml
 SKILLSETS = {
-    "web-zh": {"path": SP + "/web-procedures/zh/registry.yaml", "lang": "zh"},
-    "web-en": {"path": SP + "/web-procedures/en/registry.yaml", "lang": "en"},
-    "web-uz": {"path": SP + "/web-procedures/uz/registry.yaml", "lang": "uz"},
+    "web-zh": {"path": SKILLS + "/zh/registry.yaml", "lang": "zh"},
+    "web-en": {"path": SKILLS + "/en/registry.yaml", "lang": "en"},
+    "web-uz": {"path": SKILLS + "/uz/registry.yaml", "lang": "uz"},
 }
 # languages a document can say it is in (a `# :: lang <code>` line at the top of its .umr); one
 # without the line is zh when it has Chinese characters, else en
@@ -235,7 +232,7 @@ def purge_modules():
 
 
 def _pydantic_ai_stub():
-    """web-procedures/tools/search.py types search_annotations' first parameter as
+    """skills/tools/search.py types search_annotations' first parameter as
     pydantic_ai.RunContext[dict]; the browser has no pydantic-ai, so a RunContext that only
     carries `deps` stands in for it."""
     import types
@@ -455,7 +452,7 @@ class RegistryEngine:
                   for f in sorted(os.listdir(os.path.dirname(self.path)))
                   if f.endswith((".py", ".yaml")) and f != "registry.yaml"]
         shared.append(os.path.relpath(self.path, FS))
-        shared.append("skillparseumr/skillsets/tools/propbank.py")
+        shared.append(os.path.relpath(os.path.join(SKILLS, "tools", "propbank.py"), FS))
         panel = [{"name": n, "title": e.get("title") or n, "kind": e["skill"].kind, "role": e.get("role"),
                   "review": e.get("review"), "modes": e.get("modes"), "input": jsonable(e["skill"].input),
                   "emit": jsonable(e["skill"].emit), "files": skill_files(e["skill"].path)} for n, e in self.panel.items()]
@@ -1594,50 +1591,43 @@ class RegistryEngine:
 
     def _apply_generated(self, i, out):
         """Wave 0: sentence i's checked graph into the sentence and document waves (their episodes
-        for the sentence are made again), each step tagged "generated", with the tool calls its
-        skill would make done for it (_simulate_tools)."""
+        for the sentence are made again), each step tagged "generated"."""
         import umr_load
         try:
             rep = umr_load.load_generated(self, i, out.get("graph", ""), out.get("alignment") or {},
                                           out.get("document", ""))
         except Exception as e:
             return {"steps": 0, "problems": ["%s: %s" % (type(e).__name__, e)]}
-        for w in ("sentence", "document"):
-            if w in self.eps and i in self.eps[w]:
-                self._simulate_tools(w, i)
         return {"steps": rep["steps"], "problems": rep["problems"][:20]}
 
-    def _simulate_tools(self, w, i):
-        """The tool calls a loaded or generated step's skill would have made, made for it, so that a
-        person checking the step sees them: propbank_lookup for every concept with a sense."""
-        ep = self.eps[w].get(i)
-        if not ep:
-            return
-        for n in ep["nodes"].values():
-            o = n.get("output") if n["status"] == "ok" else None
-            g = (o or {}).get("graph") if isinstance(o, dict) else None
-            if not isinstance(g, dict) or n.get("tool_calls"):
-                continue
-            lemmas = []
-            for x in g.get("nodes") or []:
-                c = str((x or {}).get("concept", ""))
-                if SENSE.search(c) and not re.search(r"-9\d$", c):
-                    lemma = SENSE.sub("", c)
-                    if lemma not in lemmas:
-                        lemmas.append(lemma)
-            if not lemmas:
-                continue
-            skill = self.reg.skills.get(n["skill"])
-            fns = {t.__name__: t for t in skill_tools(skill.path)} if skill else {}
-            if "propbank_lookup" not in fns:
-                continue
-            args = {"lemmas": lemmas, "language": self.doc.lang}
-            try:
-                res = fns["propbank_lookup"](**args)
-            except Exception as e:
-                res = "%s: %s" % (type(e).__name__, e)
-            text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
-            n["tool_calls"] = [{"tool": "propbank_lookup", "args": args, "result": text[:200000], "simulated": True}]
+    def _simulated_tools(self, n):
+        """The tool calls the skill of a step no model ran would have made (a step loaded from a
+        .umr file, generated in wave 0, or made again after a local change: umr_load marks them all
+        "loaded"), made for it so that a person checking the step sees them: propbank_lookup for
+        every concept with a sense. They are worked out from the step's output as it is now each
+        time the step is looked at (node), and not kept."""
+        o = n.get("output") if n.get("loaded") and n["status"] == "ok" else None
+        g = (o or {}).get("graph") if isinstance(o, dict) else None
+        if not isinstance(g, dict):
+            return []
+        lemmas = []
+        for x in g.get("nodes") or []:
+            c = str((x or {}).get("concept", ""))
+            if SENSE.search(c) and not re.search(r"-9\d$", c):
+                lemma = SENSE.sub("", c)
+                if lemma not in lemmas:
+                    lemmas.append(lemma)
+        skill = self.reg.skills.get(n["skill"])
+        fns = {t.__name__: t for t in skill_tools(skill.path)} if skill and lemmas else {}
+        if "propbank_lookup" not in fns:
+            return []
+        args = {"lemmas": lemmas, "language": self.doc.lang}
+        try:
+            res = fns["propbank_lookup"](**args)
+        except Exception as e:
+            res = "%s: %s" % (type(e).__name__, e)
+        text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
+        return [{"tool": "propbank_lookup", "args": args, "result": text[:200000], "simulated": True}]
 
     def _descendants(self, ep, nid):
         return [k for k in ep["nodes"] if under(k, nid)]
@@ -1785,7 +1775,10 @@ class RegistryEngine:
         ep, n = self._node(w, i, nid)
         skill = self.reg.skills[n["skill"]]
         files = skill_files(skill.path)
-        return {**jsonable({k: v for k, v in n.items() if k != "trace"}), "kind": skill.kind,
+        # a simulated call kept by earlier work is worked out again, like the others
+        calls = self._simulated_tools(n) + [c for c in n.get("tool_calls") or [] if not c.get("simulated")]
+        return {**jsonable({k: v for k, v in n.items() if k != "trace"}), "tool_calls": jsonable(calls),
+                "kind": skill.kind,
                 "emit": jsonable(skill.emit), "files": files, "context_keys": list(ep["context"]),
                 "trace": n.get("trace"), "waiting": (w, int(i), nid) in self.gens,
                 "input_md": self._input_md(w, i, nid),

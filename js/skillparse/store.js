@@ -10,8 +10,20 @@
 
 const PREFIX = 'skillparse_files:';
 
+/** Where a file was before the skills were moved into one folder (versions saved then keep their place). */
+const MOVED = [
+  ['skillparseumr/web-procedures/', 'skills/'],
+  ['skillparseumr/skillsets/tools/', 'skills/tools/'],
+];
+const moved = (path) => MOVED.reduce((p, [from, to]) => (p.startsWith(from) ? to + p.slice(from.length) : p), path);
+
 function read(sid) {
-  try { return JSON.parse(localStorage.getItem(PREFIX + sid) || '{}') || {}; } catch { return {}; }
+  try {
+    const data = JSON.parse(localStorage.getItem(PREFIX + sid) || '{}') || {};
+    return Object.fromEntries(Object.entries(data).map(([path, vs]) => [moved(path), vs]));
+  } catch {
+    return {};
+  }
 }
 
 function write(sid, data) {
