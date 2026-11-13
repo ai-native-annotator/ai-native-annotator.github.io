@@ -31,6 +31,8 @@ def sp_ref(nid):
     return nid[:-1] if nid.endswith("B") else nid
 
 
+DOC_GROUP = re.compile(r":(temporal|modal|coref)\b")
+DOC_TRIPLE = re.compile(r"\(\s*([^\s()]+)\s+:([\w-]+)\s+([^\s()]+)\s*\)")
 TOKEN = re.compile(r"[A-Za-z0-9]+|[^\sA-Za-z0-9]")
 SPECIAL = {"date-entity", "date-interval", "ordinal-entity", "percentage-entity", "url-entity"}
 EVENT = re.compile(r"-\d{2}$")
@@ -408,8 +410,14 @@ class Loader:
 
     @staticmethod
     def doc_rel(text):
-        """[(group, source, relation, target)] of a document-level annotation."""
-        return [(x["group"], x["a"], x["rel"], x["b"]) for x in sys.modules["sp_bridge"].read_doc(text)]
+        """[(group, source, relation, target)]: the (a :rel b) triples of a document-level
+        annotation, by group."""
+        marks = [(m.start(), m.group(1)) for m in DOC_GROUP.finditer(text)]
+        out = []
+        for k, (start, group) in enumerate(marks):
+            end = marks[k + 1][0] if k + 1 < len(marks) else len(text)
+            out += [(group, a, r, b.rstrip(")")) for a, r, b in DOC_TRIPLE.findall(text[start:end])]
+        return out
 
     def prepare(self):
         e = self.e

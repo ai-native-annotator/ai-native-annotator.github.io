@@ -923,10 +923,6 @@ class RegistryEngine:
             body = body or "(its code says nothing about what it does)"
         return (head + body)[:30000]
 
-    def _sentence_graph_text(self, g):
-        block = g.get("text") or ""
-        return block.split("# sentence level graph:", 1)[-1].split("# alignment:", 1)[0].strip()
-
     def _umr_names(self, g):
         """(step id, its variable) -> the graph's UMR variable."""
         return {(n.get("node"), n.get("local")): n["var"] for n in g["nodes"] if n.get("node")}
@@ -1005,7 +1001,7 @@ class RegistryEngine:
         g = self.graph(i, auto_align=False)
         return {"sentence": sent.text, "tokens": prompt_value([[k + 1, t] for k, t in enumerate(sent.tokenized_text)]),
                 "tree": self.tree_markdown(i, g), "variables": self.variables_markdown(g),
-                "graph": self._sentence_graph_text(g) or "(empty)", "comment": str(comment or "").strip(),
+                "graph": g["penman"] or "(empty)", "comment": str(comment or "").strip(),
                 "lang": self.doc.lang, "index": sent.index}
 
     def panel_start(self, name, i, comment=""):
@@ -1082,7 +1078,7 @@ class RegistryEngine:
         :modstr (from its predicate step), and the alignment {var: [first, last]}."""
         import penman
         g = self.graph(i, auto_align=False)
-        text = self._sentence_graph_text(g)
+        text = g["penman"]
         if not g["nodes"] or not text:
             raise StepError("sentence %d has no graph yet" % (int(i) + 1))
         ep = self.eps.get(SENTENCE_WAVE, {}).get(int(i)) or {"nodes": {}}
@@ -1203,14 +1199,14 @@ class RegistryEngine:
     def node_refs(self, upto):
         """{UMR variable: how the document wave names its node} for sentences 0..upto, from their
         graphs as they are now: loaded, generated or annotated step by step."""
-        prov = self.render(False)["provenance"]
+        parts = self._assembled()
         out = {}
         for i in range(int(upto) + 1):
             sent = self.doc.sents[i]
             ep = self.eps.get(SENTENCE_WAVE, {}).get(i)
             if not ep:
                 continue
-            for var, x in (prov.get(str(sent.index)) or {}).items():
+            for var, x in parts[i]["provenance"].items():
                 step = ep["nodes"].get(x.get("node") or "")
                 if step and not x.get("unfilled"):
                     out[var] = self._ref_of(sent.index, step, x.get("var"))
@@ -1686,47 +1682,45 @@ class RegistryEngine:
         ep = self.eps.get(w, {}).get(i)
         return sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"])) if ep else []
 
-    def _assembled(self):
-        """Every sentence's graph, alignment, document-level annotation and provenance, from the
-        steps as they are: the sentence wave's steps, and the relations of the document wave's
-        steps (modal, temporal, coref) that are done."""
+    def _assembled(self, auto_align=False):
+        """Every sentence's graph, alignment, document-level relations and provenance
+        (umroutputhandler.assemble), from the steps as they are: the sentence wave's steps, and the
+        relations of the document wave's steps (modal, temporal, coref) that are done. auto_align:
+        a variable left at 0-0 whose concept is written in the sentence gets those words."""
         from umroutputhandler import assemble
         n = range(len(self.doc.sents))
         relations = [[r for d in self._steps("document", i) if d["status"] == "ok"
                       for r in (d.get("output") or {}).get("relations") or []] for i in n]
-        return assemble(self.doc, [self._steps(SENTENCE_WAVE, i) for i in n], relations)
+        return assemble(self.doc, [self._steps(SENTENCE_WAVE, i) for i in n], relations, auto_align)
 
     def render(self, auto_align=True):
-        from umroutputhandler import umr_text
-        parts = self._assembled()
-        text = umr_text(self.doc, parts)
-        added = []
-        if auto_align:
-            text, added = auto_align_umr(text, self.doc.lang)
-        return {"text": text, "added": added, "provenance": {str(p["index"]): p["provenance"] for p in parts},
-                "sentences": split_umr(text)}
+        """The .umr file: its text, each sentence's block, the alignments filled in, and which step
+        wrote each variable."""
+        from umroutputhandler import umr_blocks
+        parts = self._assembled(auto_align)
+        blocks = umr_blocks(self.doc, parts)
+        return {"text": "\n".join(blocks), "added": [a for p in parts for a in p["added"]],
+                "provenance": {str(p["index"]): p["provenance"] for p in parts},
+                "sentences": [{"index": p["index"], "text": b.rstrip() + "\n"} for p, b in zip(parts, blocks)]}
 
     def graph(self, i, auto_align=True):
         """Sentence i's assembled graph as nodes and edges, for drawing: every variable with its
-        concept, alignment (and the words there) and the tree node that made it; the edges between
+        concept, alignment (and the words there) and the step that made it; the edges between
         variables; the attributes (constants); and the sentence's document-level relations."""
         import penman
-        out = self.render(auto_align)
-        sent = self.doc.sents[int(i)]
-        block = next((b["text"] for b in out["sentences"] if b["index"] == sent.index), "")
-        graph = block.split("# sentence level graph:", 1)[-1].split("# alignment:", 1)[0].strip()
-        align_text = block.split("# alignment:", 1)[-1].split("# document level annotation:", 1)[0]
-        doc_text = block.split("# document level annotation:", 1)[-1]
-        align = dict(re.findall(r"^\s*(\S+):\s*(\d+-\d+)\s*$", align_text, re.M))
-        added = {v for n, v, _ in out["added"] if n == sent.index}
-        prov = out["provenance"].get(str(sent.index)) or {}
+        from umroutputhandler import EMPTY, umr_blocks
+        parts = self._assembled(auto_align)
+        sent, part = self.doc.sents[int(i)], parts[int(i)]
+        align, prov = dict(part["align"]), part["provenance"]
+        added = {var for _, var, _ in part["added"]}
         tokens = sent.tokenized_text
-        res = {"index": sent.index, "tokens": tokens, "text": block, "top": None, "nodes": [], "edges": [],
-               "attrs": [], "doc": read_doc(doc_text), "error": None}
-        if not graph or graph.startswith("(s%dx / empty)" % sent.index):      # the output handler's empty sentence
+        res = {"index": sent.index, "tokens": tokens, "text": umr_blocks(self.doc, parts)[int(i)].rstrip() + "\n",
+               "penman": part["graph"], "top": None, "nodes": [], "edges": [], "attrs": [],
+               "doc": part["relations"], "error": None}
+        if part["graph"] == EMPTY % sent.index:
             return res
         try:
-            g = penman.decode(graph)
+            g = penman.decode(part["graph"])
         except Exception as e:
             res["error"] = "%s: %s" % (type(e).__name__, e)
             return res
@@ -2021,106 +2015,6 @@ def marked_graph(g, out, marks):
 
 
 # ------------------------------------------------------------------ alignment
-
-ABSTRACT = re.compile(r"^(and|or|but|person|thing|name|sentence|have-.*-9\d|.*-9\d|date-entity|temporal-quantity|"
-                      r"monetary-quantity|ordinal-entity|percentage-entity|.*-quantity|.*-entity|identity-91|"
-                      r"consecutive|contrast-91|multi-sentence|empty)$")
-INSTANCE = re.compile(r"\(\s*([^\s/()]+)\s*/\s*([^\s()]+)")
-
-
-def auto_align_umr(text, lang):
-    """Give every variable aligned 0-0 whose concept is written in the sentence the position of
-    those words (the first such place no other variable already has). Abstract concepts, names and
-    entity types stay 0-0. Returns (text, [(sentence, var, alignment)])."""
-    out, added = [], []
-    for block in text.split(RULE80):
-        if "# alignment:" not in block:
-            out.append(block)
-            continue
-        m = re.search(r"^Words:\s*(.*)$", block, re.M)
-        words = m.group(1).split() if m else []
-        sm = re.search(r"#\s*::\s*snt(\d+)", block)
-        snt = int(sm.group(1)) if sm else 0
-        g = block.split("# sentence level graph:", 1)[-1].split("# alignment:", 1)[0]
-        concepts = {v: c for v, c in INSTANCE.findall(g)}
-        head, rest = block.split("# alignment:", 1)
-        if "# document level annotation:" in rest:
-            align, tail = rest.split("# document level annotation:", 1)
-            tail = "# document level annotation:" + tail
-        else:
-            align, tail = rest, ""
-        lines = align.split("\n")
-        used = set()
-        for ln in lines:
-            mm = re.match(r"^\s*(\S+):\s*(\d+)-(\d+)\s*$", ln)
-            if mm and mm.group(2) != "0":
-                used.update(range(int(mm.group(2)), int(mm.group(3)) + 1))
-        new = []
-        for ln in lines:
-            mm = re.match(r"^(\s*)(\S+):\s*0-0\s*$", ln)
-            if mm and mm.group(2) in concepts:
-                lemma = re.sub(r"-\d+$", "", concepts[mm.group(2)].strip('"'))
-                if lemma and not ABSTRACT.match(concepts[mm.group(2)]):
-                    span = _find(words, lemma, used, lang)
-                    if span:
-                        used.update(range(span[0], span[1] + 1))
-                        ln = "%s%s: %d-%d" % (mm.group(1), mm.group(2), span[0], span[1])
-                        added.append([snt, mm.group(2), "%d-%d" % span])
-            new.append(ln)
-        out.append(head + "# alignment:" + "\n".join(new) + tail)
-    return RULE80.join(out), added
-
-
-def _find(words, lemma, used, lang):
-    """1-based (first, last) of the words that spell lemma (one word, or several run together in
-    Chinese), preferring a place nobody has."""
-    low = [w.lower() for w in words]
-    target = lemma.lower()
-    hits = []
-    for a in range(len(words)):
-        s = ""
-        for b in range(a, min(len(words), a + 16)):
-            s = s + low[b] if lang == "zh" else (s + " " + low[b]).strip()
-            if s == target or (lang != "zh" and b == a and (_stem(low[a]) == _stem(target) or
-                                                             (len(target) >= 4 and low[a].startswith(target)))):
-                hits.append((a + 1, b + 1))
-                break
-            if not target.startswith(s.replace(" ", "-") if lang != "zh" else s) and s != target:
-                break
-    free = [h for h in hits if not any(k in used for k in range(h[0], h[1] + 1))]
-    return (free or hits or [None])[0]
-
-
-def _stem(w):
-    for suf in ("ing", "ed", "es", "s", "e"):
-        if w.endswith(suf) and len(w) > len(suf) + 2:
-            return w[:-len(suf)]
-    return w
-
-
-DOC_GROUP = re.compile(r":(temporal|modal|coref)\b")
-DOC_TRIPLE = re.compile(r"\(\s*([^\s()]+)\s+:([\w-]+)\s+([^\s()]+)\s*\)")
-
-
-def read_doc(text):
-    """[{group, a, rel, b}]: the (a :rel b) triples of a document-level annotation, by group."""
-    marks = [(m.start(), m.group(1)) for m in DOC_GROUP.finditer(text)]
-    out = []
-    for k, (start, group) in enumerate(marks):
-        end = marks[k + 1][0] if k + 1 < len(marks) else len(text)
-        for a, r, b in DOC_TRIPLE.findall(text[start:end]):
-            out.append({"group": group, "a": a, "rel": r, "b": b.rstrip(")")})
-    return out
-
-
-def split_umr(text):
-    out = []
-    for block in text.split(RULE80):
-        sm = re.search(r"#\s*::\s*snt(\d+)", block)
-        if sm:
-            out.append({"index": int(sm.group(1)), "text": RULE80 + block.rstrip() + "\n"})
-    return out
-
 
 # ------------------------------------------------------------------ session
 

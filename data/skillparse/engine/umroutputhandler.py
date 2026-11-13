@@ -1,8 +1,8 @@
 """A document's steps as a .umr file: each sentence's steps assembled into one graph, its
 alignment, and its document-level annotation.
 
-    parts = assemble(doc, steps, relations)     # one per sentence: graph, align, document, provenance
-    text = umr_text(doc, parts)
+    parts = assemble(doc, steps, relations)     # one per sentence: graph, align, relations, provenance
+    text = "\n".join(umr_blocks(doc, parts))
 
 `steps[i]` is sentence i's steps as the page keeps them ({id, skill, parent, edge, status, input,
 output}), or None when it has none; `relations[i]` its document-level relations.
@@ -69,17 +69,28 @@ NO_ROLE = "mod"             # a child joined without any role
 DOC_GROUPS = ["temporal", "modal", "coref"]     # their order in the file
 MODAL_STRENGTH = ("modal-strength", "modstr")
 INDENT = "    "
+EMPTY = "(s%dx / empty)"    # the graph of a sentence with no node yet
 
 
-def assemble(annotation, steps, relations):
-    """[{index, graph, align, document, provenance}], one per sentence. provenance is {variable:
-    {"node": step id, "skill", "var": the skill's own var[, "unfilled": True]}}: which step made
-    each node of the graph (unfilled: a leaf made for a placeholder nobody filled)."""
+def assemble(annotation, steps, relations, fill_alignments=False):
+    """One part per sentence:
+
+      index        the sentence's number
+      graph        its graph, penman
+      align        [(variable, "first-last")], "0-0" for one that is not aligned
+      added        [[sentence, variable, "first-last"]]: the alignments filled in (fill_alignments)
+      relations    [{group, a, rel, b}]: its document-level relations, variables for nodes
+      document     the same as the file writes it (with the root's fixed (root :modal author))
+      provenance   {variable: {"node": step id, "skill", "var": the skill's own var[, "unfilled":
+                   True]}}: which step made each node (unfilled: a leaf made for a placeholder
+                   nobody filled)
+    """
     graphs = {sent.index: _SentenceGraph(sent.index, steps[i] or []) for i, sent in enumerate(annotation.sents)}
     parts = []
     for i, sent in enumerate(annotation.sents):
         g = graphs[sent.index]
         graph, align = g.render()
+        added = _fill_alignments(align, g.concepts, sent.tokenized_text, annotation.lang) if fill_alignments else []
         prov = {u.var: {"node": node_id, "skill": g.nodes[node_id]["skill"], "var": local}
                 for node_id, f in g.frags.items() for local, u in f.local.items()}
         for node_id, f in g.frags.items():
@@ -87,12 +98,16 @@ def assemble(annotation, steps, relations):
                 for u in us:
                     prov.setdefault(u.var, {"node": node_id, "skill": g.nodes[node_id]["skill"],
                                             "var": var, "unfilled": True})
+        document, rels = _doc_graph(sent.index, relations[i] or [], graphs, g.modal)
         parts.append({"index": sent.index, "graph": graph, "align": align, "provenance": prov,
-                      "document": _doc_graph(sent.index, relations[i] or [], graphs, g.modal)})
+                      "added": [[sent.index, var, a] for var, a in added],
+                      "relations": [{"group": grp, "a": a, "rel": rel, "b": b} for grp, a, rel, b in rels],
+                      "document": document})
     return parts
 
 
-def umr_text(annotation, parts):
+def umr_blocks(annotation, parts):
+    """Each sentence's block of the .umr file; the file is the blocks joined by newlines."""
     blocks = []
     for sent, part in zip(annotation.sents, parts):
         n = sent.index
@@ -115,7 +130,65 @@ def umr_text(annotation, parts):
             "",
             "",
         ]))
-    return "\n".join(blocks)
+    return blocks
+
+
+# ------------------------------------------------------------------ alignments filled in
+
+# concepts no word of the sentence is: they stay 0-0
+ABSTRACT = re.compile(r"^(and|or|but|person|thing|name|sentence|have-.*-9\d|.*-9\d|date-entity|temporal-quantity|"
+                      r"monetary-quantity|ordinal-entity|percentage-entity|.*-quantity|.*-entity|identity-91|"
+                      r"consecutive|contrast-91|multi-sentence|empty)$")
+
+
+def _fill_alignments(align, concepts, words, lang):
+    """Give every variable aligned 0-0 whose concept is written in the sentence the position of
+    those words (the first such place no other variable already has). Abstract concepts, names and
+    entity types stay 0-0. `align` is changed in place; returns [(variable, "first-last")] added."""
+    used = set()
+    for _, a in align:
+        lo, hi = (int(x) for x in a.split("-"))
+        if lo:
+            used.update(range(lo, hi + 1))
+    added = []
+    for k, (var, a) in enumerate(align):
+        concept = concepts.get(var, "")
+        lemma = re.sub(r"-\d+$", "", concept.strip('"'))
+        if a != "0-0" or not lemma or ABSTRACT.match(concept):
+            continue
+        span = _find(words, lemma, used, lang)
+        if span:
+            used.update(range(span[0], span[1] + 1))
+            align[k] = (var, "%d-%d" % span)
+            added.append(align[k])
+    return added
+
+
+def _find(words, lemma, used, lang):
+    """1-based (first, last) of the words that spell lemma (one word, or several run together in
+    Chinese), preferring a place nobody has."""
+    low = [w.lower() for w in words]
+    target = lemma.lower()
+    hits = []
+    for a in range(len(words)):
+        s = ""
+        for b in range(a, min(len(words), a + 16)):
+            s = s + low[b] if lang == "zh" else (s + " " + low[b]).strip()
+            if s == target or (lang != "zh" and b == a and (_stem(low[a]) == _stem(target) or
+                                                             (len(target) >= 4 and low[a].startswith(target)))):
+                hits.append((a + 1, b + 1))
+                break
+            if not target.startswith(s.replace(" ", "-") if lang != "zh" else s) and s != target:
+                break
+    free = [h for h in hits if not any(k in used for k in range(h[0], h[1] + 1))]
+    return (free or hits or [None])[0]
+
+
+def _stem(w):
+    for suf in ("ing", "ed", "es", "s", "e"):
+        if w.endswith(suf) and len(w) > len(suf) + 2:
+            return w[:-len(suf)]
+    return w
 
 
 def _index_words(tokens):
@@ -126,9 +199,10 @@ def _index_words(tokens):
 
 
 def _doc_graph(n, relations, graphs, modal):
-    """The document-level block of sentence n. `modal` is the sentence's
-    [(var, modal strength)]; see the module docstring for how it is merged
-    with the document skill's modal relations."""
+    """The document-level block of sentence n, and its relations [(group, source, relation,
+    target)] as the block has them (without the root's fixed one). `modal` is the sentence's
+    [(var, modal strength)]; see the module docstring for how it is merged with the modal
+    relations."""
     def ref(x):
         """The variable a reference stands for, a constant as is, or None."""
         m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+B?)(?:/(\S+))?\s*", str(x))
@@ -163,16 +237,15 @@ def _doc_graph(n, relations, graphs, modal):
 
     groups = {}
     for g, s_, rel, t in rels:
-        line = f"({s_} :{rel} {t})"
-        if line not in groups.setdefault(g, []):
-            groups[g].append(line)
-    head = f"(s{n}s0 / sentence"
-    lines = [head]
+        if (s_, rel, t) not in groups.setdefault(g, []):
+            groups[g].append((s_, rel, t))
+    lines, written = [f"(s{n}s0 / sentence"], []
     for g in DOC_GROUPS + sorted(set(groups) - set(DOC_GROUPS)):
         if g in groups:
             pad = " " * (len(f"{INDENT}:{g} ("))
-            lines.append(f"{INDENT}:{g} (" + ("\n" + pad).join(groups[g]) + ")")
-    return "\n".join(lines) + ")"
+            lines.append(f"{INDENT}:{g} (" + ("\n" + pad).join(f"({s_} :{rel} {t})" for s_, rel, t in groups[g]) + ")")
+            written += [(g, s_, rel, t) for s_, rel, t in groups[g] if (g, s_) != ("modal", "root")]
+    return "\n".join(lines) + ")", written
 
 
 # ------------------------------------------------------------------ fragments
@@ -345,6 +418,7 @@ class _SentenceGraph:
         self.roots = []             # heads with no fragment above them
         self.strength = []          # (_UNode, modal strength), taken out of the sentence graph
         self.modal = []             # (var, modal strength) of the nodes render() wrote
+        self.concepts = {}          # var -> concept of the nodes render() wrote
         if self.kids.get(None):
             self._walk(self.kids[None][0], None, None)
         for f in self.frags.values():
@@ -562,7 +636,7 @@ class _SentenceGraph:
 
     def render(self):
         if not self.roots:
-            return f"(s{self.n}x / empty)", []
+            return EMPTY % self.n, []
         if len(self.roots) == 1:
             top = self.roots[0]
         else:
@@ -575,6 +649,7 @@ class _SentenceGraph:
             if id(u) in seen:
                 continue
             seen.add(id(u))
+            self.concepts[u.var] = u.concept
             triples.append((u.var, ":instance", u.concept))
             triples += [(u.var, ":" + role, value) for role, value in u.attrs]
             for role, d in u.edges:
