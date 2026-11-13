@@ -106,7 +106,7 @@ function refText(ref, idx) {
 export function docNodes(input) {
   const idx = docIndex(input);
   return [...idx.rows.values()].map((r) => ({ ref: r.node, sentence: Number(r.sentence), current: r.sentence === idx.current,
-    label: rowLabel(r), kind: r.kind || '' }));
+    label: rowLabel(r) }));
 }
 
 const DOC_GROUPS = ['temporal', 'modal', 'coref'];

@@ -1,10 +1,8 @@
-"""Output handler for UMR: write a Runner's worktree as a .umr file.
+"""Output handler for UMR: write a worktree as the text of a .umr file.
 
-    out = UMROutputHandler()
-    out.write(result["annotation"], result["worktree"], "out/english_umr-0003.umr")
+    text = UMROutputHandler().render(annotation, worktree)
 
-The file has the layout of the gold files (newdata/, olddata/gold/), which is what
-judges/umrjudge.py reads: per sentence a #### line, `# :: snt<i>`, Index /
+The file has the layout of the gold files: per sentence a #### line, `# :: snt<i>`, Index /
 Words, `# sentence level graph:`, `# alignment:`, `# document level annotation:`.
 
 Sentence level graph (from worktree.sentence[i] and worktree.reentrancy[i]).
@@ -69,8 +67,6 @@ import re
 
 import penman
 
-from output_handler import OutputHandler
-
 
 # stored field -> (role, how its value is written; None leaves it out)
 ATTRIBUTES = {
@@ -80,16 +76,14 @@ ATTRIBUTES = {
         ("polarity", "polarity", lambda v: "-" if v == "negative" else None),
     ],
 }
-FRAGMENT_SKILLS = {"predicate", "np_phrase", "special_entity"}
+FRAGMENT_SKILLS = ("predicate", "np_phrase", "special_entity")
 NO_ROLE = "mod"             # a child joined without any role
 DOC_GROUPS = ["temporal", "modal", "coref"]     # their order in the file
 MODAL_STRENGTH = ("modal-strength", "modstr")
 INDENT = "    "
 
 
-class UMROutputHandler(OutputHandler):
-
-    suffix = ".umr"
+class UMROutputHandler:
 
     def render(self, annotation, worktree):
         graphs = {}
@@ -159,7 +153,7 @@ def _index_words(tokens):
     return [f"Index: {index}".rstrip(), f"Words: {words}".rstrip()]
 
 
-def _doc_graph(n, relations, graphs, modal=()):
+def _doc_graph(n, relations, graphs, modal):
     """The document-level block of sentence n. `modal` is the sentence's
     [(var, modal strength)]; see the module docstring for how it is merged
     with the document skill's modal relations."""
@@ -220,7 +214,7 @@ def fragment_of(x):
     skill = x["skill"]
     if skill == "discourse":
         rel = x.get("relation")
-        return _single(rel, None) if rel not in (None, "", "none") else None
+        return _single(rel) if rel not in (None, "", "none") else None
     if skill == "sent_type" and x.get("type") != "stop":
         return None
     if skill != "sent_type" and skill not in FRAGMENT_SKILLS:
@@ -231,7 +225,7 @@ def fragment_of(x):
         if skill == "sent_type" and not concept:
             concept = x["input"].get("text", "")
         if concept:
-            frag = _single(concept, None)
+            frag = _single(concept)
     if frag is None:
         return None
     root = frag["nodes"][0]
@@ -245,8 +239,8 @@ def fragment_of(x):
     return frag
 
 
-def _single(concept, span):
-    return {"nodes": [{"var": "x", "concept": _concept(concept), "span": span}],
+def _single(concept):
+    return {"nodes": [{"var": "x", "concept": _concept(concept), "span": None}],
             "edges": [], "attrs": [], "open": {}, "outside": {}}
 
 

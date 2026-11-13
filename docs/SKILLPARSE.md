@@ -52,10 +52,10 @@
 | `data/skillparse/MANIFEST.json` | Worker 要写进 `/sp` 的文件清单：`{/sp 下的路径: 存这个文件的地方}`（增删文件后 `python3 scripts/build_manifest.py` 重写） |
 | `data/skillparse/bridge/sp_bridge.py` | Python 一侧：`Session`（文档、文件）和 `RegistryEngine`（一步步跑 registry） |
 | `data/skillparse/bridge/umr_load.py` | 把已有 `.umr` 的标注拆成步骤 |
-| `data/skillparse/skills/zh` · `en` · `uz` | 三套流程：`registry.yaml`、各自的 skill.md、`jevlib.py` |
-| `data/skillparse/skills/shared/` | 共用的 skill 和模块：`convert`、`apply_change`、`modal`、`local_change`、`reflect`、`sent_type`（英文和乌兹别克语用；中文有自己的）、`prompt_loader.py`、`event_modifiers.*` |
+| `data/skillparse/skills/zh` · `en` · `uz` | 各语言自己的文件：skill.md；中文另有 sent_type 的 `prompts.yaml`，乌兹别克语另有自己的 `registry.yaml`（先分词）和 `tokenizer` |
+| `data/skillparse/skills/shared/` | 各语言共用的（某语言自己的目录里有同路径的文件就用自己的）：`registry.yaml`（流程）、规则 `convert`、`apply_change`、`modal`，`local_change`、`reflect`，`sent_type` 和它用的 `jevlib.py`、`prompt_loader.py` |
 | `data/skillparse/skills/tools/` | 通用工具：`propbank.py`（`propbank_lookup`）、`search.py`（`search_annotations`、`search_guidelines`） |
-| `data/skillparse/engine/` | `registry.py`（registry 的解析和表达式）、UMR 输入输出模块 |
+| `data/skillparse/engine/` | `registry.py`（registry 的解析和表达式）、`umrinputhandler.py`（读文档、分 token）、`umroutputhandler.py`（写 `.umr`） |
 | `data/skillparse/umr/SP_and_Discourse.csv` | UMR 的篇章关系列表（载入 `.umr` 时用来认 discourse 节点） |
 | `data/skillparse/resources/propbank/zh.json` · `en.json` | PropBank：每个 roleset 的角色和全部例子（`skills/tools/propbank.py` 读） |
 | `data/skillparse/FEATURES.zh.md` · `FEATURES.en.md` | 给用户看的功能一览：顶栏「?」按钮打开（按界面语言） |
@@ -144,7 +144,7 @@ Worker 是单线程的，所有 `py()` 调用按顺序排队执行。模型请�
 1. 有未存的改动就先 `saveNow()`，然后暂停自动暂存。
 2. `py('open')` → `Session.open`：
    - 读 `/sp/docs/<doc>.umr`，判断语言；英文文档没有 `.txt` 时写一个（Words 用空格拼回），让输入模块按词切 token；
-   - `RegistryEngine(skillset, registry.yaml, doc)`：`Registry.load`（SkillParseUMR 的 `src/registry.py`），`UMRInputHandler` 读文档（中文一字一个 token，连续的拉丁字母或数字算一个）；
+   - `RegistryEngine(skillset, registry.yaml, doc)`：`Registry.load`（`engine/registry.py`），`UMRInputHandler` 读文档（中文一字一个 token，连续的拉丁字母或数字算一个）；
    - 有 `<doc>.annotation`（以「载入已有的标注」导入的）就 `umr_load.load()`，报告放进 `loaded`。
 3. 把这个浏览器改过的 skill 文件写回 `/sp`（`store.js` 的最新版本 → `write_file`），再 `describe`。
 4. 查 IndexedDB 有没有这篇文档 + 这套流程的暂存（`workKey = "<skillset>|<doc>"`）：有就弹「接着上次的继续？」
@@ -319,7 +319,7 @@ document 这一波每句三个并列的步骤，互不依赖：registry 里这�
 
 **生成整篇**：generate 这一波的运行栏有「▶▶ 生成整篇」（`generateAll`）：每一句依次生成、转换，跑完的步骤直接确认；遇到出错的步骤就停在那一句。
 
-**右栏按 registry 的 `user_panel` 配置**：`registry.yaml` 顶层多了一段 `user_panel`（同步时给 `registry.py` 打补丁，允许这个键；流程本身不读它），不属于任何一波。每一项写法和 skills 一样（`path`、`kind`、`input`、`emit`），另外可以有 `title`（右栏这一栏的标题）、`role`（用哪个模型角色）、`review`（人审核后执行的 skill）、`modes`（反思的几种方式）。bridge 用 `registry.py` 自己的 `_build_skills` 检查并建好这些 skill（`_load_panel`）；左栏 skill 列表下面有一块「右栏（user_panel）」，三个 skill 的文件都能打开、修改、存新版本。现在有三项：
+**右栏按 registry 的 `user_panel` 配置**：`registry.yaml` 顶层多了一段 `user_panel`（`registry.py` 允许这个键；流程本身不读它），不属于任何一波。每一项写法和 skills 一样（`path`、`kind`、`input`、`emit`），另外可以有 `title`（右栏这一栏的标题）、`role`（用哪个模型角色）、`review`（人审核后执行的 skill）、`modes`（反思的几种方式）。bridge 用 `registry.py` 自己的 `_build_skills` 检查并建好这些 skill（`_load_panel`）；左栏 skill 列表下面有一块「右栏（user_panel）」，三个 skill 的文件都能打开、修改、存新版本。现在有三项：
 
 - `local_change`（agent，`role: generate`）：「改这一句的图」。
 - `apply_change`（rule，`apply_change/apply_change.py`）：local_change 的 `review`，执行勾选的改动。
@@ -341,7 +341,7 @@ document 这一波每句三个并列的步骤，互不依赖：registry 里这�
 
 ## 7. 流程（registry）：两波
 
-流程在 `skills/zh/registry.yaml`、`skills/en/registry.yaml`（和 `skills/uz/`），结构一样。
+流程在 `skills/shared/registry.yaml`（中文、英文共用）和 `skills/uz/registry.yaml`，结构一样。
 
 | wave | for_each | 起点 | 读什么 |
 |---|---|---|---|
@@ -386,7 +386,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
    - span 一样、概念也一样的两个节点是同一个，后出现的并进先出现的，但不会并进自己的上层。这里的节点指写概念的步骤：predicate、np_phrase、special_entity、sent_type 叶子；span 是这一步输入的 span。
    - outside 里的参与者：并到 span 一样的第一个节点，没有就并到中心词 span 一样的第一个节点，不并进自己所在的上层。
    - 如果这一项写明了概念（载入的文件会写），节点的概念也要一样，这时可以并进上层，例如从句的参与者就是它修饰的名词。
-3. `UMROutputHandler().render(doc, worktree)`（SkillParseUMR 的 `src/output_handler/umroutputhandler.py`，未改）：
+3. `UMROutputHandler().render(doc, worktree)`（`engine/umroutputhandler.py`）：
    - 把每一步的图片段拼成整句的图，变量改名为 `s<句号><字母>`；
    - 被合并的节点变成重入边；
    - predicate 的 aspect、polarity 写成属性，modal strength 移到文档级；

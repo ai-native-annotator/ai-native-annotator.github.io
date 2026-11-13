@@ -8,6 +8,8 @@
  *   localStorage["skillparse_files:<skillset>"] = {"<path under /sp>": [version, ...]}
  */
 
+import { readJson, writeJson } from './local.js';
+
 const PREFIX = 'skillparse_files:';
 
 /** Where a file was before the skills were moved into one folder (versions saved then keep their place). */
@@ -18,34 +20,16 @@ const MOVED = [
 const moved = (path) => MOVED.reduce((p, [from, to]) => (p.startsWith(from) ? to + p.slice(from.length) : p), path);
 
 function read(sid) {
-  try {
-    const data = JSON.parse(localStorage.getItem(PREFIX + sid) || '{}') || {};
-    return Object.fromEntries(Object.entries(data).map(([path, vs]) => [moved(path), vs]));
-  } catch {
-    return {};
-  }
+  return Object.fromEntries(Object.entries(readJson(PREFIX + sid)).map(([path, vs]) => [moved(path), vs]));
 }
 
-function write(sid, data) {
-  try {
-    localStorage.setItem(PREFIX + sid, JSON.stringify(data));
-    return true;
-  } catch {
-    return false;       // full or blocked: the edit still applies to this session
-  }
-}
+/** False when storage is full or blocked: the edit still applies to this session. */
+const write = (sid, data) => writeJson(PREFIX + sid, data);
 
-export function edited(sid) {
-  return read(sid);
-}
+export { read as edited };
 
 export function versions(sid, path) {
   return read(sid)[path] || [];
-}
-
-export function current(sid, path) {
-  const v = versions(sid, path);
-  return v.length ? v[v.length - 1].content : null;
 }
 
 export function addVersion(sid, path, content, note = '', source = 'manual') {

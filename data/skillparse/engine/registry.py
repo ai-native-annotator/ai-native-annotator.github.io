@@ -4,12 +4,11 @@ Registry.load() reads the file into Wave / Skill / Rule objects and runs every
 load-time check of REGISTRY.md section 7. All problems are collected and
 raised together as one RegistryError, so a broken file is fixed in one go.
 
-At run time the Runner uses:
+At run time the page's Python (bridge/sp_bridge.py) uses:
     evaluate(expr, names, position)   the value of an expression
     holds(rule, names)                whether a rule's `when` is true
-    python_type(spec)                 a type from `input` / `emit` as a Python type
 
-    reg = Registry.load("skillsets/umr-tree/registry.yaml")
+    reg = Registry.load("skills/zh/registry.yaml")
     wave = reg.waves[0]
     sents = evaluate(wave.for_each["sentence"], {"annotation": doc})
 """
@@ -19,7 +18,7 @@ import os
 import re
 import string
 from dataclasses import dataclass, field
-from typing import Any, Literal, Optional, Union
+from typing import Any, Optional
 
 import yaml
 
@@ -58,7 +57,6 @@ class Window:
     pick: tuple = ()
 
 
-Expr = Union[Path, Window]
 
 
 def evaluate(expr, names, position=None):
@@ -123,14 +121,6 @@ BASIC_TYPES = {
     "list[float]": list[float],
     "list[dict]": list[dict],
 }
-
-
-def python_type(spec):
-    """A type spec from `input` / `emit` as a Python type. An enum (a yaml
-    list) becomes a Literal, so pydantic only accepts those values."""
-    if isinstance(spec, list):
-        return Literal[tuple(spec)]
-    return BASIC_TYPES[spec]
 
 
 # ---------------------------------------------------------------------------

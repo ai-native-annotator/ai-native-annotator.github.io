@@ -177,7 +177,7 @@ export function askRestore(kept) {
   });
 }
 
-export function fillSelectors() {
+function fillSelectors() {
   const ss = document.getElementById('skillset');
   ss.replaceChildren(...SKILLSETS.map((s) => h('option', { value: s.id, text: s.label, selected: s.id === S.skillset })));
   const ds = document.getElementById('doc');

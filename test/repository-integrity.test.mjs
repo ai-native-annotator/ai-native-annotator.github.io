@@ -88,30 +88,17 @@ test('index.html has unique ids and valid local scripts and stylesheets', async 
 });
 
 test('the host is told not to run Jekyll over the site', async () => {
-  // GitHub Pages runs Jekyll unless a `.nojekyll` file says otherwise, and
-  // Jekyll drops every path whose name starts with "_". The page's Python
-  // imports two packages by their __init__.py, which the worker fetches; a 404
-  // there stops Python from booting, while every local check passes, because
-  // serve.py hands over the underscore files happily.
-  assert.ok(
-    await isFile(join(root, '.nojekyll')),
-    '.nojekyll is missing: the deployed site will 404 every "_"-prefixed path',
-  );
+  // GitHub Pages runs Jekyll unless a `.nojekyll` file says otherwise, and Jekyll drops every
+  // path whose name starts with "_": a file the page fetches would 404 on the host while every
+  // local check passes, because serve.py hands such files over happily.
+  assert.ok(await isFile(join(root, '.nojekyll')), '.nojekyll is missing');
 
-  // If that file is ever lost, these are the paths that take the site down
-  // with it. Listing them keeps the cost of removing it visible.
+  // There is no such path now; one that appears is at risk if .nojekyll is ever lost.
   const atRisk = (await walk(join(root, 'js')))
     .concat(await walk(join(root, 'data')))
     .map((file) => file.slice(root.length + 1))
     .filter((path) => path.split('/').some((segment) => segment.startsWith('_')));
-  assert.deepEqual(
-    atRisk.sort(),
-    [
-      'data/skillparse/engine/input_handler/__init__.py',
-      'data/skillparse/engine/output_handler/__init__.py',
-    ],
-    'a new "_"-prefixed runtime path appeared; keep .nojekyll and update this list',
-  );
+  assert.deepEqual(atRisk, [], 'a "_"-prefixed runtime path appeared; keep .nojekyll');
 });
 
 test('browser verification does not depend on a machine-specific module path', async () => {

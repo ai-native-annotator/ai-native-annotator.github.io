@@ -7,7 +7,7 @@
  * working tree exactly as it is on disk. A host does not have to. GitHub Pages
  * runs Jekyll unless told not to, and Jekyll silently drops every path whose
  * name begins with "_" — which once took the whole site down: a 404 anywhere
- * in an ES module graph fails the entire graph, and a missing `__init__.py`
+ * in an ES module graph fails the entire graph, and a missing Python file
  * stops the page's Python from booting. Locally everything passed, because
  * locally everything was there.
  *

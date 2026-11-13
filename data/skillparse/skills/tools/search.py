@@ -10,14 +10,13 @@ gold/zh/gold.json, gold/en/gold.json and guidelines/umr_guidelines.md. It is not
 page starts (the English gold is 27 MB): the first search reads it, from $SP_RESOURCES when that
 folder has it, else from the site ($SP_BASE + "resources/...") in the browser.
 
-The sentences of the document being annotated (the run's deps "doc_sentences") are never
+The sentences of the document being annotated (ctx.deps["doc_sentences"]; a tool whose first
+parameter is `ctx` is handed the run's context, and the model does not see that parameter) are never
 returned: the sample documents are gold documents too, and their answers must not leak.
 """
 import json
 import os
 import re
-
-from pydantic_ai import RunContext
 
 MAX_RESULTS = 10
 MAX_TEXT = 6000                 # characters of one returned annotation or section
@@ -28,7 +27,7 @@ GOLD = ("zh", "en")             # the languages there is gold data for
 _cache = {}
 
 
-def search_annotations(ctx: RunContext[dict], language: str, keywords: list[str], max_results: int = 3) -> str:
+def search_annotations(ctx, language: str, keywords: list[str], max_results: int = 3) -> str:
     """Find how a case is annotated: gold UMR annotations of whole sentences.
 
     language: "zh" (Chinese) or "en" (English); there is no gold data for "uz" (Uzbek).

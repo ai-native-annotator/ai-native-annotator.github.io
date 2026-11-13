@@ -10,6 +10,8 @@
  * then every call quietly does nothing and the page works as before, without keeping anything.
  */
 
+import { readJson, writeJson } from './local.js';
+
 const DB = 'skillparse';
 const STORES = ['work', 'imports'];
 let opened = null;
@@ -58,9 +60,7 @@ export const putImport = (rec) => run('imports', 'readwrite', (s) => s.put({ ...
 
 /** The document last open, for the next visit. */
 export function lastOpen(value) {
-  try {
-    if (value) localStorage.setItem('skillparse_last', JSON.stringify(value));
-    else return JSON.parse(localStorage.getItem('skillparse_last') || 'null');
-  } catch { /* storage blocked */ }
+  if (!value) return readJson('skillparse_last', null);
+  writeJson('skillparse_last', value);
   return null;
 }

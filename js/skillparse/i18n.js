@@ -49,17 +49,17 @@ const ZH = {
   wave: 'wave {n}', start: '起点', forEach: 'for_each', parallel: '并行', contextVars: 'context（每一步都拿到）',
   inputVars: 'input（只给起点）', windowTitle: '窗口：{var}', windowSrc: '取 {src} 的 [{a}, {b})',
   prevN: '前 {n} 句', winBefore: '前', winAfter: '句', thisOnly: '只看这一句', withCurrent: '含本句', default: 'registry 默认',
-  restartNote: '已开始的句子要重新开始（↻）才会用新窗口。', items: 'for_each 项（{n}）', none: '全不选',
+  restartNote: '已开始的句子要重新开始（↻）才会用新窗口。', items: 'for_each 项（{n}）',
   episodeCtx: '这一项的 context', notStarted: '这一项还没开始。',
   needs: '要先完成并确认：{list}', restart: '↻ 重新开始',
   runNext: '▶ 运行下一步', stale: '前面的结果改过了，这一项可能过时；可以重新开始。',
-  shared: '共用文件', kinds: { jev: 'jev', rule: 'rule', agent: 'agent' },
+  shared: '共用文件',
   tabOutput: '输出', tabInput: '输入', tabJev: '问答', tabPrompt: '输入与提示词', promptNote: '模型拿到的输入（Markdown），下面是同时给它的 system 和说明（skill.md），以及原始的值。', docFollowed: '句子有改动，可以检查一下 document 有没有改动（指向这一步的文档级关系已跟着更新：改了 {changed} 条，去掉 {dropped} 条）。', features: '功能一览', fold: '折叠这一栏', unfold: '展开', keyNames: { openrouter: 'OpenRouter', anthropic: 'Anthropic', openai: 'OpenAI', typesafe: 'TypeSafe（Jev）' }, modelsNote: '这里不用选：每一项用顶栏选的模型（反思默认 Sonnet 5.5）；走哪个服务按上面填的 key 自动定：模型自家的 key（Anthropic、OpenAI）优先直连，没有就经 OpenRouter；直连发不出去（比如网络拦了 api.openai.com）或 key 被拒时，自动改经 OpenRouter，这次打开页面后面的调用也都走 OpenRouter。', modelsAll: '所有模型现在能不能用', needsKey: '没有能用的 key', modelNoKey: '选好了；现在还没有能用这个模型的 key（在设置里填）', jevVia: { typesafe: 'TypeSafe（直连）', openrouter: 'OpenRouter' }, jevUses: '用 {key} key 调 {model}。', jevNoKey: '还没有 {key} key：在上面「API key」里填。', otherSettings: '其他', listSep: '；', genAll: '▶▶ 生成整篇', userPanel: '右栏（registry 的 user_panel）', userPanelNote: '不属于任何一波：右栏每一栏用哪个 skill、上下文、模型，都按 registry.yaml 的 user_panel。', panelDesc: '写评论说这一句的图哪里要改（可以用 UMR 变量名、词或步骤编号）。模型读这一句的树和变量表，提出一组改动；在 UMR 文本和图上用颜色看过、勾选之后，由 {review} 执行。', panelPlaceholder: '例如：s1x2 的 ARG0 应该是 s1p；北京下面的名字不对', panelPropose: '提出改动', panelSummary: '改动方案', panelNoChanges: '模型没有提出改动。', panelCannot: '用不上：{why}', panelNewVar: '新节点 {a} 的变量名：{b}', panelTools: '工具调用（{n}）', panelApply: '执行勾选的 {n} 条', panelDiscard: '放弃', panelApplied: '执行了 {ok}/{n} 条；重新拆成步骤：改动的 {changed}，保留 {kept} 步。', panelDoc: '文档级关系：改了 {changed} 条，去掉 {dropped} 条。', previewTitle: '预览：勾选的 {n} 条改动', previewAdd: '绿：新增', previewDel: '红：删除', previewChg: '橙：修改', previewNote: '在右栏勾选、取消，这里跟着变；执行后才真正改动。', previewBefore: '原来的 UMR 文本', changedTag: '这一步是右栏的改动执行后重新拆出来的。', genAllTitle: '每一句依次生成、转换，跑完的步骤直接确认（之后仍可查看、重跑，或在右栏提改动）', genAllDone: '生成了 {n} 句。', genAllStopped: '第 {n} 句停下了：{e}',
   noNode: '在下面点一步。', edit: '修改输出', saveCorrection: '保存修改（作为人工结果）', cancel: '取消',
   machine: '机器输出', human: '人工修改', humanTag: '人工',
   rerun: '↻ 重跑这一步', run: '▶ 运行', badJson: '不是合法的 JSON：{e}', saved: '已保存，下面的步骤按你的结果重做。',
   questions: '{n} 个问题', round: '第 {n} 轮', noRounds: '这一步没有问 Jev。', noPrompt: '这一步不调模型。',
-  error: '出错', problems: '读取问题', children: '子节点', dropped: '没有建的子节点',
+  error: '出错', children: '子节点', dropped: '没有建的子节点',
   aiHead: '这一步：{node}', aiNone: '先在下面选一步。',
   m1: '直接改 skill', m1Desc: '打开这一步的 skill 文件，改完保存，再重跑这一步。',
   m2: '改生成内容，自动找 skill 的问题', m2Desc: '在上面「✎ 直接修改」改成对的结果并保存；AI 比较机器输出和你的结果，找出 skill 哪里错并给出修改。',
@@ -74,7 +74,7 @@ const ZH = {
   savedVersion: '已保存。下一次运行这一步就用新版本。', syntax: '保存了，但 Python 有问题：{p}', diffWithPrev: '和上一版的差别',
   importTitle: '导入文档', importDesc: '选文件或粘贴文本，再选导入格式。中文按单字编号（对齐也按单字）。', paste: '或者粘贴文本：',
   importGo: '导入', docName: '文档名', imported: '已导入 {id}（{n} 句）',
-  settingsTitle: '设置', keys: 'API key（只存在这个浏览器）', roles: '模型', model: '模型名',
+  settingsTitle: '设置', keys: 'API key（只存在这个浏览器）', roles: '模型',
   jevBackend: 'Jev（回答 sent_type 的封闭问题）经哪里调用',
   concurrency: '同时运行的步数', saveSettings: '保存',
   exported: '已导出', alignAdded: '自动补了 {n} 个 alignment', nothing: '还没有结果可以导出。',
@@ -130,17 +130,17 @@ const EN = {
   wave: 'wave {n}', start: 'start', forEach: 'for_each', parallel: 'parallel', contextVars: 'context (every step gets it)',
   inputVars: 'input (the start skill only)', windowTitle: 'Window: {var}', windowSrc: 'items [{a}, {b}) of {src}',
   prevN: '{n} before', winBefore: '', winAfter: 'items before', thisOnly: 'this one only', withCurrent: 'include this one', default: 'registry default',
-  restartNote: 'Items already started use the new window once restarted (↻).', items: 'for_each items ({n})', none: 'none',
+  restartNote: 'Items already started use the new window once restarted (↻).', items: 'for_each items ({n})',
   episodeCtx: "This item's context", notStarted: 'This item has not started.',
   needs: 'Needs first (done and confirmed): {list}', restart: '↻ Restart',
   runNext: '▶ Run next step', stale: 'Something it reads has changed since; restart it to redo.',
-  shared: 'Shared files', kinds: { jev: 'jev', rule: 'rule', agent: 'agent' },
+  shared: 'Shared files',
   tabOutput: 'Output', tabInput: 'Input', tabJev: 'Q&A', tabPrompt: 'Input & prompt', promptNote: 'The input as the model gets it (Markdown); below, the system prompt and instructions (skill.md) it got with it, and the raw values.', docFollowed: 'The sentence changed: you may check whether the document level did (its relations to this step followed it: {changed} changed, {dropped} dropped).', features: 'Features', fold: 'Fold this pane', unfold: 'Open', keyNames: { openrouter: 'OpenRouter', anthropic: 'Anthropic', openai: 'OpenAI', typesafe: 'TypeSafe (Jev)' }, modelsNote: 'Nothing to choose here: each runs the model picked in the toolbar (reflection: Sonnet 5.5 by default), through the service the keys above reach: the model maker\'s own key (Anthropic, OpenAI) directly when it is there, else OpenRouter; when a direct call cannot get through (a network blocking api.openai.com) or the key is refused, it goes through OpenRouter, and so do the later calls of this visit.', modelsAll: 'Every model, and whether it can run now', needsKey: 'no key reaches it', modelNoKey: 'Picked; no key reaches this model yet (add one in Settings)', jevVia: { typesafe: 'TypeSafe (direct)', openrouter: 'OpenRouter' }, jevUses: 'Calls {model} with the {key} key.', jevNoKey: 'No {key} key yet: add it under API keys above.', otherSettings: 'Other', listSep: '; ', genAll: '▶▶ Generate all', userPanel: 'Right pane (the registry\'s user_panel)', userPanelNote: 'Not in any wave: which skill, context and model each card of the right pane uses is set in registry.yaml\'s user_panel.', panelDesc: 'Comment on what to change in this sentence\'s graph (by UMR variables, words or step ids). The model reads the sentence\'s tree and variables and proposes changes; you look at them in color on the UMR text and the graph, pick them, and {review} applies them.', panelPlaceholder: 'e.g. the ARG0 of s1x2 should be s1p; the name under s1c is wrong', panelPropose: 'Propose changes', panelSummary: 'Proposed changes', panelNoChanges: 'The model proposed no change.', panelCannot: 'Cannot be applied: {why}', panelNewVar: 'The new node {a} is named {b}', panelTools: 'Tool calls ({n})', panelApply: 'Apply the {n} picked', panelDiscard: 'Discard', panelApplied: 'Applied {ok}/{n}; the steps made again: changed {changed}, kept {kept}.', panelDoc: 'Document-level relations: {changed} changed, {dropped} dropped.', previewTitle: 'Preview: the {n} picked changes', previewAdd: 'green: added', previewDel: 'red: deleted', previewChg: 'orange: changed', previewNote: 'Pick or unpick them in the right pane and this follows; nothing changes until they are applied.', previewBefore: 'The UMR text as it is', changedTag: 'This step was made again after a change applied from the right pane.', genAllTitle: 'Each sentence in turn is generated and converted; finished steps are confirmed (they can still be looked at, re-run, or changed from the right pane)', genAllDone: '{n} sentences generated.', genAllStopped: 'Stopped at sentence {n}: {e}',
   noNode: 'Click a step below.', edit: 'Edit output', saveCorrection: 'Save (as the human result)', cancel: 'Cancel',
   machine: 'Machine output', human: 'Human correction', humanTag: 'human',
   rerun: '↻ Re-run this step', run: '▶ Run', badJson: 'Not valid JSON: {e}', saved: 'Saved; the steps below are redone from your result.',
   questions: '{n} questions', round: 'Round {n}', noRounds: 'This step asked Jev nothing.', noPrompt: 'This step calls no model.',
-  error: 'Error', problems: 'Reading problems', children: 'Children', dropped: 'Children not made',
+  error: 'Error', children: 'Children', dropped: 'Children not made',
   aiHead: 'This step: {node}', aiNone: 'Pick a step below first.',
   m1: 'Edit the skill yourself', m1Desc: "Open this step's skill files, save, and re-run the step.",
   m2: 'Correct the output, find the skill problem', m2Desc: 'Use "✎ Edit directly" above to write the right result; the AI compares it with the machine output and proposes a skill edit.',
@@ -155,7 +155,7 @@ const EN = {
   savedVersion: 'Saved. The next run of this step uses it.', syntax: 'Saved, but the Python has a problem: {p}', diffWithPrev: 'Change from the previous version',
   importTitle: 'Import a document', importDesc: 'Pick a file or paste text, then choose how to read it. Chinese is numbered one character per token (so are alignments).', paste: 'Or paste text:',
   importGo: 'Import', docName: 'Name', imported: 'Imported {id} ({n} sentences)',
-  settingsTitle: 'Settings', keys: 'API keys (kept in this browser only)', roles: 'Models', model: 'Model',
+  settingsTitle: 'Settings', keys: 'API keys (kept in this browser only)', roles: 'Models',
   jevBackend: "Where Jev (sent_type's closed questions) is called",
   concurrency: 'Steps run at once', saveSettings: 'Save',
   exported: 'Exported', alignAdded: 'filled in {n} alignments', nothing: 'Nothing to export yet.',
@@ -183,7 +183,8 @@ export function t(key, vars = {}) {
   return String(s).replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? `{${k}}`));
 }
 
-export function applyStatic(root = document) {
+export function applyStatic() {
+  const root = document;
   root.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
   root.querySelectorAll('[data-i18n-title]').forEach((el) => { el.title = t(el.dataset.i18nTitle); });
 }

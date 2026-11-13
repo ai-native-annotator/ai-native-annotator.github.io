@@ -12,28 +12,17 @@
 import { S, onRender } from './core.js';
 import { h, clear } from './ui.js';
 import { t } from './i18n.js';
+import { readJson, writeJson } from './local.js';
 
 const KEY = 'skillparse_time';
 const MAX_STEP = 5000;          // a longer gap (the computer slept) counts as this much at most
-let times = load();
+let times = readJson(KEY);
 let last = performance.now();
 let unsaved = false;
 
-function load() {
-  try {
-    const v = JSON.parse(localStorage.getItem(KEY) || '{}');
-    return v && typeof v === 'object' ? v : {};
-  } catch {
-    return {};
-  }
-}
-
 function save() {
-  if (!unsaved) return;
-  try {
-    localStorage.setItem(KEY, JSON.stringify(times));
-    unsaved = false;
-  } catch { /* storage blocked: the times live as long as the page */ }
+  // storage blocked: the times live as long as the page
+  if (unsaved && writeJson(KEY, times)) unsaved = false;
 }
 
 const docKey = () => (S.skillset && S.doc ? `${S.skillset}|${S.doc}` : null);
@@ -51,7 +40,7 @@ function spent(wave, item) {
   return ofDoc()?.[wave]?.[item] || 0;
 }
 
-export function fmt(ms) {
+function fmt(ms) {
   const s = Math.floor(ms / 1000);
   const hh = Math.floor(s / 3600);
   const mm = Math.floor((s % 3600) / 60);

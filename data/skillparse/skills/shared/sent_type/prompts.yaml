@@ -1,5 +1,7 @@
 schema_version: 1
 tables:
+  # the chance of discourse at which a piece with a comma inside goes to discourse
+  DISCOURSE_IF_COMMA: 0.2
   TYPES:
     discourse: |-
       Two or more full clauses joined as equals: coordination (X，并且Y; X，但是Y; X或者Y; X，然后Y; X and Y; X, but Y). The clauses may share one subject written only once: a subject with two or more verb phrases, each with its own main verb, the later ones after a comma and joined by 并/而/也/还 or by nothing (X关闭了工厂，并调走工人); a comma clause that goes on to list who or what was involved (…，包括A、B和C) is a clause of its own too. A main clause with a subordinate clause (因为, 如果, 当……时, 为了, 以便, 从而, a relative clause ending in 的) is NOT this: it is predicate. Neither is one verb of saying, reporting, thinking, suspecting or showing (说, 称, 表示, 声称, 认为, 怀疑, 显示) followed by what is said, thought or shown, even when that is several clauses with commas between them: the whole piece is predicate. Nor a clause after a comma that only says where or what the last noun before it is (放进盒子，藏在柜底, about the box): predicate. It IS discourse when the speaker does something else after the comma, a second action with its own verb (X称A，并主持了B).

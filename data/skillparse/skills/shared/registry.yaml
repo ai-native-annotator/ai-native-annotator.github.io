@@ -1,5 +1,6 @@
-# The Chinese procedure.
-# sent_type is kind: jev (with jevlib.py, prompt_loader.py, event_modifiers.*); every other model
+# The procedure of every language that has no registry.yaml of its own (Chinese, English): the
+# skill.md files in its folder are what differ.
+# sent_type is kind: jev (with jevlib.py and prompt_loader.py); every other model
 # skill is kind: agent: its skill.md, answered by the model picked in the toolbar. A file that is
 # not in this folder is skills/shared's (data/skillparse/README.md).
 # There is no coverage, antecedent (outside stays in the step) or reentrancy wave (nodes with the
@@ -118,7 +119,7 @@ skills:
   # 判断这一块是什么类型；是 stop（叶子）时顺便给出它的小图。
   sent_type:
     path: sent_type
-    kind: jev                 # web: Jev, from experiment/decision-orchestration/umr-zh-v11/versions/V12
+    kind: jev
     input:
       text: str                 # 这一块的原文
       span: list[int]
@@ -138,7 +139,7 @@ skills:
     store: [relation]
 
   # 一个从句：查 PropBank 定义项，按框架直接写出这个事件的图片段；论元写成占位，交给下游。
-  predicate:                    # 自带 propbank_lookup
+  predicate:                    # 用通用工具 propbank_lookup（skills/tools/）
     path: predicate
     input:
       text: str                 # 这一块的原文
@@ -153,7 +154,7 @@ skills:
       polarity: [positive, negative]
     store: [graph, open, alignment, frame, polarity]   # polarity 写成谓词的属性
 
-  np_phrase:                    # 自带 propbank_lookup（施事名词、名物化事件要查义项）
+  np_phrase:                    # 也用 propbank_lookup（施事名词、名物化事件要查义项）
     path: np_phrase
     input:
       text: str                 # 这一块的原文

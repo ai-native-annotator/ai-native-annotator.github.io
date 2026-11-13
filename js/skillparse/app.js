@@ -8,11 +8,10 @@
  *   reflect.js    skill problems from a correction or a description, and the edits that fix them
  */
 
-import { bootPython, onProgress } from './py.js';
+import { bootPython, onProgress, py } from './py.js';
 import { S, SKILLSETS, loadDocs, render, onRender, setRestoreAsker, status, stop, runNextAll, saveNow } from './core.js';
-import { openSettings, openImport, exportAs, askRestore, fillSelectors, reopen } from './dialogs.js';
+import { openSettings, openImport, exportAs, askRestore, reopen } from './dialogs.js';
 import { allImports, lastOpen } from './save.js';
-import { py } from './py.js';
 import { MODEL_CHOICES, DEFAULT_CHOICE, currentChoice, pickModel, route } from './models.js';
 import { closeModal, openModal, toast, h } from './ui.js';
 import { renderMarkdown } from './md.js';

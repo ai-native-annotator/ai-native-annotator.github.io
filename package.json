@@ -7,6 +7,7 @@
     "serve": "python3 serve.py",
     "test": "node scripts/run-node-tests.mjs",
     "test:browser": "node scripts/run-verification.mjs",
+    "test:live": "node scripts/run-verification.mjs live-models.js",
     "check:deploy": "node scripts/check-deploy.mjs",
     "lint": "eslint js docs/verification scripts test",
     "typecheck": "tsc --project jsconfig.json",

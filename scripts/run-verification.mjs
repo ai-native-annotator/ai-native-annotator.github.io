@@ -12,12 +12,15 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const verificationDirectory = join(root, 'docs', 'verification');
 
-const available = (await readdir(verificationDirectory))
-  .filter((name) => name.endsWith('-test.js'))
+// every script can be asked for by name; with no name, the `-test.js` ones run (the others
+// need something more: live-models.js a key, and it spends money)
+const scripts = (await readdir(verificationDirectory))
+  .filter((name) => name.endsWith('.js') && !name.startsWith('_'))
   .sort();
+const available = scripts.filter((name) => name.endsWith('-test.js'));
 
 if (process.argv.includes('--list')) {
-  console.log(available.join('\n'));
+  console.log(scripts.join('\n'));
   process.exit(0);
 }
 
@@ -27,8 +30,8 @@ const selected = requested.length
   : available;
 
 for (const name of selected) {
-  if (!available.includes(name)) {
-    throw new Error(`Unknown verification script: ${name}\nAvailable:\n${available.join('\n')}`);
+  if (!scripts.includes(name)) {
+    throw new Error(`Unknown verification script: ${name}\nAvailable:\n${scripts.join('\n')}`);
   }
 }
 

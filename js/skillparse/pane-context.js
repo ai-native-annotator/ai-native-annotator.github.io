@@ -15,7 +15,7 @@ function exprText(e) {
   return String(e);
 }
 
-function windowCard(wave, win) {
+function windowCard(win) {
   const cur = win.override || win.range;
   const stop = win.range[1];             // keep the registry's stop: whether the item itself is included
   const before = -Math.min(0, cur[0]);
@@ -67,7 +67,7 @@ function draw() {
       h('dl', { class: 'kv' }, Object.entries(wave.context).map(([k, v]) => [h('dt', { text: k }), h('dd', { text: exprText(v) })]))),
     h('details', {}, h('summary', { text: t('inputVars') }),
       h('dl', { class: 'kv' }, Object.entries(wave.input).map(([k, v]) => [h('dt', { text: k }), h('dd', { text: exprText(v) })]))),
-    wave.windows.map((w) => windowCard(wave, w)));
+    wave.windows.map((w) => windowCard(w)));
 
   const list = h('ul', { class: 'items', role: 'listbox', 'aria-label': t('items', { n: S.items.length }) }, S.items.map((it) => {
     const st = it.status.replace('+stale', '');

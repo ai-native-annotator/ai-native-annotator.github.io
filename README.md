@@ -32,7 +32,8 @@ npx playwright install chromium
 npm run test:browser          # starts the local server and runs the browser verification
 ```
 
-Run one browser check with `npm run test:browser -- skillparse-test.js`. The page loads Pyodide
+Run one browser check with `npm run test:browser -- skillparse-test.js`, and a few steps against
+the real models with `OPENROUTER_KEY=… npm run test:live` (it costs a few cents). The page loads Pyodide
 from a CDN, so the browser checks need the network for that; every model is a stand-in. See
 [`docs/verification/`](docs/verification/).
 
@@ -123,10 +124,9 @@ git history and on the `obsolete` branch.
 
 `.github/workflows/pages.yml` publishes the repository root from the default branch.
 
-- **`.nojekyll` is load-bearing.** While Pages deploys _from a branch_, GitHub runs Jekyll over the
-  repository, and Jekyll silently drops every path whose name starts with `_`: the page's Python
-  packages have `__init__.py` files, and without them Python does not boot. `.nojekyll` turns that
-  build off.
+- **Keep `.nojekyll`.** While Pages deploys _from a branch_, GitHub runs Jekyll over the
+  repository, and Jekyll silently drops every path whose name starts with `_`. The site has no such
+  path now; the file keeps one added later from disappearing on the host only.
 - **Check the deploy, not just the checkout.** Everything else here runs against `serve.py`, which
   serves the working tree exactly as it is; a host does not have to.
 

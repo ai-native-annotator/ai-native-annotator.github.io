@@ -60,7 +60,7 @@ Rules for edits:
 - Prefer one or two small edits. If the cause is upstream or not in the skill, say so and return no edits.
 Answer with the final_result tool.`;
 
-export const SCHEMA = {
+const SCHEMA = {
   type: 'object',
   properties: {
     diagnosis: { type: 'string', description: 'what went wrong and why, in the language the person wrote in (Chinese if unsure)' },
@@ -104,7 +104,7 @@ function jevRounds(rounds) {
 }
 
 /** The prompt for one node. `files` is {path: text}. */
-export function buildPrompt({ skillset, node, context, mode, feedback, corrected, files, graph }) {
+function buildPrompt({ skillset, node, context, mode, feedback, corrected, files, graph }) {
   const parts = [`# Procedure\n${skillset} (a registry: a tree of skill calls per sentence)`];
   parts.push(`# The step\nnode ${node.id}, skill \`${node.skill}\`, kind ${node.kind}${node.edge ? `, edge ${node.edge}` : ''}`);
   parts.push(`## Context (the same for every step of this sentence)\n${clip(context, 4000)}`);
@@ -138,7 +138,7 @@ export async function reflect(args) {
 }
 
 /** Apply the edits to one file's text. Returns {text, results:[{ok, why}]}; failed edits change nothing. */
-export function applyEdits(text, edits) {
+function applyEdits(text, edits) {
   let out = text;
   const results = edits.map((e) => {
     const find = e.find ?? '';

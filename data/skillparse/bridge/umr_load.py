@@ -196,6 +196,10 @@ class Loader:
                     break
         return None
 
+    def text_at(self, span):
+        sep = "" if self.lang == "zh" else " "
+        return {"text": sep.join(self.tokens[span[0] - 1:span[1]]), "span": span}
+
     def piece(self, u, fallback):
         """{text, span} of a node's part of the sentence: its subtree's tokens; with no
         alignment there, where its name or concept occurs; else the part it is in."""
@@ -206,9 +210,7 @@ class Loader:
                 span = self.find("".join(str(v).strip('"') for r, v in sorted(name.attrs) if r.startswith("op")))
             if span is None:
                 span = self.find(EVENT.sub("", u.concept))
-        span = span or fallback
-        sep = "" if self.lang == "zh" else " "
-        return {"text": sep.join(self.tokens[span[0] - 1:span[1]]), "span": span}
+        return self.text_at(span or fallback)
 
     # -- what kind of step writes a node
 
@@ -301,9 +303,7 @@ class Loader:
 
     def ref_piece(self, var, fallback):
         u = self.by_var.get(var)
-        span = (self.span_of(var) or (self.subtree_span(u) if u else None)) or fallback
-        sep = "" if self.lang == "zh" else " "
-        return {"text": sep.join(self.tokens[span[0] - 1:span[1]]), "span": span}
+        return self.text_at((self.span_of(var) or (self.subtree_span(u) if u else None)) or fallback)
 
     # -- writing the steps
 
@@ -324,10 +324,10 @@ class Loader:
         if kind == "stop":
             self.put(nid, {"type": "stop", "graph": {"nodes": [self.node(u)], "edges": [],
                                                      "attrs": [[u.var, r, v] for r, v in u.attrs]},
-                           "outside": []})
+                           })
             self.where[u.var] = nid
             return
-        st = self.put(nid, {"type": kind, "graph": {}, "outside": []})
+        st = self.put(nid, {"type": kind, "graph": {}})
         if not st["children"]:
             self.problems.append("snt%d %s: no %s step after sent_type" % (self.i + 1, nid, kind))
             return
@@ -415,23 +415,16 @@ class Loader:
         refs = {}
         # a sent_type leaf "0.1B" is named "0.1" (sp_bridge.ref_id); a step's first node is the step
         # ("3:0.1", as the document wave's table names it), another node of it "3:0.1/<var>"
-        name = lambda nid: nid[:-1] if nid.endswith("B") else nid  # noqa: E731
         for var, nid in self.where.items():
-            refs[var] = "%d:%s" % (sent.index, name(nid))
+            refs[var] = "%d:%s" % (sent.index, sp_ref(nid))
         for var, nid in self.where_inner.items():
-            refs.setdefault(var, "%d:%s/%s" % (sent.index, name(nid), var))
+            refs.setdefault(var, "%d:%s/%s" % (sent.index, sp_ref(nid), var))
         return refs
 
     @staticmethod
     def doc_rel(text):
         """[(group, source, relation, target)] of a document-level annotation."""
-        marks = [(m.start(), m.group(1)) for m in re.finditer(r":(temporal|modal|coref)\s*\(", text)]
-        out = []
-        for k, (start, group) in enumerate(marks):
-            end = marks[k + 1][0] if k + 1 < len(marks) else len(text)
-            for a, r, b in re.findall(r"\(\s*([^\s()]+)\s+:(\S+)\s+([^\s()]+)\s*\)", text[start:end]):
-                out.append((group, a, r, b))
-        return out
+        return [(x["group"], x["a"], x["rel"], x["b"]) for x in sys.modules["sp_bridge"].read_doc(text)]
 
     def prepare(self):
         e = self.e
@@ -511,7 +504,7 @@ class Loader:
                 self.document(i, bs[i]["doc"], refs)
         e.refs.update(per)
         how = "word" if "word" in hows else "char" if "char" in hows else "token"
-        return {"alignment": how, "converted": how == "word", "sentences": n, "steps": self.count,
+        return {"alignment": how, "sentences": n, "steps": self.count,
                 "merged": len(self.merged),
                 "problems": self.problems[:50], "more_problems": max(0, len(self.problems) - 50)}
 

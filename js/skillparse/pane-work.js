@@ -89,7 +89,7 @@ function reviewCard(d) {
       }
     });
     hintBox = h('div', { class: 'hint-box' },
-      model ? h('div', { class: 'note', text: t(d.kind === 'jev' ? 'hintWhereJev' : 'hintWhere', { label: hintLabel() }) }) : null,
+      h('div', { class: 'note', text: t(d.kind === 'jev' ? 'hintWhereJev' : 'hintWhere', { label: hintLabel() }) }),
       area,
       h('div', { class: 'row' },
         model ? h('button', { class: 'btn primary hint-go', disabled: busy, text: t('hintGo'), 'aria-keyshortcuts': 'Enter', onclick: () => {
@@ -204,7 +204,7 @@ function inputTab(d) {
     h('details', {}, h('summary', { text: t('jsonTitle') }), h('pre', { class: 'block', text: pretty(d.input) })));
 }
 
-function answerLine(q, a) {
+function answerLine(a) {
   if (!a) return h('span', { class: 'note', text: '…' });
   const who = a.by ? h('span', { class: `badge by-${a.by}`, text: a.by === 'jev' ? 'Jev' : a.by === 'haiku' ? 'Haiku' : t('humanTag') }) : null;
   if ('noul' in a) return h('span', {}, h('span', { class: 'bar', style: `width:${Math.round(a.noul * 60)}px` }), `yes ${Number(a.noul).toFixed(2)} `, who);
@@ -225,7 +225,7 @@ function jevTab(d) {
         typeof q.instructions === 'string' ? q.instructions.slice(0, 300) : Object.entries(q.instructions || {}).map(([a, b]) => `${a}: ${b}`).join(' · ').slice(0, 300)),
       q.type === 'choice' ? h('details', {}, h('summary', { text: `${Object.keys(q.criteria || {}).length} options` }),
         h('ul', {}, Object.entries(q.criteria || {}).map(([o, desc]) => h('li', {}, h('code', { text: o }), desc ? ` — ${String(desc).slice(0, 200)}` : '')))) : null,
-      h('div', { class: 'a' }, answerLine(q, r.answers?.[id])))))));
+      h('div', { class: 'a' }, answerLine(r.answers?.[id])))))));
 }
 
 /**
@@ -237,7 +237,7 @@ function promptTab(d) {
   const p = d.prompt;
   return h('div', { style: 'display:grid;gap:6px' },
     h('div', { class: 'note', text: t('promptNote') }),
-    d.input_md ? h('div', { class: 'block md-view' }, renderMarkdown(p?.input && !d.input_md ? p.input : d.input_md, { lines: true })) : null,
+    d.input_md ? h('div', { class: 'block md-view' }, renderMarkdown(d.input_md, { lines: true })) : null,
     p ? h('details', {}, h('summary', { text: 'system' }), h('pre', { class: 'block', text: p.system })) : null,
     p ? h('details', {}, h('summary', { text: 'instructions (skill.md)' }),
       h('div', { class: 'block md-view' }, renderMarkdown(p.instructions)),
@@ -361,7 +361,7 @@ function previewBanner(pv) {
     h('div', { class: 'note', text: t('previewNote') }));
 }
 
-async function graphTab(out, d) {
+async function graphTab(out) {
   const pv = previewHere();
   const key = `${S.skillset}|${S.doc}|${S.wave}|${S.item}|${S.node}|${S.graphStamp}|${fit}|${pv ? pv.stamp : ''}`;
   if (shown === key && out.querySelector('.graph-panel')) return;
@@ -423,7 +423,7 @@ function drawTop() {
   const tabs = tabsFor(d);
   if (!tabs.includes(S.tab)) S.tab = tabs[0];
   clear(tabsEl, tabs.map((k) => h('button', { class: 'tab', role: 'tab', 'aria-selected': String(S.tab === k), text: t(LABEL[k]), onclick: () => { S.tab = k; S.editing = false; S.hinting = false; render(); } })));
-  if (S.tab === 'graph') { delete out.dataset.editing; graphTab(out, d); return; }
+  if (S.tab === 'graph') { delete out.dataset.editing; graphTab(out); return; }
   shown = '';
   if (S.tab === 'umr') { delete out.dataset.editing; umrTab(out); return; }
   if (!d) { clear(out, h('div', { class: 'empty', text: t('noNode') })); return; }
@@ -483,7 +483,7 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-const STATUS = { ok: '✓', review: '◆', running: '◐', error: '✕', pending: '○', skipped: '–', blocked: '!' };
+const STATUS = { ok: '✓', review: '◆', error: '✕', pending: '○' };
 
 function drawBottom() {
   const bar = document.getElementById('run-bar');

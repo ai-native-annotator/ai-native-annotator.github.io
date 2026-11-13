@@ -5,12 +5,15 @@ with the files `MANIFEST.json` lists, at the same paths as here:
 
 ```
 skills/            every skill, in one place
-  zh/ en/ uz/        a procedure: registry.yaml, its skill folders (skill.md, or a .py rule), jevlib.py
-  shared/            what several procedures use: convert, apply_change, modal, local_change, reflect,
-                     sent_type (en, uz; zh has its own), prompt_loader.py, event_modifiers.*
+  zh/ en/ uz/        a language: its skill.md files, and whatever else it has of its own (zh: sent_type's
+                     prompts.yaml; uz: registry.yaml with a tokenizer first, and the tokenizer)
+  shared/            what every language uses unless it has its own: registry.yaml (the procedure),
+                     the rules convert, apply_change, modal; local_change, reflect; sent_type with
+                     jevlib.py and prompt_loader.py
   tools/             the tools any skill may call: propbank.py, search.py
   REGISTRY.md        the syntax of registry.yaml
-engine/            registry.py (the registry parser and its expressions), the UMR input and output handlers
+engine/            registry.py (the registry parser and its expressions), umrinputhandler.py (a document's
+                   sentences and tokens), umroutputhandler.py (the .umr text)
 bridge/            the page's own Python (below)
 umr/               UMR's list of discourse relations
 docs/              sample documents, sentences only
@@ -25,8 +28,9 @@ version puts a file at the same path in its folder. `python3 scripts/build_manif
 `MANIFEST.json` by that rule; run it after adding, moving or deleting a file here
 (`test/repository-integrity.test.mjs` fails when it was not).
 
-To add a skill: make its folder under `skills/<lang>/` (or `skills/shared/`), name it in the
-`registry.yaml` of each procedure that runs it, and write the manifest again.
+To add a skill: make its folder under `skills/<lang>/` (or `skills/shared/`), name it in
+`skills/shared/registry.yaml` (and in a language's own registry.yaml, if it has one), and write the
+manifest again.
 
 The procedures began as SkillParseUMR's (the Chinese one from decision-orchestration's
 `umr-zh-frag` R42, the English one from `skillsets/umr-tree`, `sent_type` from V12) and are this
@@ -53,9 +57,8 @@ answer from the `final_result` output tool; and validating that answer against `
 does the first in `js/skillparse/models.js` (the same loop over the Anthropic Messages API or an
 OpenAI-style chat API; the tools themselves run in Python in the bridge) and the second in the bridge
 (`_check_emit`: every `emit` field present, enum values from the list, lists and objects where
-declared). The one import of pydantic-ai left is `search_annotations`' type annotation
-(`ctx: RunContext[dict]` in `skills/tools/search.py`); the bridge registers a small `pydantic_ai`
-module whose `RunContext` only carries `deps`, which is all the tool reads.
+declared). A tool whose first parameter is `ctx` is handed the run's context (`ctx.deps`: the
+engine and the open document's sentences); the model does not see that parameter.
 
 ## bridge/
 

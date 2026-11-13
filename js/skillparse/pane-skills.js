@@ -4,7 +4,7 @@
  * that the next run uses (store.js keeps the versions in this browser).
  */
 
-import { h, clear, openModal, closeModal, toast, diffView, download } from './ui.js';
+import { h, clear, openModal, toast, diffView, download } from './ui.js';
 import { S, onRender, render, panelTitle } from './core.js';
 import { py } from './py.js';
 import { addVersion, versions, forget, original, edited } from './store.js';
@@ -42,9 +42,8 @@ function draw() {
     S.desc.skills.map((s) => {
       const anyEdited = s.files.some((f) => (files[f] || []).length);
       return h('div', { class: `skill${s.name === currentSkill ? ' current' : ''}`, onclick: () => s.files[0] && openEditor(s.files[0]) },
-        h('div', {}, h('span', { class: 'name', text: s.name }), h('span', { class: `badge ${s.kind}`, text: t(`kinds.${s.kind}`) }),
+        h('div', {}, h('span', { class: 'name', text: s.name }), h('span', { class: `badge ${s.kind}`, text: s.kind }),
           modelBadge(s.kind, s.name),
-          s.model ? h('span', { class: 'badge', text: s.model }) : null,
           anyEdited ? h('span', { class: 'badge edited', text: '✎' }) : null),
         s.rules.length ? h('ul', { class: 'rules' }, s.rules.map((r) => h('li', { title: r.text, text: r.short || r.text }))) : null,
         h('div', { class: 'files' }, s.files.map(fileChip)));
@@ -65,7 +64,7 @@ function panelSkills(files) {
       const role = e.role && settings().roles[e.role] ? e.role : null;
       const model = e.kind === 'agent' && role ? currentChoice(role)?.label.replace(/ [\d.]+$/, '') || role : null;
       return h('div', { class: 'skill panel-skill', title: panelTitle(e), onclick: () => e.files[0] && openEditor(e.files[0]) },
-        h('div', {}, h('span', { class: 'name', text: e.name }), h('span', { class: `badge ${e.kind}`, text: t(`kinds.${e.kind}`) }),
+        h('div', {}, h('span', { class: 'name', text: e.name }), h('span', { class: `badge ${e.kind}`, text: e.kind }),
           model ? h('span', { class: 'badge by-haiku', text: `→ ${model}` }) : null,
           e.review ? h('span', { class: 'badge', text: `→ ${e.review}` }) : null,
           anyEdited ? h('span', { class: 'badge edited', text: '✎' }) : null),

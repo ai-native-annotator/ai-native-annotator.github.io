@@ -27,6 +27,7 @@ import os
 import re
 import sys
 import traceback
+import types
 
 FS = os.environ.get("SP_FS", "/sp")
 SKILLS = FS + "/skills"
@@ -35,6 +36,9 @@ UMR_LISTS = FS + "/umr"                 # UMR's own lists (SP_and_Discourse.csv)
 for p in (FS + "/engine", FS + "/vendor"):
     if p not in sys.path:
         sys.path.insert(0, p)
+# the output handler's own: which skills write a fragment, a concept as it is written, and the
+# sort key of a step id ("0B" < "0" < "0.0B" < "0.0" < "0.1B"; "0.10" after "0.9")
+from umroutputhandler import FRAGMENT_SKILLS, _concept as _concept_key, _key as node_key  # noqa: E402
 # what search_annotations / search_guidelines read: a local copy here, else (in the browser) the
 # site's data/skillparse/resources/, from $SP_BASE, which the worker sets
 os.environ.setdefault("SP_RESOURCES", FS + "/resources")
@@ -57,7 +61,7 @@ SYSTEM = ("You are an expert annotator of Uniform Meaning Representation (UMR), 
           "UMR guidelines. Do exactly the one task you are given.")
 # modules every version of the procedure has under the same name: a zh and an en version must
 # not share them, and an edited file must be read again
-SHARED_MODULES = ("jevlib", "prompt_loader", "event_modifiers")
+SHARED_MODULES = ("jevlib", "prompt_loader")
 TOOL_PREFIXES = ("skill_rules.", "skill_tools.", "skillset_tools.", "shared_tools")
 RULE80 = "#" * 80
 # a person's hint for re-running a step: written after the skill's input (agent skills), or put in
@@ -135,15 +139,6 @@ def jsonable(x):
     return str(x)
 
 
-FRAGMENT_SKILLS = ("predicate", "np_phrase", "special_entity")
-
-
-def _concept_key(c):
-    """A concept as the output handler writes it (quotes and spaces made plain)."""
-    c = re.sub(r"[\s()/:\"]+", "-", str(c).strip().strip('"')).strip("-")
-    return c if re.search(r"\w", c) else "thing"
-
-
 def _unconfirmed(n):
     return n["status"] in ("ok", "error") and not n.get("confirmed")
 
@@ -153,17 +148,6 @@ def _unconfirmed(n):
 # the steps they start "0.0", "0.1". A sent_type leaf (type stop) is the node itself and is
 # called "<n>" too (ref_id). An antecedent node of an `outside` item is "<step>.<k>A".
 TYPER = "sent_type"
-_ID_PART = re.compile(r"^(\d+)([AB]?)$")
-_SUFFIX = {"B": 0, "": 1, "A": 2}
-
-
-def node_key(node_id):
-    """Sort key of a step id: "0B" < "0" < "0.0B" < "0.0" < "0.1B"; "0.10" after "0.9"."""
-    out = []
-    for p in str(node_id).split("."):
-        m = _ID_PART.match(p)
-        out += [int(m.group(1)), _SUFFIX[m.group(2)]] if m else [1 << 30, 0]
-    return tuple(out)
 
 
 def under(k, nid):
@@ -231,28 +215,17 @@ def purge_modules():
         del sys.modules[m]
 
 
-def _pydantic_ai_stub():
-    """skills/tools/search.py types search_annotations' first parameter as
-    pydantic_ai.RunContext[dict]; the browser has no pydantic-ai, so a RunContext that only
-    carries `deps` stands in for it."""
-    import types
-    if "pydantic_ai" in sys.modules:
-        return
-    mod = types.ModuleType("pydantic_ai")
-
-    class RunContext:
-        def __init__(self, deps=None):
-            self.deps = deps
-
-        def __class_getitem__(cls, item):
-            return cls
-    mod.RunContext = RunContext
-    sys.modules["pydantic_ai"] = mod
+def _retry_note(error, output):
+    """What is added to the input when an answer did not fit: the answer and what is wrong with it."""
+    return ("\n\n## Your previous answer was not valid\n%s\n%s\n\nFix the errors and answer again."
+            % (error, json.dumps(jsonable(output), ensure_ascii=False)[:3000]))
 
 
 def _wants_ctx(fn):
-    params = list(inspect.signature(fn).parameters.values())
-    return bool(params) and getattr(params[0].annotation, "__name__", "") == "RunContext"
+    """A tool whose first parameter is `ctx` is handed the run's context (ctx.deps: the engine and
+    the open document's sentences); the model does not see that parameter."""
+    params = list(inspect.signature(fn).parameters)
+    return bool(params) and params[0] == "ctx"
 
 
 # a tool file, loaded once while it is unchanged: (real path, mtime, size) -> module. Tools are
@@ -288,7 +261,6 @@ def _tools_in(directory, prefix):
 def skill_tools(path):
     """skill_callable._load: the skill's own tools/, then its skillset's tools/, then the tools/
     next to the skillset; a name already taken is skipped."""
-    _pydantic_ai_stub()
     slug = "".join(ch if ch.isalnum() else "_" for ch in path)
     tools = _tools_in(os.path.join(path, "tools"), "skill_tools.%s" % slug)
     skillset = os.path.dirname(os.path.abspath(path))
@@ -303,9 +275,9 @@ def skill_tools(path):
 
 
 def skill_files(path):
-    """A skill's editable files under /sp: its own files, then reference/ (examples) and tools/."""
+    """A skill's editable files under /sp: its own files, then its tools/."""
     out = []
-    for sub in ("", "reference", "tools"):
+    for sub in ("", "tools"):
         d = os.path.join(path, sub)
         if os.path.isdir(d):
             out += [os.path.relpath(os.path.join(d, f), FS) for f in sorted(os.listdir(d))
@@ -343,21 +315,25 @@ def tool_spec(fn):
 
 # ------------------------------------------------------------------ documents
 
+def _empty_block(n, words):
+    """Sentence n of a header-only .umr: its words, and nothing annotated."""
+    return "\n".join([RULE80, "# :: snt%d" % n, "Index: " + " ".join(str(k + 1) for k in range(len(words))),
+                      "Words: " + " ".join(words), "", "# sentence level graph:", "",
+                      "# alignment:", "", "# document level annotation:", ""])
+
+
 def umr_from_text(text, lang=None):
     """A plain text (one sentence per line) as a header-only .umr. The Words: lines hold the
     input handler's own tokens (Chinese one character each, a run of Latin letters or digits
     one token; English on whitespace): it reads them back to the same sentence and tokens."""
-    import input_handler.umrinputhandler as U
+    import umrinputhandler as U
     lines = [U.clean(l) for l in text.splitlines()]
     lines = [l for l in lines if l]
     lang = lang or U.guess_lang(text)
     blocks = []
     for n, line in enumerate(lines, 1):
         words = UZ_TOKEN.findall(line) if lang == "uz" else U.tokenize(line, lang)
-        blocks.append("\n".join([RULE80, "# :: snt%d" % n,
-                                 "Index: " + " ".join(str(k + 1) for k in range(len(words))),
-                                 "Words: " + " ".join(words), "", "# sentence level graph:", "",
-                                 "# alignment:", "", "# document level annotation:", ""]))
+        blocks.append(_empty_block(n, words))
     head = "# :: lang %s\n" % lang if lang not in ("zh", "en") else ""
     return head + "\n\n".join(blocks) + "\n", lang
 
@@ -386,10 +362,7 @@ def strip_umr(text):
         if not words:
             continue
         n = len(blocks) + 1
-        blocks.append("\n".join([RULE80, "# :: snt%d" % n,
-                                 "Index: " + " ".join(str(k + 1) for k in range(len(words))),
-                                 "Words: " + " ".join(words), "", "# sentence level graph:", "",
-                                 "# alignment:", "", "# document level annotation:", ""]))
+        blocks.append(_empty_block(n, words))
     return "\n\n".join(blocks) + "\n" if blocks else ""
 
 
@@ -400,7 +373,7 @@ class RegistryEngine:
 
     def __init__(self, sid, path, doc_path, lang):
         import registry as R
-        from input_handler.umrinputhandler import UMRInputHandler
+        from umrinputhandler import UMRInputHandler
         self.R = R
         purge_modules()
         self.sid = sid
@@ -907,26 +880,26 @@ class RegistryEngine:
                 "emit": jsonable(skill.emit), "tools": [tool_spec(t) for t in skill_tools(skill.path)],
                 "retry": bool(retry), "role": ROLE_OF.get(node["skill"], "haiku")}
 
-    def tool(self, w, i, nid, name, args, manual=False):
-        """Run one tool for an agent node; ctx.deps is {"skill_dir", "skill"} as SkillCallable gives it,
-        and the sentences of the open document (search_annotations leaves them out)."""
-        ep, node = self._node(w, i, nid)
-        skill = self.reg.skills[node["skill"]]
+    def _call_tool(self, skill, name, args):
+        """One tool of a skill, run: its answer as text (an error is an answer too: the model reads it)."""
         fns = {t.__name__: t for t in skill_tools(skill.path)}
         if name not in fns:
-            res = "Unknown tool name: %r. Tools: %s" % (name, ", ".join(sorted(fns)))
-        else:
-            fn = fns[name]
-            try:
-                if _wants_ctx(fn):
-                    ctx = sys.modules["pydantic_ai"].RunContext({"skill_dir": skill.path, "skill": skill.name, "engine": self,
-                                                                 "doc_sentences": [s.text for s in self.doc.sents]})
-                    res = fn(ctx, **(args or {}))
-                else:
-                    res = fn(**(args or {}))
-            except Exception as e:
-                res = "%s: %s" % (type(e).__name__, e)
-        text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
+            return "Unknown tool name: %r. Tools: %s" % (name, ", ".join(sorted(fns)))
+        fn = fns[name]
+        try:
+            if _wants_ctx(fn):
+                ctx = types.SimpleNamespace(deps={"engine": self, "doc_sentences": [s.text for s in self.doc.sents]})
+                res = fn(ctx, **(args or {}))
+            else:
+                res = fn(**(args or {}))
+        except Exception as e:
+            res = "%s: %s" % (type(e).__name__, e)
+        return res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
+
+    def tool(self, w, i, nid, name, args, manual=False):
+        """Run one tool for an agent node, and keep the call on the node."""
+        ep, node = self._node(w, i, nid)
+        text = self._call_tool(self.reg.skills[node["skill"]], name, args)
         # kept for the page as the model got it (a PropBank answer with every example is long)
         call = {"tool": name, "args": args, "result": text[:200000]}
         if manual:
@@ -1097,23 +1070,8 @@ class RegistryEngine:
 
     def panel_tool(self, name, i, tool, args):
         """A tool call of a right-pane skill (call_skill among them)."""
-        skill = self._panel(name)["skill"]
+        text = self._call_tool(self._panel(name)["skill"], tool, args)
         run = self.panel_runs.get((name, int(i)))
-        fns = {t.__name__: t for t in skill_tools(skill.path)}
-        if tool not in fns:
-            res = "Unknown tool name: %r. Tools: %s" % (tool, ", ".join(sorted(fns)))
-        else:
-            fn = fns[tool]
-            try:
-                if _wants_ctx(fn):
-                    ctx = sys.modules["pydantic_ai"].RunContext({"skill_dir": skill.path, "skill": skill.name, "engine": self,
-                                                                 "doc_sentences": [s.text for s in self.doc.sents]})
-                    res = fn(ctx, **(args or {}))
-                else:
-                    res = fn(**(args or {}))
-            except Exception as e:
-                res = "%s: %s" % (type(e).__name__, e)
-        text = res if isinstance(res, str) else json.dumps(jsonable(res), ensure_ascii=False)
         if run is not None:
             run["tool_calls"].append({"tool": tool, "args": args, "result": text[:200000]})
         return text
@@ -1134,8 +1092,7 @@ class RegistryEngine:
         except Exception as e:
             if not run["retried"]:
                 run["retried"] = True
-                retry = ("\n\n## Your previous answer was not valid\n%s\n%s\n\nFix the errors and answer again."
-                         % (e, json.dumps(jsonable(output), ensure_ascii=False)[:3000]))
+                retry = _retry_note(e, output)
                 return self._panel_request(name, i, retry)
             raise
         run["output"], run["model"] = output, model
@@ -1295,17 +1252,11 @@ class RegistryEngine:
                     out[var] = self._ref_of(sent.index, step, x.get("var"))
         return out
 
-    def _follow_vars(self, index, old_ref, refs):
-        """Document-level relations that named a node of sentence `index` ("<index>:<step>/<var>")
-        name it by its new step; a relation with a node that is gone goes."""
+    def _rename_doc_nodes(self, fix):
+        """Every document-level relation's source and target through fix(name) -> (new name, whether
+        it changed); a relation whose node is gone (None) goes. Returns {"changed", "dropped"},
+        counted in the steps' outputs (their machine outputs and stored values follow too)."""
         changed = dropped = 0
-
-        def fix(x):
-            m = re.fullmatch(r"(\d+):([\d.]+[AB]?)(?:/(\S+))?", str(x))
-            if not m or int(m.group(1)) != index or str(x) not in old_ref:
-                return x, False
-            var = old_ref[str(x)]
-            return refs.get(var), refs.get(var) != str(x)
         for dep in (self.eps.get("document") or {}).values():
             for d in dep["nodes"].values():
                 for field in ("output", "machine_output", "stored"):
@@ -1328,6 +1279,17 @@ class RegistryEngine:
                         kept.append(r)
                     o["relations"] = kept
         return {"changed": changed, "dropped": dropped}
+
+    def _follow_vars(self, index, old_ref, refs):
+        """Document-level relations that named a node of sentence `index` ("<index>:<step>/<var>")
+        name it by its new step; a relation with a node that is gone goes."""
+        def fix(x):
+            m = re.fullmatch(r"(\d+):([\d.]+[AB]?)(?:/(\S+))?", str(x))
+            if not m or int(m.group(1)) != index or str(x) not in old_ref:
+                return x, False
+            var = old_ref[str(x)]
+            return refs.get(var), refs.get(var) != str(x)
+        return self._rename_doc_nodes(fix)
 
     def follow_doc_refs(self, i, step, old, new):
         """After a step of sentence i changed its output (a local change, a person's edit), the
@@ -1359,35 +1321,13 @@ class RegistryEngine:
         if not moved:
             return {"changed": 0, "dropped": 0}
         name = "%d:%s" % (self.doc.sents[int(i)].index, ref_id(step))
-        changed = dropped = 0
 
         def fix(x):
             m = re.fullmatch(r"(\d+:[\d.]+)/(\S+)", str(x))
             if not m or m.group(1) != name or m.group(2) not in moved:
                 return x, False
             return (None if moved[m.group(2)] is None else "%s/%s" % (name, moved[m.group(2)])), True
-        for dep in (self.eps.get("document") or {}).values():
-            for d in dep["nodes"].values():
-                for field in ("output", "machine_output", "stored"):
-                    o = d.get(field)
-                    if not (isinstance(o, dict) and isinstance(o.get("relations"), list)):
-                        continue
-                    kept = []
-                    for r in o["relations"]:
-                        if not isinstance(r, dict):
-                            kept.append(r)
-                            continue
-                        src, a = fix(r.get("source"))
-                        tgt, b = fix(r.get("target"))
-                        if src is None or tgt is None:
-                            dropped += field == "output"
-                            continue
-                        if a or b:
-                            changed += field == "output"
-                            r = dict(r, source=src, target=tgt)
-                        kept.append(r)
-                    o["relations"] = kept
-        return {"changed": changed, "dropped": dropped}
+        return self._rename_doc_nodes(fix)
 
     def complete(self, w, i, nid, output, model=None):
         """A model's JSON answer for an agent node (and which model gave it). An answer that does
@@ -1406,8 +1346,7 @@ class RegistryEngine:
             if not node.get("retried"):
                 node["retried"] = True
                 node["problems"] = [str(e)]
-                retry = ("\n\n## Your previous answer was not valid\n%s\n%s\n\nFix the errors and answer again."
-                         % (e, json.dumps(jsonable(output), ensure_ascii=False)[:3000]))
+                retry = _retry_note(e, output)
                 return self._llm_request(node, skill, retry)
         try:
             return self._finish(w, ep, node, output)
@@ -1944,7 +1883,7 @@ class RegistryEngine:
         return wt
 
     def render(self, auto_align=True):
-        from output_handler.umroutputhandler import UMROutputHandler, provenance
+        from umroutputhandler import UMROutputHandler, provenance
         wt = self._worktree_out()
         text = UMROutputHandler().render(self.doc, wt)
         added = []
@@ -1974,7 +1913,7 @@ class RegistryEngine:
         tokens = sent.tokenized_text
         res = {"index": sent.index, "tokens": tokens, "text": block, "top": None, "nodes": [], "edges": [],
                "attrs": [], "doc": read_doc(doc_text), "error": None}
-        if not graph or graph.startswith("(s%dx0 / empty" % sent.index):
+        if not graph or graph.startswith("(s%dx / empty)" % sent.index):      # the output handler's empty sentence
             return res
         try:
             g = penman.decode(graph)
@@ -2439,7 +2378,7 @@ class Session:
             "umr-load":  a .umr file with its annotation: the sentences as for "umr", and the
                          file kept as <name>.annotation, which open() loads into the steps.
         """
-        import input_handler.umrinputhandler as U
+        import umrinputhandler as U
         name = re.sub(r"[^\w.-]+", "_", name or "imported")[:60] or "imported"
         annotation = os.path.join(DOCS, name + ".annotation")
         for old in (annotation, os.path.join(DOCS, name + ".txt")):

@@ -22,4 +22,6 @@ runner 默认用本项目安装的 Playwright 的 Chromium，并给自己启动�
 | `skillparse-test.js`         | 整个循环走一遍：Python 启动、中文流程打开；一句话一步一步跑，每一步确认之后才有下一步；只有 sent_type 问 Jev，agent 步骤拿到 system 和 skill.md、真的调用工具、经 `final_result` 回答；图画出来、点框跳到写它的那一步；人工修改一步；右栏把修改变成 skill 的改动并验证；调上下文窗口；导出 `.umr`；换到英文流程 |
 | `skillparse-fullrun-test.js` | 导入的各种格式（`.txt` 按行、自动分句，`.umr` 重新标注、载入已有标注），wave 0 整句生成再按规则转换，乌兹别克语流程，暂存的进度和导入的文档刷新后还在                                                                                                                                                           |
 
+`live-models.js` 不在默认运行之列（要花钱）：`OPENROUTER_KEY=… npm run test:live` 用真的模型经 OpenRouter 跑几步（wave 1 用 OpenAI 的模型整句生成，sent_type 问 Jev，下一步分别用 Anthropic 和 OpenAI 的模型带工具跑），打印每个请求的模型、`tool_choice` 和状态，出错时打印服务返回的内容。
+
 每个脚本逐条打印 `✓` / `✖`，有失败就以非 0 退出；也统计控制台错误和 `pageerror`，期望是 0。

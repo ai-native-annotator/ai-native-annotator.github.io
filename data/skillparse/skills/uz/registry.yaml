@@ -1,7 +1,7 @@
-# The Uzbek procedure: the English one with Uzbek skill.md files (Uzbek has no PropBank: an event
-# is its verb stem with the general participant roles), jevlib.py told about Uzbek, and a tokenizer
-# first. No Uzbek gold data.
-# sent_type is kind: jev (with jevlib.py, prompt_loader.py, event_modifiers.*); every other model
+# The Uzbek procedure: skills/shared/registry.yaml with a tokenizer first (wave 1 starts with it,
+# and umr_generate reads its tokens). Uzbek has no PropBank (an event is its verb stem with the
+# general participant roles) and no gold data.
+# sent_type is kind: jev (with jevlib.py and prompt_loader.py); every other model
 # skill is kind: agent: its skill.md, answered by the model picked in the toolbar. A file that is
 # not in this folder is skills/shared's (data/skillparse/README.md).
 # There is no coverage, antecedent (outside stays in the step) or reentrancy wave (nodes with the

@@ -1,14 +1,12 @@
-"""What every jev skill of experiment/jevumr shares: words, options, phrases, numbers.
+"""What sent_type (kind: jev) works from, for every language: words, function words, pronouns.
 
-Jev only judges (noul / choice / score); it never writes a span or a concept.
-So everything a skill could answer is listed here first, from the tokens:
+Jev only judges (noul / choice); it never writes a span or a concept. So what the skill could
+answer is listed here first, from the tokens:
 
-  - words: the input is one token per Chinese character, and (web: no jieba) a sentence
-    is cut only at punctuation; a word is (first, last, text) in token numbers. A
-    "which word" question is a choice among the words of the piece.
-  - phrases: a "which part of the clause is this word in" question per word,
-    then runs of words with the same answer are the phrases (placeholders).
-  - numbers, pronouns, function words: fixed lists, no question.
+  - words: Chinese input is one token per character, and a sentence is cut only at punctuation
+    (there is no word segmenter); any other language keeps its tokens. A word is
+    (first, last, text) in token numbers.
+  - pronouns, function words: fixed lists per language, no question.
 """
 import functools
 import os
@@ -26,17 +24,12 @@ _propbank = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_propbank)
 
 PUNCT = re.compile(r"^[\W_]+$")
-CLAUSE_PUNCT = set("，,；;。！!？?")
 # words a fragment expresses without a node of their own (as in coverage.py)
 FUNCTION_ZH = set("""
 的 地 得 之 所 了 着 过 是 在 于 从 对 向 把 被 将 以 为 和 与 及 而 并 且 但 虽 然 因 或
 不 没 未 别 会 能 可 要 应 该 吗 呢 吧 啊 呀 个 由 即 则 并且 而且 但是 虽然 因为 所以 由于
 如果 为了 以及 或者 还是 就 也 都 还 又 已 已经 曾 曾经 正在 正 被 让 使 给 跟 同 当 自 向 往 们
 """.split())
-# the plural suffix: cut off its noun as a word of its own (see _parts), never a node of its own;
-# gold writes it as :refer-number plural on the noun. Lexicalised words with 们 stay whole.
-PLURAL = "们"
-PLURAL_KEEP = {"哥们", "爷们", "娘们", "姐们", "哥儿们", "爷儿们"}
 FUNCTION_EN = set("""
 a an the of to in on at by for with from as into onto upon about and or but nor so yet if
 because although though while whereas whether than then who whom whose which that where when
@@ -61,11 +54,6 @@ class Word:
     @property
     def span(self):
         return [self.first, self.last]
-
-    @property
-    def key(self):
-        """The option name Jev sees for this word: the word and where it starts."""
-        return f"{self.text} ({self.first})"
 
 
 # -- words -------------------------------------------------------------------
@@ -146,16 +134,6 @@ def _name_side(w):
     return not is_punct(w) and not re.search(r"\d", w.text) and w.text not in FUNCTION_ZH
 
 
-DEMONSTRATIVE_HEADS = ("该", "此")
-COUNTERS = ("这", "那", "该", "此", "每", "哪")
-CLASSIFIERS = set("个 名 位 架 本 张 篇 条 只 件 座 部 台 辆 枚 份 种 家 所 头 匹 艘 颗 幅".split())
-PREFIXES = ("即将", "未", "最", "甚")
-SPLIT_KEEP = set("""
-此外 此时 此后 此前 此刻 此致 此间 此地 该当 该死 该着 未来 未必 未曾 最后 最近 最初 最终 最好 最为 甚至 甚么
-""".split())
-WHOLE_TAGS = ("i", "nr", "ns", "nt", "nz")
-
-
 def inside(token_sent, span, lang):
     """The words of a span, a word that crosses its edge cut at the edge."""
     first, last = span
@@ -168,11 +146,6 @@ def inside(token_sent, span, lang):
             continue
         out.append(w if (a, b) == (w.first, w.last) else Word(a, b, sep.join(tok[k] for k in range(a, b + 1))))
     return out
-
-
-def outside(token_sent, span, lang):
-    first, last = span
-    return [w for w in words(token_sent, lang) if w.last < first or w.first > last]
 
 
 def text(token_sent, span, lang):
@@ -203,10 +176,6 @@ def state(sent, token_sent, span, lang, **more):
             "language": {"zh": "Chinese", "uz": "Uzbek"}.get(lang, "English"), **more}
 
 
-def by_key(ws):
-    return {w.key: w for w in ws}
-
-
 # -- answers -----------------------------------------------------------------
 
 def choice(answer):
@@ -219,101 +188,6 @@ def yes(answer, threshold=0.5):
 
 def probability(answer, option):
     return (answer or {}).get("probabilities", {}).get(option, 0.0)
-
-
-def ranked(answer):
-    """The options of a choice answer, most probable first."""
-    probs = (answer or {}).get("probabilities", {})
-    return sorted(probs, key=lambda k: -probs[k])
-
-
-# -- phrases -----------------------------------------------------------------
-
-STACK_BREAK = set("的 之 、 ， , ； ;".split())
-DEGREE = set("很 非常 最 更 更加 极 极其 十分 相当 比较 太 特别 颇".split())
-
-
-def _bridge(ws, labels, bridge):
-    """The labels after bridging (see runs): widest label first; a label whose
-    stretch lies inside one already bridged is left as it is."""
-    labels = dict(labels)
-    where = {}
-    for k, w in enumerate(ws):
-        lab = labels.get(w)
-        if lab in bridge:
-            a, b = where.get(lab, (k, k))
-            where[lab] = (min(a, k), max(b, k))
-    done = []
-    for lab, (a, b) in sorted(where.items(), key=lambda x: x[1][0] - x[1][1]):
-        if b - a < 2 or any(c <= a and b <= d for c, d in done):
-            continue
-        between = ws[a + 1:b]
-        if any(str(labels.get(w) or "").startswith("@") or w.text in CLAUSE_PUNCT for w in between):
-            continue        # never across the head or into another clause
-        if any(where.get(labels.get(w), (a, b))[0] < a or where.get(labels.get(w), (a, b))[1] > b
-               for w in between):
-            continue        # another bridged role reaches outside: the two would cross
-        for w in ws[a:b + 1]:
-            labels[w] = lab
-        done.append((a, b))
-    return labels
-
-
-def _stack_break(last, pending, lang):
-    """Whether a stacked modifier run ends after `last` (see runs)."""
-    if any(p.text in STACK_BREAK for p in pending):
-        return True
-    if pending or lang != "zh":
-        return False
-    return last.text not in DEGREE
-
-
-def runs(ws, labels, lang, bridge=(), stack=()):
-    """Runs of words with the same label, in order. A word without a label (a
-    function word or punctuation nobody asked about) joins a run only between
-    two words of that run's label, so a participant that is a clause with
-    commas in it stays one run. Each run is (label, [words]) with function
-    words trimmed off both ends.
-
-    Two options, off by default:
-      bridge  labels whose words make one phrase from the first to the last,
-              even when a word inside got another label (the verb of a
-              relative clause, a time word, a marker inside an argument):
-              every word between takes the label, unless a "@..." label (the
-              head), clause punctuation, or another bridged label reaching
-              outside the stretch is between them;
-      stack   labels whose neighbouring words are separate modifiers, not one
-              phrase (A的 B N; a country and a state): a run of them is cut at
-              的 / 之 / 、 / a comma, and in Chinese between two words with
-              nothing between them unless the first is a degree adverb."""
-    if bridge:
-        labels = _bridge(ws, labels, bridge)
-    out, cur, pending = [], None, []
-    for w in ws:
-        lab = labels.get(w)
-        if lab is None:
-            if cur:
-                pending.append(w)
-            continue
-        if cur and cur[0] == lab and not (lab in stack and _stack_break(cur[1][-1], pending, lang)):
-            cur[1].extend(pending + [w])
-        else:
-            cur = _close(out, cur)
-            cur = (lab, [w])
-        pending = []
-    _close(out, cur)
-    trimmed = []
-    for lab, group in out:
-        group = trim(group, lang)
-        if group:
-            trimmed.append((lab, group))
-    return trimmed
-
-
-def _close(out, cur):
-    if cur:
-        out.append(cur)
-    return None
 
 
 def trim(ws, lang):
@@ -338,12 +212,6 @@ def join(ws, token_sent, lang):
 def rolesets(lemma, lang):
     """PropBank rolesets of a lemma, [] if it has none."""
     return _propbank._rolesets(lemma, lang)      # web: the data (propbank_lookup is Markdown)
-
-
-def roleset_text(r):
-    roles = "; ".join(f"{k}: {v}" for k, v in (r.get("roles") or {}).items())
-    name = r.get("name") or ""
-    return f"{name} | {roles}" if name else roles
 
 
 # -- pronouns ----------------------------------------------------------------
@@ -393,68 +261,3 @@ def pronoun_graph(var, word_text, span, lang):
     concept, person, number = p
     return {"nodes": [{"var": var, "concept": concept, "span": list(span)}], "edges": [],
             "attrs": [[var, "refer-person", person], [var, "refer-number", number]]}
-
-
-# -- numbers -----------------------------------------------------------------
-
-DIGITS = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7,
-          "八": 8, "九": 9}
-UNITS = {"十": 10, "百": 100, "千": 1000}
-BIG = {"万": 10 ** 4, "亿": 10 ** 8}
-
-
-def number(s):
-    """A number written in digits or Chinese numerals, or None: 1,500 -> 1500,
-    二十 -> 20, 5万 -> 50000, 3.5 -> 3.5."""
-    s = s.strip().replace(",", "").replace("，", "")
-    if not s:
-        return None
-    m = re.fullmatch(r"(\d+(?:\.\d+)?)([万亿]?)", s)
-    if m:
-        v = float(m.group(1)) * BIG.get(m.group(2), 1)
-        return int(v) if v == int(v) else v
-    if not all(c in DIGITS or c in UNITS or c in BIG for c in s):
-        return None
-    if all(c in DIGITS for c in s) and len(s) > 1:       # 二〇一七 read digit by digit
-        return int("".join(str(DIGITS[c]) for c in s))
-    total, section, cur = 0, 0, 0
-    for c in s:
-        if c in DIGITS:
-            cur = DIGITS[c]
-        elif c in UNITS:
-            section += (cur or 1) * UNITS[c]
-            cur = 0
-        else:
-            total += (section + cur) * BIG[c]
-            section, cur = 0, 0
-    return total + section + cur
-
-# -- name parts --------------------------------------------------------------
-
-NAME_MARK_CHARS = "《》“”「」\""
-NAME_DOT_CHARS = "·・．•‧"
-NOT_NAME_START = set("前 原 现 第".split())
-
-
-def name_parts(piece, lang):
-    """The :op parts of a name as the gold writes them. A title or quote mark
-    and a middle dot are parts of their own; a stretch between dots (a
-    transliterated name) stays whole; elsewhere the parts are words, with a
-    single leftover character joined to the word after it (an unknown name the
-    segmenter broke) and a place name at the start of a longer name word (a
-    country + an organization) a part of its own."""
-    if lang != "zh":
-        return piece.split()
-    dotted = any(c in NAME_DOT_CHARS for c in piece)
-    parts = []
-    for chunk in re.split("([" + re.escape(NAME_MARK_CHARS + NAME_DOT_CHARS) + "])", piece):
-        chunk = chunk.strip()
-        if not chunk or chunk in "，,。；;、":
-            continue
-        if chunk in NAME_MARK_CHARS or chunk in NAME_DOT_CHARS or (dotted and not re.search(r"\d", chunk)):
-            parts.append(chunk)
-        else:
-            parts.append(chunk)
-    return parts
-
-

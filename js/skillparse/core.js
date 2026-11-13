@@ -42,7 +42,6 @@ export const S = {
   panel: {},              // "skillset|doc|item" -> the right pane's proposal for that sentence (user_panel)
   preview: null,          // {key, lines, graph}: the proposal's changes drawn on the UMR text and the graph
   live: new Map(),        // "wave|item|node" -> {kind: 'jev' | 'llm', model, round, questions, since}: a model at work
-  status: '',
 };
 
 const renderers = new Set();
@@ -51,7 +50,7 @@ export function render() { renderers.forEach((fn) => fn()); }
 
 
 /** The results changed: the assembled .umr and the drawn graphs are out of date. */
-export function changed() {
+function changed() {
   S.umrStale = true;
   S.graphStamp++;
   S.graphs.clear();
@@ -139,7 +138,6 @@ export async function sentenceGraph(i) {
 }
 
 export function status(text) {
-  S.status = text;
   const el = document.getElementById('status');
   if (el) el.textContent = text;
 }
@@ -150,10 +148,6 @@ export function nodeKey(w = S.wave, i = S.item, n = S.node) {
 
 export function waveDesc(name = S.wave) {
   return S.desc?.waves.find((w) => w.name === name);
-}
-
-export function skillDesc(name) {
-  return S.desc?.skills.find((s) => s.name === name);
 }
 
 // ------------------------------------------------------------------ opening
@@ -219,7 +213,7 @@ export async function open(skillset, doc) {
   if (loaded || restored) toast(problems[0], 9000);
 }
 
-export async function refresh({ detail = true } = {}) {
+async function refresh({ detail = true } = {}) {
   if (!S.desc) return;
   S.items = await py('items', { w: S.wave });
   S.episode = await py('episode', { w: S.wave, i: S.item });
@@ -260,15 +254,14 @@ export async function setWindow(variable, range) {
   render();
 }
 
-export async function startItem(i = S.item) {
-  await py('start', { w: S.wave, i });
+/** Make the shown item's episode again: its first step is pending. */
+export async function startItem() {
+  await py('start', { w: S.wave, i: S.item });
   changed();
-  if (i === S.item) {
-    S.node = null;
-    await refresh();
-    const root = S.episode.nodes[0];
-    if (root) await selectNode(root.id);
-  }
+  S.node = null;
+  await refresh();
+  const root = S.episode.nodes[0];
+  if (root) await selectNode(root.id);
 }
 
 // ------------------------------------------------------------------ running
@@ -299,12 +292,12 @@ async function withSlot(fn) {
 }
 
 /** Run one node to the end. Returns the bridge's final result. */
-export async function drive(w, i, nid, signal, { hint } = {}) {
+async function drive(w, i, nid, signal, { hint } = {}) {
   let r = await py('step', { w, i, nid, ...(hint === undefined ? {} : { hint }) });
   const key = `${w}|${i}|${nid}`;
   const since = Date.now();
   // the step is shown at work (tree, item list, output pane) while a model answers it
-  const working = (what) => { S.live.set(key, { ...what, skill: r.skill, since }); render(); };
+  const working = (what) => { S.live.set(key, { ...what, since }); render(); };
   try {
     while (r.need) {
       if (S.cancel) throw new Error(t('stopped'));
@@ -342,11 +335,6 @@ export async function drive(w, i, nid, signal, { hint } = {}) {
 let controller = null;
 
 // ------------------------------------------------------------------ the right pane (user_panel)
-
-/** The right pane's entries (registry user_panel), by name. */
-export function panelEntry(name) {
-  return (S.desc?.user_panel || []).find((e) => e.name === name) || null;
-}
 
 /** A user_panel entry's title in the page's language ({zh, en} in the registry, or one string). */
 export function panelTitle(e) {
@@ -560,6 +548,7 @@ export async function generateAll(w = GENERATE_WAVE) {
 /** The selected step's output is right. */
 export async function confirmNode(nid = S.node) {
   busy(1);
+  render();
   try {
     await py('confirm', { w: S.wave, i: S.item, nid });
     changed();
@@ -570,14 +559,7 @@ export async function confirmNode(nid = S.node) {
 }
 
 export async function confirmAndNext(nid = S.node) {
-  busy(1);
-  render();
-  try {
-    await py('confirm', { w: S.wave, i: S.item, nid });
-    changed();
-  } finally {
-    busy(-1);
-  }
+  await confirmNode(nid);
   await runNext();
 }
 

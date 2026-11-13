@@ -69,7 +69,7 @@ async function ask(mode, feedback = '') {
       system: await reflectSystem(),
     });
     s.proposal = { ...res, mode, target: corrected, picked: (res.edits || []).map(() => true), report: null };
-    s.history.push({ at: new Date().toISOString(), mode, feedback, diagnosis: res.diagnosis, layer: res.layer, edits: (res.edits || []).length });
+    s.history.push({ at: new Date().toISOString(), mode, feedback, diagnosis: res.diagnosis, layer: res.layer });
   } catch (err) {
     toast(`${t('error')}: ${err.message}`);
     s.history.push({ at: new Date().toISOString(), mode, feedback, diagnosis: `${t('error')}: ${err.message}` });
@@ -206,8 +206,8 @@ async function propose(entry, text) {
   }
   if (!r) return;
   const changes = Array.isArray(r.output?.changes) ? r.output.changes : [];
-  const p = { name: entry.name, comment: text, summary: r.output?.summary || '', changes, picked: changes.map(() => true),
-    toolCalls: r.tool_calls || [], model: r.model, result: new Map(), lost: [] };
+  const p = { name: entry.name, summary: r.output?.summary || '', changes, picked: changes.map(() => true),
+    toolCalls: r.tool_calls || [], result: new Map(), lost: [] };
   S.panel[key] = p;
   if (changes.length) await showPreview(p, item, r.preview);
   else render();
@@ -274,7 +274,7 @@ function changeCard(entry) {
         if (area.value.trim()) propose(entry, area.value.trim()); else area.focus();
       } }),
       doneNote.get(key) ? h('span', { class: 'note panel-done', text: doneNote.get(key) }) : null),
-    S.running > 0 && !p ? null : p ? proposalBox(p) : null);
+    p ? proposalBox(p) : null);
 }
 
 /** The right pane's cards that are not about one step: each user_panel skill with a review skill. */

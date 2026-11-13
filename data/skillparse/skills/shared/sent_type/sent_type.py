@@ -19,7 +19,7 @@ from prompt_loader import load_prompts  # noqa: E402
 
 PROMPTS = load_prompts(__file__)
 
-DISCOURSE_IF_COMMA = 0.2
+DISCOURSE_IF_COMMA = PROMPTS["tables"]["DISCOURSE_IF_COMMA"]      # per language: prompts.yaml
 TYPES = PROMPTS["tables"]["TYPES"]
 
 
@@ -81,8 +81,8 @@ def run(sent, token_sent, lang, text, span, **_):
         if kind == "stop" and senses and J.probability(use, "event") + J.probability(use, "state") >= EVENT_IF:
             kind = "predicate"      # an event or state word alone in its piece: sense, aspect, arguments outside
     if kind != "stop":
-        return {"type": kind, "graph": {}, "outside": []}
-    return {"type": "stop", "graph": leaf(ws, token_sent, span, lang), "outside": []}
+        return {"type": kind, "graph": {}}
+    return {"type": "stop", "graph": leaf(ws, token_sent, span, lang)}
 
 
 DEMONSTRATIVES = {"zh": {"这": "singular", "那": "singular", "此": "singular", "这些": "plural", "那些": "plural"}}

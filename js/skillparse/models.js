@@ -16,6 +16,8 @@
  * Calls go from the browser straight to the provider.
  */
 
+import { readJson, writeJson } from './local.js';
+
 const SECRETS = 'annotator_secrets';
 const SETTINGS = 'skillparse_settings_v4';
 
@@ -25,7 +27,7 @@ export const ROLES = {
   reflect: 'Reflection (finds skill problems, proposes edits)',
 };
 
-export const PROVIDERS = ['openrouter', 'anthropic', 'openai'];
+const PROVIDERS = ['openrouter', 'anthropic', 'openai'];
 /** The keys Settings asks for: the three model services, and TypeSafe's own (Jev). */
 export const KEY_NAMES = ['openrouter', 'anthropic', 'openai', 'typesafe'];
 
@@ -60,7 +62,7 @@ export function route(id, k = keys()) {
   if (!c) return null;
   const direct = unreachable.has(c.maker) && k.openrouter ? null : c.maker;
   const provider = [direct, 'openrouter'].find((p) => p && c[p] && k[p]);
-  return provider ? { provider, model: c[provider], choice: c } : null;
+  return provider ? { provider, model: c[provider] } : null;
 }
 
 /** Which of MODEL_CHOICES a role runs now. */
@@ -92,7 +94,7 @@ export const JEV_VIA = {
 
 // models that refuse a forced tool call (tool_choice any / tool, OpenAI-style "required"): the
 // answer is still asked for through final_result, with tool_choice auto and an instruction
-const NO_FORCED_TOOL = /(opus-5[.-]5|sonnet-5[.-]5|fable-5[.-]1|mythos-5[.-]1)/;
+const NO_FORCED_TOOL = /(opus-5[.-]5|sonnet-5[.-]5|fable-5[.-]1)/;
 // models whose refusals the Claude API can hand to another model (server-side fallback)
 const FALLBACK = /^claude-(opus-5-5|sonnet-5-5|fable-5-1)$/;
 const ANSWER_NOTE = 'When you have the answer, call the final_result tool with it; do not answer in text.';
@@ -105,14 +107,6 @@ const DEFAULTS = {
   jev: { via: 'openrouter', batch: 40 },
   concurrency: 6,
 };
-
-function readJson(key) {
-  try { return JSON.parse(localStorage.getItem(key) || '{}') || {}; } catch { return {}; }
-}
-
-function writeJson(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; }
-}
 
 export function settings() {
   const s = readJson(SETTINGS);
@@ -183,7 +177,7 @@ async function withRetry(fn, tries = 4) {
  * always an object, never prose to dig JSON out of.
  */
 export async function llm({ role = 'reflect', system = '', instructions, input = '', tools = [], callTool,
-  schema, maxTurns = 10, signal, onEvent }) {
+  schema, maxTurns = 10, signal }) {
   const picked = currentChoice(settings().roles[role] ? role : 'haiku');
   const cfg = picked && route(picked.id);
   if (!cfg) {
@@ -197,24 +191,25 @@ export async function llm({ role = 'reflect', system = '', instructions, input =
     if (c.provider === 'openai' || c.provider === 'openrouter') {
       const url = c.provider === 'openai' ? 'https://api.openai.com/v1/chat/completions'
         : 'https://openrouter.ai/api/v1/chat/completions';
-      return openaiLoop({ cfg: c, key, url, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
+      return openaiLoop({ cfg: c, key, url, system, instructions, input, all, callTool, maxTurns, signal });
     }
-    return anthropicLoop({ cfg: c, key, system, instructions, input, all, callTool, maxTurns, signal, onEvent });
+    return anthropicLoop({ cfg: c, key, system, instructions, input, all, callTool, maxTurns, signal });
   };
   try {
     return await run(cfg);
   } catch (err) {
-    // the maker's own API refused the key or the model, or the request never got there: the same
-    // model through OpenRouter, when there is an OpenRouter key
+    // the maker's own API refused the key, the model or the request (400: a model that does not
+    // take function tools on that endpoint), or the request never got there: the same model
+    // through OpenRouter, when there is an OpenRouter key
     const viaOr = cfg.provider !== 'openrouter' && keys().openrouter && picked.openrouter
-      && (err?.status === 401 || err?.status === 403 || err?.status === 404 || /did not reach the server/.test(err?.message || ''));
+      && ([400, 401, 403, 404].includes(err?.status) || /did not reach the server/.test(err?.message || ''));
     if (!viaOr || err?.name === 'AbortError') throw err;
     if (/did not reach the server/.test(err?.message || '')) unreachable.add(cfg.provider);
-    return run({ provider: 'openrouter', model: picked.openrouter, choice: picked });
+    return run({ provider: 'openrouter', model: picked.openrouter });
   }
 }
 
-async function anthropicLoop({ cfg, key, system, instructions, input, all, callTool, maxTurns, signal, onEvent }) {
+async function anthropicLoop({ cfg, key, system, instructions, input, all, callTool, maxTurns, signal }) {
   const content = [{ type: 'text', text: instructions, ...(instructions.length > 2000 ? { cache_control: { type: 'ephemeral' } } : {}) }];
   if (input) content.push({ type: 'text', text: input });
   const messages = [{ role: 'user', content }];
@@ -258,7 +253,6 @@ async function anthropicLoop({ cfg, key, system, instructions, input, all, callT
     const results = [];
     for (const u of uses) {
       const out = callTool ? await callTool(u.name, u.input) : `no tool ${u.name}`;
-      onEvent?.({ tool: u.name, args: u.input, result: out });
       results.push({ type: 'tool_result', tool_use_id: u.id, content: String(out).slice(0, 20000) });
     }
     messages.push({ role: 'user', content: results });
@@ -266,7 +260,7 @@ async function anthropicLoop({ cfg, key, system, instructions, input, all, callT
   throw new Error('No final answer after the tool turns.');
 }
 
-async function openaiLoop({ cfg, key, url, system, instructions, input, all, callTool, maxTurns, signal, onEvent }) {
+async function openaiLoop({ cfg, key, url, system, instructions, input, all, callTool, maxTurns, signal }) {
   const free = NO_FORCED_TOOL.test(cfg.model);
   const messages = [];
   const sys = [system, free ? ANSWER_NOTE : ''].filter(Boolean).join('\n\n');
@@ -302,7 +296,6 @@ async function openaiLoop({ cfg, key, url, system, instructions, input, all, cal
       let args = {};
       try { args = JSON.parse(c.function.arguments || '{}'); } catch { /* keep {} */ }
       const out = callTool ? await callTool(c.function.name, args) : `no tool ${c.function.name}`;
-      onEvent?.({ tool: c.function.name, args, result: out });
       messages.push({ role: 'tool', tool_call_id: c.id, content: String(out).slice(0, 20000) });
     }
   }

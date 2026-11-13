@@ -6,9 +6,12 @@
 - 每个 skill 跑完之后，下一步起哪些 skill；
 - 整篇文档分几波处理。
 
-Runner 读这个文件，再结合 InputHandler 读出来的 `Annotation`，把整篇文档跑完。
+页面的 Python（`data/skillparse/bridge/sp_bridge.py`）读这个文件，一步一步地跑：每一步由人点了才运行，
+跑完由人确认，之后才建它的子节点里的下一步。
 
-> 状态：解析和加载时检查在 `src/registry.py`（`Registry.load`、`evaluate`、`holds`），第 6 节的运行过程在 `src/runner.py`，把 worktree 写成输出文件的是 output handler（`src/output_handler/`）。
+> 解析和加载时检查在 `engine/registry.py`（`Registry.load`、`evaluate`、`holds`）；一步怎么跑、
+> 怎么写成 `.umr`，见 `docs/SKILLPARSE.md`。本站的两份 registry：`skills/shared/registry.yaml`
+>（中文、英文）和 `skills/uz/registry.yaml`。
 
 ---
 
@@ -20,7 +23,8 @@ skills:    # 每个 skill 的目录、输入、产出、存什么
 dispatcher:   # 每个 skill 跑完之后起哪些新 skill
 ```
 
-这三个顶层键都必须有，不允许出现其他顶层键。
+这三个顶层键都必须有。另外可以有 `user_panel`：页面右栏的 skill（不属于任何一波），每一项写法和 `skills` 里的一项一样，
+再加 `title`、`role`、`review`、`modes`；除此之外不允许出现其他顶层键。
 
 ### 术语
 
@@ -136,7 +140,7 @@ skills:
 | `input` | 否 | 每次调用这个 skill 时必须提供的变量，格式为 `变量名: 类型`。wave 的 context 会另外自动给，这里不用写。 |
 | `emit` | 是 | 产出的字段，格式为 `字段名: 类型`。 |
 | `store` | 否 | `emit` 里哪些字段存进 worktree 的节点，默认 `[]`。 |
-| `kind` | 否 | `agent`（默认）：用 skill.md 调模型。`rule`：不调模型，执行目录里 `<skill 名>.py` 的 `run()`，见 3.1。 |
+| `kind` | 否 | `agent`（默认）：用 skill.md 调模型。`rule`：不调模型，执行目录里 `<skill 名>.py` 的 `run()`，见 3.1。`jev`：`<skill 名>.py` 的 `run()` 是生成器，每 `yield` 一批封闭问题（`{state, questions}`）交给 Jev 回答，拿到答案后继续，最后 `return` 产出。 |
 
 ### 3.1 skill 目录
 
@@ -145,41 +149,34 @@ discourse/
   skill.md      # prompt 模板（必须有）
   tools/        # 可选：每个 .py 文件里不以 _ 开头的函数都会注册成工具
     foo.py
-  reference/    # 可选：给 skill 看的参考资料
-    example.md  # 例子，由共用工具 get_example 读出，见下
 ```
 
 - `skill.md` 里用 `{变量名}` 引用变量，可用的变量是 context 加上 input。
 - 模板是用 Python 的 `str.format` 填充的。如果 prompt 里要写字面的花括号，比如一段 JSON 示例，必须写成 `{{`、`}}`。
 - 类型为 list 或 dict 的变量会先转成 JSON 字符串，再填进模板。
 
-**共用工具（通用工具）。** skillsets 目录下的 `tools/`（和各个 skillset 并列，比如 `skillsets/tools/`）
-里的函数，每个 `kind: agent` 的 skill 都能调用，注册方式和 skill 自己的 `tools/` 一样。
-skillset 自己目录下也可以有 `tools/`（比如实验里拷贝出来的一个版本 `skills/R0/tools/`），
-同样对这个 skillset 的每个 skill 都有效。同名的工具只取一个：skill 自己的优先，其次 skillset 的，
-最后 `skillsets/tools/`。
-共用工具的第一个参数可以是 `ctx: RunContext[dict]`，`ctx.deps` 里有：
+**共用工具。** `skills/tools/`（和各语言的目录并列）里的函数，每个 `kind: agent` 的 skill 都能调用，
+注册方式和 skill 自己的 `tools/` 一样。同名的工具只取一个：skill 自己的优先。
+工具的第一个参数如果叫 `ctx`，运行时会拿到这次运行的上下文（模型看不到这个参数），`ctx.deps` 里有：
 
 | 键 | 值 |
 |---|---|
-| `skill_dir` | 当前 skill 的目录 |
-| `skill` | 当前 skill 的名字 |
+| `engine` | 页面的流程（`call_skill` 用它读别的 skill） |
+| `doc_sentences` | 正在标注的文档的句子（`search_annotations` 不返回它们） |
 
-现有的共用工具：
+现有的共用工具（都返回 Markdown）：
 
 | 工具 | 作用 |
 |---|---|
-| `get_example(skill="")` | 返回 `{"example": <文本>}`，文本是 `<skill 目录>/reference/example.md`。不传 `skill` 就是当前 skill；传了就是同一个 skillset 里那个 skill 的例子。没有这个文件时 `example` 为空，并带 `error`。 |
-| `propbank_lookup(lemmas, language)` | 查 PropBank：每个词元的全部义项和论元说明（英语读 `propbank-amr-frame-arg-descr.txt`，中文读 `chinese-propbank/<词元>.xml`）。文件在 `$PROPBANK_DIR`，或上级目录里的 `resources/`、`modular-parsing/resources/`。 |
-
-这些工具都是固定的、无害的读操作，在进程内直接执行，不进沙箱。skill.md 里写一句
-"先调用 `get_example`"，模型就会去读例子。
+| `propbank_lookup(lemmas, language)` | 查 PropBank：每个词元的全部义项、论元说明和例子，一次最多 20 个词元。 |
+| `search_annotations(language, keywords)` | 在金标 UMR 标注里找含这些关键词的整句标注。 |
+| `search_guidelines(keywords)` | 在 UMR 指南里找含这些关键词的章节。 |
 
 `kind: rule` 的 skill 不需要 skill.md，目录里放一个和 skill 同名的 .py：
 
 ```
-reentrancy/
-  reentrancy.py   # def run(**inputs) -> dict
+modal/
+  modal.py   # def run(**inputs) -> dict
 ```
 
 - `run` 拿到的关键字参数和模板一样，是 context 加上 input，用 `**_` 收下不用的。
@@ -373,7 +370,7 @@ status: ok             # ok | error
 `<父节点 id>.<k>`。k 是这个子节点在父节点所有规则产出的子节点里的位置：规则按
 `dispatcher` 里写的顺序，`each` 按列表顺序，被 6.3 丢掉的也占一个位置。所以同样的输入
 每次运行得到同样的 id，和并行时哪个调用先完成无关。排序时按数字逐段比较（`"0.10"`
-排在 `"0.9"` 后面），`src/runner.py` 的 `node_key` 就是这个排序键。
+排在 `"0.9"` 后面），`node_key` 就是这个排序键。本站的步骤 id 在此之上有一点变化：sent_type 一步写成 `<n>B`，它决定起的那一步用 `<n>`（`0B`、`0`、`0.0B`、`0.0`……）。
 
 ### 6.2 树
 
@@ -383,7 +380,7 @@ status: ok             # ok | error
 nodes: [...]           # 这个 episode 的全部节点，按 id 排序
 ```
 
-树里只有节点。把节点拼成最终格式（比如 UMR 的 penman 图）是 output handler 的事，见 6.6。
+树里只有节点。把节点拼成最终格式（比如 UMR 的 penman 图）是 output handler 的事，见 6.5。
 
 ### 6.3 停止和检查
 
@@ -398,18 +395,11 @@ nodes: [...]           # 这个 episode 的全部节点，按 id 排序
 - skill 调用失败，或者产出不符合 `emit` 的类型或枚举：这个节点的 `status` 记为 `error`，写 log，这条分支结束。同一个 episode 的其他分支照常运行。
 - 表达式取不到值（名字或属性不存在）：同样按上一条处理。不过这类错误大多数应该在加载时就被检查出来，见第 7 节。
 
-### 6.5 log
+### 6.5 输出
 
-每个节点写一条 log：节点 id、skill、完整输入、完整产出、命中了哪些规则、起了哪些子节点、被丢弃的项及原因。log 只用来查看，不会被任何一波读取。
-
-### 6.6 输出和 judge
-
-所有波跑完之后：
-
-1. Runner 把 worktree 交给 output handler，写成 `<out_dir>/<doc_id><后缀>`，比如 UMR 的 `.umr`；
-2. 如果给了 judge，就调用 `judge(输出文件, annotation)`，返回值放进结果的 `judgement`。
-
-output handler 和 judge 跟 input handler 一样，由调用方传给 Runner，不写在 registry.yaml 里。
+页面随时可以把当前的 worktree 写成 `.umr`（`engine/umroutputhandler.py`）：句子这一波的树拼成句级图
+（span 和概念都一样的节点合成一个，`outside` 里的参与者接到它指的节点上），document 这一波的关系写成
+文档级标注。
 
 ---
 
@@ -417,7 +407,7 @@ output handler 和 judge 跟 input handler 一样，由调用方传给 Runner，
 
 `Registry.load` 加载 registry.yaml 时检查以下各项。所有问题收集起来一起报出（`RegistryError.errors`），任何一项不通过都不开始运行。检查分两步：先检查结构（键名、类型、写法），结构没问题才检查交叉引用。所以改完结构错误后，可能还会冒出新的错误。
 
-- 顶层只有 `waves`、`skills`、`dispatcher` 三个键，每一层都不能有未知的键（用来抓拼写错误）；
+- 顶层只有 `waves`、`skills`、`dispatcher`（和可选的 `user_panel`），每一层都不能有未知的键（用来抓拼写错误）；
 - 类型写法合法，枚举只出现在 `emit` 里，枚举值都是字符串；
 - 每个 `start` 和 `run` 都在 `skills` 里；
 - 每个 skill 的 `path` 目录存在，而且目录里有 `skill.md`（`kind: rule` 的是 `<skill 名>.py`）；
@@ -434,39 +424,15 @@ output handler 和 judge 跟 input handler 一样，由调用方传给 Runner，
 
 ---
 
-## 8. umr-tree 的约定
+## 8. 本站流程的约定
 
-以下约定只属于 umr-tree 这个 skillset，语法本身不要求。
+以下约定属于本站的 UMR 流程，语法本身不要求。
 
 - `token_sent` 是带编号的 token 列表 `[[1, "Edmund"], [2, "Pope"], ...]`，编号从 1 开始，和 gold 的 Index 行一致。
 - `span` 一律写成 `[第一个, 最后一个]` token 的编号，两头都包含，编号指**整句**的 `token_sent`，不是子块里的位置。比如 `Edmund Pope` 是 `[1, 2]`，单个 token `freedom` 是 `[4, 4]`。`alignment` 也是这样写。
-- 切分类的 skill（discourse、argument、np_phrase）产出的每一项都写成 `{text, span, role}`。`text` 和 `span` 传给下一个 skill，`role` 作为 `edge`。
 - **图片段（graph + open）。** 产出图的 skill（predicate、np_phrase、special_entity，以及 type 为 stop 的 sent_type）都写一个 JSON 图片段 `graph = {nodes, edges, attrs}`：`nodes` 每个 `{var, concept, span}`，第一个是根；`edges` 每条 `[源, 角色, 目标]`；`attrs` 每条 `[var, 角色, 常量]`。还没展开的部分写成占位变量，列在 `open` 里（每个 `{var, text, span}`），也出现在 `edges` 里。dispatcher 用 `each` 把每个占位交给 sent_type，`edge` 写成占位变量；output handler 用这个子节点的根去填那个占位。没人填的占位变成以原文为概念的叶子。子节点的 edge 不是占位变量时，当作角色挂在片段的根上。
-- **predicate 一步写完一个从句。** 查 PropBank 选定义项，按框架直接写出事件节点和论元占位（原来的 argument 并进来了）。`aspect`、`modstr`、`polarity` 仍是必填的单独字段，output handler 写成 `:aspect`、`:modal-strength`、`:polarity -`（`none`、`positive` 不写）。相对时间词（*after*、*before*、*between*……）是节点，带 `op1`。
-- **np_phrase 的中心可以是几个节点**：施事名词 `person :ARG0-of 事件`，角色名词 `person :ARG1-of (have-org-role-92 :ARG2 机构 :ARG3 职位)`，数量加名词 `:quant` 属性；它也能查 PropBank。代词是 `person`/`thing` 加 `refer-person`、`refer-number`；英语复数普通名词加 `refer-number plural`。
-- **coverage（规则）。** predicate 和 np_phrase 之后各跑一次：算出这一块里没有分给任何占位、也不在任何节点 span 里的实词，按连续的段送回 sent_type，挂在片段的根上（`mod`）。虚词（冠词、助动词、体标记、否定、情态、只标记角色的介词）不算。
-- **当前成分之外的参与者。** predicate 发现某个参与者不在当前从句里（控制、并列共用主语、指向句中别处名字的代词），把它在整句里的 span 放进 `outside`，规则为每一项起一个 `antecedent` 节点（`kind: rule`，只记下 span），edge 是它的角色。
-- **reentrancy 合并。** 句子这一波结束后，规则 `reentrancy` 合并两类节点，都并进 id 顺序靠前的那个，且从不并进自己的祖先：
-  1. 同类型（predicate、np_phrase、special_entity、`stop`）且同 span 的节点；
-  2. `antecedent` 节点并进同 span 的第一个产出图的节点（任意类型）；找不到就不输出。
+- **predicate 一步写完一个从句。** 查 PropBank 选定义项，按框架直接写出事件节点和论元占位。`aspect`、`modstr` 是事件节点的属性（`graph.attrs` 里的 `[e, "aspect", …]`、`[e, "modstr", …]`），`polarity` 是单独的字段。
+- **当前成分之外的参与者。** 写在这一步的 `outside` 里，每一项用 `node` 指出它是这一句已有节点表里的哪一个（表在这一步的输入里）；写 `.umr` 时接到那个节点上。
+- **文档级引用。** `"3:0.1"` 指第 3 句节点 0.1 的片段的根，`"3:0.1/r"` 指片段里变量为 `r` 的节点。
 
-  output handler 把合并写成指向保留节点根变量的重入边；被合并节点的子树是重复的，不输出。
-- **文档级引用。** `"3:0.2.1"` 指那个树节点片段的根，`"3:0.2.1/r"` 指片段里变量为 `r` 的节点。
-
-### 例子：一句话怎么跑
-
-句子：`Edmund Pope tasted freedom today for the first time in more than eight months.`，共 14 个 token。
-
-| 节点 | skill | input.span | parent / edge | 产出 → 规则 |
-|---|---|---|---|---|
-| 0 | sent_type | [1,14] | – | `type: predicate` → 起 predicate |
-| 0.0 | predicate | [1,14] | 0 / – | `concept: taste-01`，`aspect: performance`，`frame` → 起 argument |
-| 0.0.0 | argument | [1,14] | 0.0 / – | 4 个 filler → 各起一个 sent_type |
-| 0.0.0.0 | sent_type | [1,2] | 0.0.0 / ARG0 | `special_entity` → 起 special_entity |
-| 0.0.0.1 | sent_type | [4,4] | 0.0.0 / ARG1 | `predicate` → 起 predicate（`free-04`） |
-| 0.0.0.2 | sent_type | [5,5] | 0.0.0 / temporal | `stop`，`concept: today` |
-| 0.0.0.3 | sent_type | [6,14] | 0.0.0 / temporal | `np_phrase` → 起 np_phrase |
-| 0.0.0.0.0 | special_entity | [1,2] | 0.0.0.0 / – | 结束 |
-| 0.0.0.3.0 | np_phrase | [6,14] | 0.0.0.3 / – | modifiers → 各起一个 sent_type … |
-
-queue 变空时，这一句的树就完成了，存进 `worktree.sentence[0]`。
+流程的其余细节（三波、每一步的输入输出、载入已有标注、右栏）见 `docs/SKILLPARSE.md`。

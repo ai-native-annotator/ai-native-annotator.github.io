@@ -1,9 +1,8 @@
 """call_skill: the local change's tool (web). It looks up one skill of the procedure, so the model
 is not handed a skill at the start but reads the one it needs."""
-from pydantic_ai import RunContext
 
 
-def call_skill(ctx: RunContext[dict], skill: str) -> str:
+def call_skill(ctx, skill: str) -> str:
     """The instructions of one skill of this procedure: how it annotates its kind of node.
 
     skill: the skill's name, as the tree of steps shows it (predicate, np_phrase, special_entity,

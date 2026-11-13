@@ -6,6 +6,7 @@
 
 import { h } from './ui.js';
 import { t } from './i18n.js';
+import { readJson, writeJson } from './local.js';
 
 const KEY = 'skillparse_folded';
 // each pane: its width open (as the stylesheet has it), and the title its strip shows
@@ -17,13 +18,8 @@ const PANES = [
 ];
 const STRIP = '34px';
 
-function folded() {
-  try { return new Set(JSON.parse(localStorage.getItem(KEY) || '[]')); } catch { return new Set(); }
-}
-
-function keep(set) {
-  try { localStorage.setItem(KEY, JSON.stringify([...set])); } catch { /* kept for this visit only */ }
-}
+const folded = () => new Set(readJson(KEY, []));
+const keep = (set) => writeJson(KEY, [...set]);       // when storage is blocked: for this visit only
 
 function apply(set) {
   const ws = document.querySelector('.workspace');
