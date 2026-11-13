@@ -22,6 +22,8 @@ import { t, getLang } from './i18n.js';
 
 /** The wave whose steps make the sentence graph (wave 0, generate, may come before it). */
 export const SENTENCE_WAVE = 'sentence';
+// the form of the work kept in this browser, as the bridge writes it (sp_bridge.py SNAPSHOT)
+const WORK_VERSION = 4;
 /** Wave 0: umr_generate writes a whole sentence, convert loads it into the waves after it. */
 export const GENERATE_WAVE = 'generate';
 
@@ -184,7 +186,9 @@ export async function open(skillset, doc) {
   const key = workKey(skillset, doc);
   const kept = await getWork(key);
   let restored = false;
-  if (kept?.state && restoreAsker) {
+  if (kept?.state && kept.state.version !== WORK_VERSION) {
+    await dropWork(key);            // kept by an earlier version of the page: it cannot be read
+  } else if (kept?.state && restoreAsker) {
     const what = await restoreAsker(kept);
     if (what === 'restore') {
       status(t('restoring'));

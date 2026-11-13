@@ -27,7 +27,6 @@ export const ROLES = {
   reflect: 'Reflection (finds skill problems, proposes edits)',
 };
 
-const PROVIDERS = ['openrouter', 'anthropic', 'openai'];
 /** The keys Settings asks for: the three model services, and TypeSafe's own (Jev). */
 export const KEY_NAMES = ['openrouter', 'anthropic', 'openai', 'typesafe'];
 
@@ -110,15 +109,12 @@ const DEFAULTS = {
 
 export function settings() {
   const s = readJson(SETTINGS);
-  // settings from before named a role's model and service: the model is kept, the service is not
   const roles = {};
   for (const [r, dflt] of Object.entries(DEFAULTS.roles)) {
-    const v = (s.roles || {})[r] || {};
-    const old = v.model && MODEL_CHOICES.find((c) => PROVIDERS.some((p) => c[p] === v.model));
-    roles[r] = MODEL_CHOICES.some((c) => c.id === v.choice) ? { choice: v.choice } : old ? { choice: old.id } : dflt;
+    const choice = s.roles?.[r]?.choice;
+    roles[r] = MODEL_CHOICES.some((c) => c.id === choice) ? { choice } : dflt;
   }
-  const j = s.jev || {};
-  const via = JEV_VIA[j.via] ? j.via : String(j.url || '').includes('typesafe.ai') ? 'typesafe' : 'openrouter';
+  const via = JEV_VIA[s.jev?.via] ? s.jev.via : DEFAULTS.jev.via;
   return { roles, jev: { ...DEFAULTS.jev, via }, concurrency: s.concurrency || DEFAULTS.concurrency };
 }
 

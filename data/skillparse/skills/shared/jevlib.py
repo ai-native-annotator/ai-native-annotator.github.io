@@ -37,7 +37,7 @@ is am are was were be been being has have had having do does did will would shal
 could may might must not n't never 's
 """.split())
 
-# web: Uzbek conjunctions, postpositions and particles
+# Uzbek conjunctions, postpositions and particles
 FUNCTION_UZ = set("""
 va hamda yoki yo lekin ammo biroq balki esa ham chunki agar garchi go'yo deb ki-ku
 bilan uchun haqida kabi singari sari tomon orqali keyin so'ng oldin beri qadar sababli tufayli
@@ -70,7 +70,7 @@ def _words(tokens, lang):
             c = m.group(1) if m else t.strip(".,;:!?\"'")
             return c or t
         return tuple(Word(k, k, _clean(t)) for k, t in tokens)
-    # web: no jieba. sent_type needs no words, so a Chinese piece is cut only at punctuation: a
+    # no jieba. sent_type needs no words, so a Chinese piece is cut only at punctuation: a
     # run of tokens between punctuation marks is one word, each mark a word of its own
     out = []
     for k, t in tokens:
@@ -211,13 +211,13 @@ def join(ws, token_sent, lang):
 
 def rolesets(lemma, lang):
     """PropBank rolesets of a lemma, [] if it has none."""
-    return _propbank._rolesets(lemma, lang)      # web: the data (propbank_lookup is Markdown)
+    return _propbank._rolesets(lemma, lang)      # the data (propbank_lookup is Markdown)
 
 
 # -- pronouns ----------------------------------------------------------------
 
 PRONOUNS = {
-    # web: Uzbek, with the case forms a pronoun takes
+    # Uzbek, with the case forms a pronoun takes
     "uz": {**{w: ("person", "1st", "singular") for w in "men meni menga menda mendan mening".split()},
            **{w: ("person", "2nd", "singular") for w in "sen seni senga senda sendan sening".split()},
            **{w: ("person", "3rd", "singular") for w in "u uni unga unda undan uning".split()},

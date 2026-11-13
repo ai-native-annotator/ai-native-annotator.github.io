@@ -12,16 +12,7 @@ import { readJson, writeJson } from './local.js';
 
 const PREFIX = 'skillparse_files:';
 
-/** Where a file was before the skills were moved into one folder (versions saved then keep their place). */
-const MOVED = [
-  ['skillparseumr/web-procedures/', 'skills/'],
-  ['skillparseumr/skillsets/tools/', 'skills/tools/'],
-];
-const moved = (path) => MOVED.reduce((p, [from, to]) => (p.startsWith(from) ? to + p.slice(from.length) : p), path);
-
-function read(sid) {
-  return Object.fromEntries(Object.entries(readJson(PREFIX + sid)).map(([path, vs]) => [moved(path), vs]));
-}
+const read = (sid) => readJson(PREFIX + sid);
 
 /** False when storage is full or blocked: the edit still applies to this session. */
 const write = (sid, data) => writeJson(PREFIX + sid, data);

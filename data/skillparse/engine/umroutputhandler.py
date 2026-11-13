@@ -1,12 +1,16 @@
-"""Output handler for UMR: write a worktree as the text of a .umr file.
+"""A document's steps as a .umr file: each sentence's steps assembled into one graph, its
+alignment, and its document-level annotation.
 
-    text = UMROutputHandler().render(annotation, worktree)
+    parts = assemble(doc, steps, relations)     # one per sentence: graph, align, document, provenance
+    text = umr_text(doc, parts)
+
+`steps[i]` is sentence i's steps as the page keeps them ({id, skill, parent, edge, status, input,
+output}), or None when it has none; `relations[i]` its document-level relations.
 
 The file has the layout of the gold files: per sentence a #### line, `# :: snt<i>`, Index /
 Words, `# sentence level graph:`, `# alignment:`, `# document level annotation:`.
 
-Sentence level graph (from worktree.sentence[i] and worktree.reentrancy[i]).
-A tree node that made part of the graph stored it as a **fragment**:
+Sentence level graph. A step that made part of the graph wrote a **fragment**:
 
     graph: {"nodes": [{"var": "p", "concept": "person", "span": [2, 2]},
                       {"var": "r", "concept": "rescue-01"}],
@@ -17,133 +21,101 @@ A tree node that made part of the graph stored it as a **fragment**:
   - The first node of `nodes` is the fragment's root. Variable names are the
     skill's own; they are renamed to s<i><letter>[<k>] here.
   - A var in `open` is a placeholder: a piece of the sentence handed on to
-    other skills. The child tree node whose `edge` is that var fills it: its
+    other skills. The child step whose `edge` is that var fills it: its
     head (the root of the nearest fragment at or below it) takes the
     placeholder's place in every edge. A placeholder nobody filled becomes a
     leaf whose concept is its text.
-  - A var in `outside` (np_phrase, special_entity, stop) is a participant
-    written elsewhere in the sentence, {var, text, span}. Its child is an
-    `antecedent` node whose `edge` is that var; through reentrancy's merge it
-    fills the var like a placeholder, so the edge points at a node that already
-    exists. If the antecedent was not merged, the edges with that var are left
-    out. (predicate's `outside` items have no var: their antecedent is joined
-    to the root by its role, as below.)
+  - An item of `outside` is a participant written elsewhere in the sentence: it names the step
+    that stands for it (`node`, as the table in the step's input names it: "0.1"). That step's
+    head is joined here, so the edge points at a node that already exists (a re-entrancy): to
+    the root by the item's `role` (predicate), or in place of the item's `var` in the
+    fragment's edges (the others). An item that names no step of the sentence is left out.
   - A child whose `edge` is not a placeholder var is joined to the root by
-    that role (`mod` if it has none), e.g. discourse parts and coverage gaps.
-  - A tree node without a fragment (sent_type that is not stop, discourse
-    "none", coverage, a node in error) passes its children up.
-  - Which nodes have a fragment: predicate, np_phrase, special_entity and
+    that role (`mod` if it has none), e.g. discourse parts.
+  - A step without a fragment (sent_type that is not stop, discourse
+    "none", a step in error) passes its children up.
+  - Which steps have a fragment: predicate, np_phrase, special_entity and
     sent_type with type stop (their `graph`); discourse with a relation (one
-    node, the relation). A predicate's `aspect`, `modstr`, `polarity` are
-    written on its root (ATTRIBUTES) unless the fragment already has them.
-  - Modal strength never stays in the sentence graph: a `modal-strength` (a
-    predicate's `modstr`, or one a fragment wrote itself) becomes the
-    document-level relation (author :<value> <node>), as the Chinese gold
+    node, the relation). A predicate's `polarity` is written on its root.
+  - Modal strength never stays in the sentence graph: a `modstr` (or `modal-strength`)
+    attribute becomes the document-level relation (author :<value> <node>), as the Chinese gold
     writes it (Chun & Xue's cleanup gives the same for English).
-  - Older runs stored `concept` instead of `graph`, or a penman string; both
-    are still read.
-  - reentrancy's `merges` {node, into}: node is not a UMR node of its own; its
-    parent points at into's head instead (a reentrancy). Its subtree is a
-    duplicate of into's and is left out. An `antecedent` node only ever
-    appears through a merge.
-Document level annotation (from worktree.document[i]): `relations`, each
-{group, source, relation, target}. A source or target "<sentence>:<node id>"
-(e.g. "3:0.2.1") becomes that node's head variable, "<sentence>:<node
-id>/<var>" a node inside its fragment; anything else (author, ...) is written
+  - Two steps that write the same concept over the same span are one node (same_nodes): the
+    later one is not a UMR node of its own; its parent points at the first one's head instead
+    (a re-entrancy). Its subtree is a duplicate of the first's and is left out.
+Document level annotation: `relations`, each
+{group, source, relation, target}. A source or target "<sentence>:<node>"
+(e.g. "3:0.1") becomes that node's head variable, "<sentence>:<node>/<var>" a node inside its
+fragment; anything else (author, ...) is written
 as is. Every sentence's :modal starts with (root :modal author); then the
-document skill's modal relations, and (author :<modstr> <event>) for every
-event with a modal strength, unless the document skill gave that event a
+modal relations, and (author :<modstr> <event>) for every
+event with a modal strength, unless a relation gave that event a
 parent other than author (a reported view: the conceiver's relation wins).
-The document skill does not write the author's strength itself; if it does,
-the event's modstr replaces it. The document skill sees the trees before assembly, so a reference
-follows the merges: a merged node stands for its `into` (with a var, the node
-of into's fragment with the same concept), and a node inside a merged node's
+The document steps see the steps before assembly, so a reference
+follows the merges: a merged node stands for the node it is one with (with a var, the node
+of that fragment with the same concept), and a node inside a merged node's
 subtree, which is left out as a duplicate, for the node with the same skill
-and span under `into`. A relation with a reference that stands for nothing in
+and span under the kept one. A relation with a reference that stands for nothing in
 the graph (no such node, a node with no head, no counterpart) is left out.
-A wave that has not run is simply left out.
 """
 import re
 
 import penman
 
 
-# stored field -> (role, how its value is written; None leaves it out)
-ATTRIBUTES = {
-    "predicate": [
-        ("aspect", "aspect", lambda v: None if v in (None, "", "none") else v),
-        ("modstr", "modal-strength", lambda v: None if v in (None, "", "none") else v),
-        ("polarity", "polarity", lambda v: "-" if v == "negative" else None),
-    ],
-}
 FRAGMENT_SKILLS = ("predicate", "np_phrase", "special_entity")
+TYPER = "sent_type"         # its step "0.1B" decides what the node "0.1" is; a stop is the node itself
 NO_ROLE = "mod"             # a child joined without any role
 DOC_GROUPS = ["temporal", "modal", "coref"]     # their order in the file
 MODAL_STRENGTH = ("modal-strength", "modstr")
 INDENT = "    "
 
 
-class UMROutputHandler:
-
-    def render(self, annotation, worktree):
-        graphs = {}
-        for i, sent in enumerate(annotation.sents):
-            graphs[sent.index] = _SentenceGraph(sent.index, _nodes(worktree, "sentence", i),
-                                                _stored(worktree, "reentrancy", i, "merges"))
-        blocks = []
-        for i, sent in enumerate(annotation.sents):
-            n = sent.index
-            graph, align = graphs[n].render()
-            relations = _stored(worktree, "document", i, "relations")
-            blocks.append("\n".join([
-                "#" * 80,
-                f"# meta-info :: sent_id = {annotation.doc_id}-s{n}",
-                f"# :: snt{n}",
-                *_index_words(sent.tokenized_text),
-                "",
-                "# sentence level graph:",
-                graph,
-                "",
-                "",
-                "# alignment:",
-                *(f"{var}: {a}" for var, a in align),
-                "",
-                "",
-                "# document level annotation:",
-                _doc_graph(n, relations, graphs, graphs[n].modal),
-                "",
-                "",
-            ]))
-        return "\n".join(blocks)
-
-
-def provenance(annotation, worktree):
-    """{sentence index: {variable: {"node": tree node id, "skill": skill, "var":
-    the skill's own var}}}: which skill call made each node of the graph, for
-    tracing an error back to the call that made it."""
-    out = {}
+def assemble(annotation, steps, relations):
+    """[{index, graph, align, document, provenance}], one per sentence. provenance is {variable:
+    {"node": step id, "skill", "var": the skill's own var[, "unfilled": True]}}: which step made
+    each node of the graph (unfilled: a leaf made for a placeholder nobody filled)."""
+    graphs = {sent.index: _SentenceGraph(sent.index, steps[i] or []) for i, sent in enumerate(annotation.sents)}
+    parts = []
     for i, sent in enumerate(annotation.sents):
-        g = _SentenceGraph(sent.index, _nodes(worktree, "sentence", i),
-                           _stored(worktree, "reentrancy", i, "merges"))
-        out[sent.index] = {u.var: {"node": node_id, "skill": g.nodes[node_id]["skill"], "var": local}
-                           for node_id, f in g.frags.items() for local, u in f.local.items()}
-        for node_id, f in g.frags.items():          # leaves made for unfilled placeholders
+        g = graphs[sent.index]
+        graph, align = g.render()
+        prov = {u.var: {"node": node_id, "skill": g.nodes[node_id]["skill"], "var": local}
+                for node_id, f in g.frags.items() for local, u in f.local.items()}
+        for node_id, f in g.frags.items():
             for var, us in f.fills.items():
                 for u in us:
-                    out[sent.index].setdefault(u.var, {"node": node_id, "skill": g.nodes[node_id]["skill"],
-                                                       "var": var, "unfilled": True})
-    return out
+                    prov.setdefault(u.var, {"node": node_id, "skill": g.nodes[node_id]["skill"],
+                                            "var": var, "unfilled": True})
+        parts.append({"index": sent.index, "graph": graph, "align": align, "provenance": prov,
+                      "document": _doc_graph(sent.index, relations[i] or [], graphs, g.modal)})
+    return parts
 
 
-def _nodes(worktree, wave, i):
-    trees = worktree.get(wave) or []
-    return trees[i]["nodes"] if i < len(trees) and trees[i] else []
-
-
-def _stored(worktree, wave, i, key):
-    """A stored field of the root node of worktree[wave][i], or []."""
-    nodes = _nodes(worktree, wave, i)
-    return (nodes[0].get(key) or []) if nodes else []
+def umr_text(annotation, parts):
+    blocks = []
+    for sent, part in zip(annotation.sents, parts):
+        n = sent.index
+        blocks.append("\n".join([
+            "#" * 80,
+            f"# meta-info :: sent_id = {annotation.doc_id}-s{n}",
+            f"# :: snt{n}",
+            *_index_words(sent.tokenized_text),
+            "",
+            "# sentence level graph:",
+            part["graph"],
+            "",
+            "",
+            "# alignment:",
+            *(f"{var}: {a}" for var, a in part["align"]),
+            "",
+            "",
+            "# document level annotation:",
+            part["document"],
+            "",
+            "",
+        ]))
+    return "\n".join(blocks)
 
 
 def _index_words(tokens):
@@ -159,7 +131,7 @@ def _doc_graph(n, relations, graphs, modal):
     with the document skill's modal relations."""
     def ref(x):
         """The variable a reference stands for, a constant as is, or None."""
-        m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+[AB]?)(?:/(\S+))?\s*", str(x))
+        m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+B?)(?:/(\S+))?\s*", str(x))
         if not m:
             return str(x)
         if int(m.group(1)) not in graphs:
@@ -205,38 +177,71 @@ def _doc_graph(n, relations, graphs, modal):
 
 # ------------------------------------------------------------------ fragments
 
+def step_of(nodes, name):
+    """The step a node name stands for, in a sentence's {id: step}: "0.1" is step 0.1, else the
+    sent_type leaf 0.1B."""
+    name = str(name).strip()
+    return nodes.get(name) or nodes.get(name + "B")
+
+
 def fragment_of(x):
-    """The fragment a tree node contributes, normalised to {nodes, edges,
-    attrs, open}, or None if it contributes none. Variable names are the
-    skill's own."""
-    if x.get("status") != "ok":
+    """The fragment a step contributes, normalised to {nodes, edges, attrs, open, outside}, or
+    None if it contributes none. Variable names are the skill's own."""
+    o = x.get("output") if x.get("status") == "ok" else None
+    if not isinstance(o, dict):
         return None
     skill = x["skill"]
     if skill == "discourse":
-        rel = x.get("relation")
+        rel = o.get("relation")
         return _single(rel) if rel not in (None, "", "none") else None
-    if skill == "sent_type" and x.get("type") != "stop":
+    if skill == TYPER and o.get("type") != "stop":
         return None
-    if skill != "sent_type" and skill not in FRAGMENT_SKILLS:
+    if skill != TYPER and skill not in FRAGMENT_SKILLS:
         return None
-    frag = _normalise(x.get("graph"), x.get("open"), x.get("outside"))
-    if frag is None and skill != "special_entity":       # older runs: a plain concept
-        concept = x.get("concept")
-        if skill == "sent_type" and not concept:
-            concept = x["input"].get("text", "")
-        if concept:
-            frag = _single(concept)
+    # a predicate's outside items are joined by their role, the others' stand for a var of the fragment
+    frag = _normalise(o.get("graph"), o.get("open"), None if skill == "predicate" else o.get("outside"))
+    if frag is None and skill == TYPER and x["input"].get("text"):
+        frag = _single(x["input"]["text"])          # a leaf with no graph: the piece as written
     if frag is None:
         return None
     root = frag["nodes"][0]
     if root.get("span") is None:
-        root["span"] = x.get("alignment") or (x["input"].get("span") if skill == "sent_type" else None)
-    have = {role for v, role, _ in frag["attrs"] if v == root["var"]}
-    for field, role, write in ATTRIBUTES.get(skill, []):
-        value = write(x.get(field))
-        if value is not None and role not in have:
-            frag["attrs"].append((root["var"], role, value))
+        root["span"] = o.get("alignment") or (x["input"].get("span") if skill == TYPER else None)
+    if skill == "predicate" and o.get("polarity") == "negative" \
+            and not any(v == root["var"] and role == "polarity" for v, role, _ in frag["attrs"]):
+        frag["attrs"].append((root["var"], "polarity", "-"))
     return frag
+
+
+def same_nodes(steps):
+    """{step id: the step it is one node with}: two steps that write the same concept over the same
+    span (the later into the first that is not its ancestor). A step writes a concept when it is a
+    predicate, np_phrase, special_entity or a sent_type leaf; its span is its input's."""
+    parent = {x["id"]: x["parent"] for x in steps}
+
+    def ancestors(node_id):
+        out = set()
+        while parent.get(node_id) is not None:
+            node_id = parent[node_id]
+            out.add(node_id)
+        return out
+
+    kept, out = {}, {}
+    for x in sorted(steps, key=lambda x: _key(x["id"])):
+        o = x.get("output") if x.get("status") == "ok" else None
+        if not isinstance(o, dict) or not (x["skill"] in FRAGMENT_SKILLS or (x["skill"] == TYPER and o.get("type") == "stop")):
+            continue
+        g = (o.get("graph") or {}).get("nodes") or [] if isinstance(o.get("graph"), dict) else []
+        span = (x.get("input") or {}).get("span")
+        if not g or not isinstance(g[0], dict) or not span:
+            continue
+        key = (tuple(span), _concept(g[0].get("concept")))
+        into = next((k for k in kept.get(key, []) if k not in ancestors(x["id"])), None)
+        if into is not None:
+            out[x["id"]] = into
+        else:
+            kept.setdefault(key, []).append(x["id"])
+    return out
 
 
 def _single(concept):
@@ -245,11 +250,8 @@ def _single(concept):
 
 
 def _normalise(graph, open_items, outside_items=None):
-    """{nodes, edges, attrs, open, outside} from a skill's graph (a dict, or a
-    penman string from older runs), open list and outside list; None if there
-    is no node. Only outside items with a var count (predicate's have none)."""
-    if isinstance(graph, str) and graph.strip():
-        graph = _from_penman(graph)
+    """{nodes, edges, attrs, open, outside} from a skill's graph, open list and outside list; None
+    if there is no node. Only outside items with a var count."""
     if not isinstance(graph, dict):
         return None
     nodes, seen = [], set()
@@ -282,19 +284,6 @@ def _normalise(graph, open_items, outside_items=None):
         if isinstance(a, (list, tuple)) and len(a) == 3:
             attrs.append((str(a[0]), _role(a[1]), a[2]))
     return {"nodes": nodes, "edges": edges, "attrs": attrs, "open": opened, "outside": outside}
-
-
-def _from_penman(text):
-    try:
-        g = penman.decode(text)
-    except Exception:
-        return None
-    instances = {v: c for v, _, c in g.instances()}
-    nodes = [{"var": g.top, "concept": instances.get(g.top)}] + \
-            [{"var": v, "concept": c} for v, c in instances.items() if v != g.top]
-    edges = [[s, r, t] for s, r, t in g.edges()]
-    attrs = [[s, r, t] for s, r, t in g.attributes()]
-    return {"nodes": nodes, "edges": edges, "attrs": attrs}
 
 
 def _concept(c):
@@ -339,16 +328,14 @@ class _Frag:
 
 class _SentenceGraph:
 
-    def __init__(self, n, nodes, merges):
+    def __init__(self, n, nodes):
         self.n = n
         self.nodes = {str(x["id"]): x for x in nodes}
         self.kids = {}
         for x in sorted(nodes, key=lambda x: _key(x["id"])):
             parent = None if x["parent"] is None else str(x["parent"])
             self.kids.setdefault(parent, []).append(x)
-        self.merged = {str(m["node"]): str(m["into"]) for m in merges
-                       if isinstance(m, dict) and str(m.get("node")) in self.nodes
-                       and str(m.get("into")) in self.nodes}
+        self.merged = same_nodes(nodes)
         self.used = set()
         self.reserved = {str(nd.get("var")) for x in nodes for nd in ((fragment_of(x) or {}).get("nodes") or [])
                          if re.fullmatch(r"s%d[a-z]\w*" % n, str(nd.get("var", "")))}
@@ -382,8 +369,8 @@ class _SentenceGraph:
         return f
 
     def head(self, node_id):
-        """The _UNode a tree node stands for: its fragment's root, through a
-        merge, or for a pass-through node its first child's head."""
+        """The _UNode a step stands for: its fragment's root, through a merge, or for a
+        pass-through step its first child's head."""
         node_id = self.merged.get(str(node_id), str(node_id))
         if node_id not in self.nodes:
             return None
@@ -410,8 +397,14 @@ class _SentenceGraph:
         if f:
             self._connect(ctx, link, f.root)
             ctx, link = f, None
-        for c in self.kids.get(node_id, []):
-            edge = c.get("edge")
+        # its children, and the nodes its outside items name, in order: item k after child k
+        below = [(_key(c["id"]), c, None) for c in self.kids.get(node_id, [])]
+        o = x.get("output") if x.get("status") == "ok" else None
+        items = [it for it in (o.get("outside") or [] if isinstance(o, dict) else []) if isinstance(it, dict)
+                 and isinstance(it.get("node"), str)]
+        below += [(_key(node_id) + (k, 2), None, it) for k, it in enumerate(items)]
+        for _, c, item in sorted(below, key=lambda b: b[0]):
+            edge = c.get("edge") if c else item.get("role") if x["skill"] == "predicate" else item.get("var")
             if edge is not None and ctx is not None and (str(edge) in ctx.frag["open"]
                                                          or str(edge) in ctx.frag["outside"]):
                 child_link = ("slot", str(edge))
@@ -419,7 +412,14 @@ class _SentenceGraph:
                 child_link = ("role", _role(edge))
             else:
                 child_link = link
-            self._walk(c, ctx, child_link)
+            if c:
+                self._walk(c, ctx, child_link)
+                continue
+            target = step_of(self.nodes, item["node"])
+            if target is not None and target["status"] == "ok" and target["id"] != node_id:
+                u = self.head(target["id"])       # through a merge: the node the target is one with
+                if u:
+                    self._connect(ctx, child_link, u)
 
     def _connect(self, ctx, link, u):
         if ctx is None:
@@ -509,9 +509,10 @@ class _SentenceGraph:
         with var a node inside its fragment; None if it stands for nothing in
         the graph. A merged node stands for its into; a node under a merged
         node (left out) for its counterpart under into."""
-        node_id = str(node_id)
-        if node_id not in self.nodes:
+        x = step_of(self.nodes, node_id)
+        if x is None:
             return None
+        node_id = str(x["id"])
         if node_id in self.merged:
             target = self.merged[node_id]
         elif node_id in self.placed:
@@ -543,8 +544,8 @@ class _SentenceGraph:
 
         for i in sorted(self.placed, key=_key):
             y = self.nodes[i]
-            if (y["skill"], y.get("type"), y["input"].get("span")) == \
-                    (x["skill"], x.get("type"), x["input"].get("span")) and under_into(i):
+            if (y["skill"], _type(y), y["input"].get("span")) == \
+                    (x["skill"], _type(x), x["input"].get("span")) and under_into(i):
                 return i
         return None
 
@@ -588,14 +589,19 @@ class _SentenceGraph:
         return text, [(v, a) for v, a in self.align if v in reachable]
 
 
+def _type(x):
+    """A sent_type step's answer (None for any other step, or one with no output)."""
+    o = x.get("output")
+    return o.get("type") if isinstance(o, dict) and x.get("status") == "ok" else None
+
+
 def _key(node_id):
-    """Sort key of a node id: "0.10" comes after "0.9"."""
-    # web: a part can end in B (a sent_type step) or A (an outside item's antecedent node):
-    # "0B" < "0" < "0.0B" < "0.0" < "0.0A"
+    """Sort key of a step id: "0B" < "0" < "0.0B" < "0.0" < "0.1B"; "0.10" comes after "0.9". A
+    part can end in B (a sent_type step: the step it decides on takes its number)."""
     out = []
     for p in str(node_id).split("."):
-        m = re.match(r"^(\d+)([AB]?)$", p)
-        out += [int(m.group(1)), {"B": 0, "": 1, "A": 2}[m.group(2)]] if m else [1 << 30, 0]
+        m = re.match(r"^(\d+)(B?)$", p)
+        out += [int(m.group(1)), 0 if m.group(2) else 1] if m else [1 << 30, 0]
     return tuple(out)
 
 

@@ -378,21 +378,16 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 
 `render(auto_align)`（导出 .umr、「UMR 文本」标签、AI 栏都用它）：
 
-1. `_worktree_out()` 准备输出模块要读的 worktree：
-   - `sentence`：`_sentence_out(i)`，每句的步骤树，再给每一步 `outside` 里的每一项临时补一个 antecedent 节点（这一项的 span 和文本，挂在那一步下面，edge 是 predicate 的角色，或其他 skill 的变量）；
-   - `reentrancy`：`merges(i)` 算出的合并（SkillParseUMR 的输出模块从这里读合并）；
-   - `document`：document 这一波的输出。
-2. `merges(i)`：
-   - span 一样、概念也一样的两个节点是同一个，后出现的并进先出现的，但不会并进自己的上层。这里的节点指写概念的步骤：predicate、np_phrase、special_entity、sent_type 叶子；span 是这一步输入的 span。
-   - outside 里的参与者：并到 span 一样的第一个节点，没有就并到中心词 span 一样的第一个节点，不并进自己所在的上层。
-   - 如果这一项写明了概念（载入的文件会写），节点的概念也要一样，这时可以并进上层，例如从句的参与者就是它修饰的名词。
-3. `UMROutputHandler().render(doc, worktree)`（`engine/umroutputhandler.py`）：
-   - 把每一步的图片段拼成整句的图，变量改名为 `s<句号><字母>`；
-   - 被合并的节点变成重入边；
-   - predicate 的 aspect、polarity 写成属性，modal strength 移到文档级；
-   - 写对齐（span → `a-b`），写文档级的 temporal / modal / coref。
+1. `_assembled()` 把每一句的步骤（sentence 这一波，原样）和这一句的文档级关系（document 这一波已完成的 modal、temporal、coref 三步的 `relations`）交给 `engine/umroutputhandler.py` 的 `assemble(doc, steps, relations)`，每句得到图、对齐、文档级标注和 `provenance`。
+2. `assemble` 怎么拼一句：
+   - 把每一步的图片段拼成整句的图，变量改名为 `s<句号><字母>`；占位由填它的那一步的中心节点顶上；
+   - span 一样、概念也一样的两个节点是同一个（`same_nodes`）：后出现的并进先出现的，但不会并进自己的上层，后一个在图里是指向前一个的重入边。这里的节点指写概念的步骤：predicate、np_phrase、special_entity、sent_type 叶子；span 是这一步输入的 span；
+   - `outside` 里的每一项用 `node` 指出它是这一句的哪个节点，那个节点的中心节点接到这一步上，也是重入边：predicate 的按 `role` 挂在事件上，其他 skill 的顶上片段里的那个变量；指的节点已经并进别的节点时，接到那个节点上；
+   - predicate 的 polarity 写成属性，modal strength 移到文档级；
+   - 写对齐（span → `a-b`），写文档级的 temporal / modal / coref（关系里的 `3:0.1`、`3:0.1/x` 换成变量）。
+3. `umr_text(doc, parts)` 写成文件的文本。
 4. `auto_align`（导出时默认开）：对齐是 `0-0`、而概念在句子里出现的变量，补上那几个字的位置；抽象概念、名字、实体类型保持 `0-0`。
-5. 另外算 `provenance`：每个变量是哪一步写的。点图里的框跳到那一步就靠它。
+5. `provenance`：每个变量是哪一步写的。点图里的框跳到那一步就靠它。
 
 `graph(i)`：从 render 结果里取第 i 句，用 penman 解出节点、边、属性、对齐、文档级关系，交给 `graph-view.js` 画 SVG。重入画虚线，当前步骤写的框高亮，悬停显示对齐的字。
 
@@ -495,14 +490,15 @@ sentences:
 
 **`restore(state)`**：
 - 存的时候还在跑的步骤回到 pending；
-- 流程里已经没有的 skill（如旧暂存里的 antecedent）的步骤去掉；
+- registry 里已经没有的 skill（registry 可以改）的步骤去掉；
+- 暂存的格式有版本号（`SNAPSHOT`，页面的 `WORK_VERSION`）：版本不同的暂存不恢复，打开文档时直接丢掉；
 - 按 wave 顺序重算每项的上下文和第一步输入。
 
 **其他保存在浏览器里的东西**（localStorage）：
 
 | 键 | 内容 |
 |---|---|
-| `annotator_secrets` | API key（和旧工作台共用） |
+| `annotator_secrets` | API key |
 | `skillparse_settings_v4` | 模型、服务商（包括工具栏菜单的选择）、Jev 设置、并发数 |
 | `skillparse_files:<skillset>` | 改过的 skill 文件，每次保存一个版本 |
 | `skillparse_lang` | 界面语言 |
@@ -602,43 +598,7 @@ sentences:
 
 ---
 
-## 14. 和 SkillParseUMR 的差别
-
-这些流程最初取自 SkillParseUMR，之后做了下面这些改动。现在 `skills/` 下的文件由本站自己维护，不再从上游同步：
-
-| 改动 | 原来 | 现在 |
-|---|---|---|
-| 流程来源 | — | 中文：决策编排 `umr-zh-frag/versions/R42` 的 registry 和 agent skill，`sent_type` 来自 `umr-zh-v11/versions/V12`；英文：`skillsets/umr-tree`，`sent_type` 来自 `umr-en-v11/versions/V12` |
-| sent_type | — | 标为 `kind: jev`，其余调模型的 skill 都是 agent |
-| coverage | predicate、np_phrase 之后检查漏掉的词 | 去掉 |
-| reentrancy | 单独一波，按类型和 span 合并 | 去掉；写 .umr 时按 span 和概念合并（`merges`） |
-| antecedent | 每个 outside 一个规则步骤 | 去掉；outside 留在原步骤里，写 .umr 时接上 |
-| document 的输入 | `sents` + `trees`（reentrancy 那一波的整棵树） | `sentences`：sentence 那一波生成的每句节点表（编号、full span、概念、类型、skill）；skill.md 讲输入的几段改成说明这张表 |
-| discourse 的 relation | 17 个值的列表 | 任意字符串 |
-| jieba | sent_type 的 jevlib 用它切词 | 不用：中文只在标点处切，英文用原来的词 |
-| wave 0 | — | `generate`：`umr_generate`（默认 GPT-6.1 Sol）一次写出整句的图和文档级标注，规则 `convert` 检查后载入后面两波；整句的改动在右栏提（`user_panel`） |
-| 右栏 | — | registry 顶层的 `user_panel`：`local_change`（模型按评论提出改动，有 `call_skill` 工具）、`apply_change`（规则，执行勾选的改动，再把图拆回步骤）、`reflect` |
-| 乌兹别克语 | — | `web-uz`：英文流程 + 本站写的乌兹别克语 skill.md；wave 0 先用规则 `tokenizer` 分词；没有 PropBank（词干概念 + 通用角色）、没有金标 |
-| predicate 的 aspect、modstr | emit 里单独的两个字段（枚举） | 不单列：是 `graph.attrs` 里事件节点（第一个节点）的属性 `[e, "aspect", …]`、`[e, "modstr", …]`；bridge 检查取值（`_check_event_attrs`），output handler 照旧把 modstr 移到文档级；polarity 仍是字段 |
-| 属性值的引号 | 只含字母、数字、点、连字符的值不加引号（`12306.cn` 裸写） | 只有数字、`-`/`+`、不带点的符号不加引号；网址、域名这类带点的值加引号（output handler 的 `_value` 打补丁；`apply_change` 同一规则） |
-| document 的三步 | 一个 `document` skill | 三个并列的起点 `[modal, temporal, coref]`，步骤 1、2、3 |
-| PropBank | 每个词条一个 XML（中文 24,521 个）；英文查 `arg-descr.txt`；`propbank_lookup` 返回 JSON，只有角色 | 中英文各合并成一个 JSON，带全部例子，放在 `resources/propbank/`，第一次查询时取来；本站的 `propbank.py` 读它，返回 Markdown（角色和全部例子）；中文的 roleset 和角色与原来完全相同，英文 `arg-descr.txt` 的 8,733 个 roleset 全都有 |
-| `reference/example.md` | 每个 agent skill 一份手写例子 | 删掉；例子从金标里搜 |
-| 文档级 | 一个 document agent 步骤，同时写 temporal、modal、coref | modal 由规则生成（照 umr-tool 的转换）；temporal、coref 各一个 agent 步骤（本站写的 skill.md，由 document 的两节精简而来） |
-| 步骤编号 | `0`、`0.0`、`0.0.0`…（sent_type 和它派生的一步各占一层） | `0B`、`0`、`0.0B`、`0.0`…（sent_type 带 B，派生的一步用同一个号），长度减半 |
-| outside | 写参与者的 text、span（np_phrase 还有 `at`），写 .umr 时按 span 找节点；sent_type 也可以写 | 写已有节点表里的编号 `node`，写 .umr 时直接接到那个节点；sent_type 不写 |
-| propbank_lookup 一次查几个词 | 最多 3 个（原词加两个备选），多的悄悄丢掉；predicate 的 skill.md 说「up to two alternates」 | 最多 20 个，超出的列在结果的 `_not_looked_up` 里，叫模型再查；predicate、np_phrase 的 skill.md 改成一次给出**所有**备选形式（最多 20 个） |
-| 工具 | `get_example`（读 `reference/example.md`）、`propbank_lookup` | 去掉 `get_example`；加 `search_annotations`（只搜金标）、`search_guidelines`（UMR 指南）；skill.md 里提到 get_example 的两句改成说明这两个工具 |
-
-另外，网页的运行方式和 SkillParseUMR 的命令行 Runner 有这些不同：
-- 每一步要人确认才继续；
-- 可以带提示重跑、直接修改；
-- 可以载入已有的标注；
-- 浏览器里没有 pydantic-ai，它的工具调用循环和输出校验由 `models.js` 和 `_check_emit` 实现。
-
----
-
-## 15. 测试
+## 14. 测试
 
 | 命令 | 内容 |
 |---|---|

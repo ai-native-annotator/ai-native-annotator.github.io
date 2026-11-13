@@ -34,8 +34,7 @@ manifest again.
 
 The procedures began as SkillParseUMR's (the Chinese one from decision-orchestration's
 `umr-zh-frag` R42, the English one from `skillsets/umr-tree`, `sent_type` from V12) and are this
-site's files now: nothing here is built from another repository. What was changed since is listed
-in `docs/SKILLPARSE.md`, section 14.
+site's files now: nothing here is built from another repository.
 
 ## How a skill runs
 

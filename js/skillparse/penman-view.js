@@ -64,14 +64,8 @@ function fragment(o, extraAttrs = []) {
   return graphPenman({ nodes: g.nodes, edges: g.edges || [], attrs }, refs, extra);
 }
 
-/** predicate's aspect, modal strength and polarity, as the attributes of its event. */
-function eventAttrs(o) {
-  const out = [];
-  if (o.aspect && o.aspect !== 'none') out.push(['aspect', o.aspect]);
-  if (o.modstr) out.push(['modal-strength', o.modstr]);
-  if (o.polarity === 'negative') out.push(['polarity', '-']);
-  return out;
-}
+/** predicate's polarity, as an attribute of its event (its aspect and modstr are attributes already). */
+const eventAttrs = (o) => (o.polarity === 'negative' ? [['polarity', '-']] : []);
 
 const REF = /^(\d+):([^/\s]+)(?:\/(\S+))?$/;
 

@@ -206,7 +206,7 @@ function inputTab(d) {
 
 function answerLine(a) {
   if (!a) return h('span', { class: 'note', text: '…' });
-  const who = a.by ? h('span', { class: `badge by-${a.by}`, text: a.by === 'jev' ? 'Jev' : a.by === 'haiku' ? 'Haiku' : t('humanTag') }) : null;
+  const who = a.by ? h('span', { class: 'badge by-jev', text: 'Jev' }) : null;
   if ('noul' in a) return h('span', {}, h('span', { class: 'bar', style: `width:${Math.round(a.noul * 60)}px` }), `yes ${Number(a.noul).toFixed(2)} `, who);
   if (a.probabilities) {
     const top = Object.entries(a.probabilities).sort((x, y) => y[1] - x[1]).slice(0, 3).filter(([, p], k) => p >= 0.01 || k === 0);

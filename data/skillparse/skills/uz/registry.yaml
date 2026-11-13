@@ -4,14 +4,11 @@
 # sent_type is kind: jev (with jevlib.py and prompt_loader.py); every other model
 # skill is kind: agent: its skill.md, answered by the model picked in the toolbar. A file that is
 # not in this folder is skills/shared's (data/skillparse/README.md).
-# There is no coverage, antecedent (outside stays in the step) or reentrancy wave (nodes with the
-# same span and concept, and each outside participant with the node it names, are merged when the
-# .umr is written). discourse's relation is any string (not checked against a list).
-# jevlib.py cuts a Chinese piece only at punctuation (no jieba).
+# When the .umr is written, nodes with the same span and concept are one node, and each `outside`
+# participant is the node it names (engine/umroutputhandler.py). discourse's relation is any string.
 # 语法说明见 skills/REGISTRY.md。
 #
-# 两波，按顺序跑（web：没有 reentrancy 这一波；写 .umr 时合并：span 和概念都一样的节点是同一个，
-# outside 里的每个参与者按它写的节点编号（node）接到那个节点上，见 sp_bridge.py 的 RegistryEngine.merges）：
+# 按顺序跑：
 #   sentence    每句一个 episode，从 sent_type 开始逐层往下切，建出这句的树
 #   document    每句一个 episode，看这句和它前五句的树，产出这句的文档级图
 #
@@ -24,7 +21,7 @@
 #              │              └─ 每个短语外的参与者：写在 outside 里（如 其同类 的 其）
 #              ├─ special_entity ─┬─ 每个 open → sent_type（一般没有）
 #              │                  └─ 每个外面的参与者：写在 outside 里（一般没有）
-#              └─ stop（叶子，自带一个小图）── web：sent_type 不写 outside
+#              └─ stop（叶子，自带一个小图）── sent_type 不写 outside
 #
 # 产出图的 skill（predicate、np_phrase、special_entity，以及 stop 时的 sent_type）都写一个
 # 图片段 graph = {nodes, edges, attrs}，还没展开的部分写成占位变量，列在 open 里。
@@ -39,7 +36,7 @@
 
 waves:
 
-  - name: generate                      # web：wave 0，一次生成整句的图和文档级标注，规则检查后转成后面两波的步骤
+  - name: generate                      # wave 0，一次生成整句的图和文档级标注，规则检查后转成后面两波的步骤
     start: tokenizer                    # web-uz：先分词（规则，tokenizer/tokenizer.py），再整句生成
     parallel: 1                         # 每句要看前面几句生成的图：按顺序
     init_input:
@@ -72,7 +69,7 @@ waves:
         span: sentence.span
 
   - name: document
-    start: [modal, temporal, coref]   # web：三步并列（步骤 1、2、3），互不依赖：modal 是规则，temporal、coref 是模型
+    start: [modal, temporal, coref]   # 三步并列（步骤 1、2、3），互不依赖：modal 是规则，temporal、coref 是模型
     parallel: 20                        # 只读前面几波的结果，各句可以同时跑
     init_input:
       for_each:                         # 每句一个 episode
@@ -80,7 +77,7 @@ waves:
       context:
         lang: annotation.lang
       input:
-        sentences:                      # web：前五句 + 这一句，这一句在最后；开头几句不足五句就少几项
+        sentences:                      # 前五句 + 这一句，这一句在最后；开头几句不足五句就少几项
           window: worktree.sentence     # 每句是 sentence 这一波的一张节点表（句号、原文、每个节点的编号、
           range: [-5, 1]                # full span 原文、概念、事件或实体、哪个 skill 产出），不是整棵树；
           pick: table                   # 见 sp_bridge.py 的 RegistryEngine._table
@@ -130,14 +127,14 @@ skills:
   # 判断这一块是什么类型；是 stop（叶子）时顺便给出它的小图。
   sent_type:
     path: sent_type
-    kind: jev                 # web: Jev, from experiment/decision-orchestration/umr-en-v11/versions/V12
+    kind: jev
     input:
       text: str                 # 这一块的原文
       span: list[int]
     emit:
       type: [discourse, predicate, np_phrase, special_entity, stop]
       graph: dict               # type 是 stop 时：这个叶子的图片段（一个或几个节点）；其他 type 写 {}
-    store: [type, graph]              # web：sent_type 不写 outside
+    store: [type, graph]              # sent_type 不写 outside
 
   discourse:
     path: discourse
@@ -145,7 +142,7 @@ skills:
       text: str                 # 这一块的原文
       span: list[int]
     emit:
-      relation: str             # web: 不按列表检查取值（skill.md 说明各种关系）；不是并列关系时写 "none"
+      relation: str             # 不按列表检查取值（skill.md 说明各种关系）；不是并列关系时写 "none"
       parts: list[dict]         # 每块 {text, span, role}，role 如 op1 / op2 / ARG1 / ARG2
     store: [relation]
 
@@ -161,7 +158,7 @@ skills:
       outside: list[dict]       # 从句之外的参与者，每个 {text, span, role}
       alignment: list[int]      # 谓词本身的 span
       frame: dict               # 选定义项的 PropBank 框架 {roleset, roles}；抽象概念或查不到时 {}
-      # web：aspect、modstr 不单列，是 graph.attrs 里事件节点的属性：[e, "aspect", …]、[e, "modstr", …]
+      # aspect、modstr 不单列，是 graph.attrs 里事件节点的属性：[e, "aspect", …]、[e, "modstr", …]
       polarity: [positive, negative]
     store: [graph, open, alignment, frame, polarity]   # polarity 写成谓词的属性
 
@@ -191,7 +188,7 @@ skills:
 
   # ---- 整篇的一波 ----
 
-  # web：文档级拆成三步。每步的 relations 都是 {group, source, relation, target}，source、target 用
+  # 文档级拆成三步。每步的 relations 都是 {group, source, relation, target}，source、target 用
   # 节点编号 "<句号>:<节点编号>[/变量]"（如 "3:0.1"），或常量 author、document-creation-time；
   # output handler 把三步的合在一起，再翻译成 .umr 的变量名
   modal:                        # 规则（modal/modal.py），不调模型：转述的 conceiver、名词里的事件
@@ -228,7 +225,7 @@ dispatcher:
   tokenizer:
     - {run: umr_generate, input: {before: before, tokens: tokenizer_emit.numbered}}
 
-  # web：wave 0 生成之后，规则检查并转换
+  # wave 0 生成之后，规则检查并转换
   umr_generate:
     - {run: convert, input: {graph: umr_generate_emit.graph, alignment: umr_generate_emit.alignment, document: umr_generate_emit.document}}
 
@@ -270,7 +267,7 @@ dispatcher:
       input: {text: hole.text, span: hole.span}
       edge: hole.var
 
-  # web：document 这一波的 modal、temporal、coref 是三个并列的起点（见 waves），没有后续
+  # document 这一波的 modal、temporal、coref 是三个并列的起点（见 waves），没有后续
 
 # ---- 右栏（web）：不属于任何一波；右栏的每一栏都按这里的配置 ----
 # 每一项是一个 skill（path、kind、input、emit，写法和 skills 一样），另外可以有：

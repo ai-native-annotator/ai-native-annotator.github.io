@@ -7,10 +7,9 @@ reached through a sent_type step whose output is the node's kind, then the step 
 placeholder (`open`) per child, and each placeholder is again a sent_type step. A node with no
 children is a sent_type `stop` leaf. Every step's input is what a run would have given it: the
 text and span of its part of the sentence, so re-running any of them asks its skill again.
-A second mention of a node (a re-entrancy) is an `outside` participant with the span of the node's
-own step and its concept, so that the merge by span and concept made when the .umr is written
-(there is no reentrancy wave and no antecedent step) joins it to that node; the document-level relations become the document
-step's output. All of these are written as a person's results (confirmed).
+A second mention of a node (a re-entrancy) is an `outside` participant that names the node's own
+step, so that it is that node again when the .umr is written; the document-level relations
+become the document steps' outputs. All of these are written as a person's results (confirmed).
 
 Alignments: the page numbers Chinese one character per token. A file whose Words: are words
 (several characters) and whose alignments count words is converted to characters; a file whose
@@ -382,9 +381,7 @@ class Loader:
         self.e.start(self.w, i)
         self.ep = self.e.eps[self.w][i]
         self.fill(next(k for k, n in self.ep["nodes"].items() if n["parent"] is None), top)
-        # each outside item takes the span and text of the step of the node it stands for, and that
-        # node's concept, so that the merge made when the .umr is written joins it to that node
-        want = {}
+        # each outside item names the node it stands for, with that node's text and span
         for owner, k, var in self.outside:
             if var not in self.where:
                 self.problems.append("snt%d: the re-entrancy %s points inside a fixed structure; it is "
@@ -393,25 +390,13 @@ class Loader:
             target = self.ep["nodes"][self.where[var]]["input"]
             node = self.ep["nodes"][owner]
             item = dict(node["output"]["outside"][k], text=target.get("text", ""), span=list(target["span"]),
-                        concept=self.by_var[var].concept, node=sp_ref(self.where[var]))
+                        node=sp_ref(self.where[var]))
             node["output"]["outside"][k] = item
             if "outside" in node["stored"]:
                 node["stored"]["outside"] = node["output"]["outside"]
-            want[(owner, k)] = self.where[var]
-        nodes = self.e._sentence_out(i)
-        found = self.e.merges(i, nodes)
-        got = {m["node"]: m["into"] for m in found}
-        seen = {}
-        for n in nodes:                 # the antecedent nodes made for outside items, in item order
-            if n["skill"] == "antecedent":
-                k = seen.get(n["parent"], 0)
-                seen[n["parent"]] = k + 1
-                into = want.pop((n["parent"], k), None)
-                if into is not None and got.get(n["id"]) != into:
-                    self.problems.append("snt%d: the re-entrancy %s/%d is joined by span and concept to %s, "
-                                         "not %s" % (i + 1, n["parent"], k, got.get(n["id"]), into))
-            elif n["id"] in got:        # the file wrote the same word and concept twice
-                self.merged.append("snt%d %s=%s" % (i + 1, n["id"], got[n["id"]]))
+        # the file wrote the same word and concept twice: one node when the .umr is written
+        from umroutputhandler import same_nodes
+        self.merged += ["snt%d %s=%s" % (i + 1, a, b) for a, b in same_nodes(list(self.ep["nodes"].values())).items()]
         refs = {}
         # a sent_type leaf "0.1B" is named "0.1" (sp_bridge.ref_id); a step's first node is the step
         # ("3:0.1", as the document wave's table names it), another node of it "3:0.1/<var>"

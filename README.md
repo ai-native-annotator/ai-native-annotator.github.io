@@ -67,7 +67,8 @@ directly**. Only then can its sentence run the next step; nothing runs a sentenc
 itself. **All sentences: next step** runs the next step of every sentence of
 the wave side by side, leaving alone any sentence whose step is not confirmed. There are two waves,
 sentence and document: re-entrancy has no wave of its own; when the `.umr` is written, nodes with
-the same span and the same concept are one node, and an antecedent joins the node with its span.
+the same span and the same concept are one node, and a participant written outside a piece is the
+node it names.
 While a model answers a step, the step is shown at work (its row spins, its sentence pulses, the
 output pane says who is answering and for how long). A step's output is
 shown as Penman, relations and concepts only, with `<node: …>` for a part a later step builds and
@@ -113,12 +114,9 @@ data/skillparse/   what the Python runs — see its README
   docs/              sample documents
 docs/SKILLPARSE.md   how the page calls everything (中文)
 docs/verification/   Playwright checks
-scripts/  test/      manifest and resource builders, deploy check, test runners; Node tests
+scripts/  test/      manifest and resource builders, export comparison, deploy check, test runners;
+                     Node tests
 ```
-
-The workbench this page replaced (recursive / flat / chained annotation with editable importers,
-sentiment and refine formats, Drive and GitHub sources) is no longer in this tree; it is in the
-git history and on the `obsolete` branch.
 
 ## Deploying
 
@@ -160,7 +158,7 @@ skill 栏，中间上面是生成内容（画出来的图；点图里的框跳�
 标注一步一步来：每一步跑完有三个选择：正确（确认）；加提示重跑（在输入后面加上「human提示：…」，
 sent_type 则放进 Jev 看到的 state，以后重跑这一步也带着）；直接修改。之后这一句才能跑下一步，没有「运行到底」；
 「所有句子：下一步」让这个 wave 的每一句各跑一步（句子之间同时跑），还没确认的句子不动。只有两波：sentence 和
-document；重入没有单独的一波，写 .umr 时自动合并：span 和概念都一样的节点是同一个，antecedent 并到同 span 的节点上。
+document；重入没有单独的一波，写 .umr 时自动合并：span 和概念都一样的节点是同一个，片段外的参与者接到它指的那个节点上。
 模型运行时有动画：步骤树里那一步在转、左边那句在闪、输出栏显示谁在回答、已经多少秒。每一步的输出用
 Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<node: …>`，片段外的参与者写成 `<outside: …>`。
 「导出 .umr」直接产出文件。标注进度每改一次就自动暂存在这个浏览器里（IndexedDB，不上传）：每一步的输出、确认、
@@ -172,8 +170,5 @@ Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<n
 
 **Key 存在哪**：只存本机 `localStorage`，浏览器直连模型服务（OpenRouter、Anthropic、OpenAI、TypeSafe），
 不经过任何服务器（本项目也没有服务器）。标注进度存在同一个浏览器的 IndexedDB 里。
-
-**以前的工作台**（递归 / 并行 / 串联三种标注方式、可改的导入方法、情感和精修格式）已经不在这个目录树里，
-在 git 历史和 `obsolete` 分支上。
 
 验收脚本在 **[`docs/verification/`](docs/verification/)**。

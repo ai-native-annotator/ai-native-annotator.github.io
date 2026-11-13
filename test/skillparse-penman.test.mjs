@@ -15,7 +15,10 @@ test('a predicate fragment is Penman with <node: …> for the parts built later'
           ['e', 'ARG0', 'x1'],
           ['e', 'ARG1', 'x2'],
         ],
-        attrs: [],
+        attrs: [
+          ['e', 'aspect', 'performance'],
+          ['e', 'modstr', 'full-affirmative'],
+        ],
       },
       open: [
         { var: 'x1', text: 'The old farmer', span: [1, 3] },
@@ -24,8 +27,6 @@ test('a predicate fragment is Penman with <node: …> for the parts built later'
       outside: [{ text: 'Pope', span: [2, 2], role: 'ARG2' }],
       alignment: [9, 9],
       frame: {},
-      aspect: 'performance',
-      modstr: 'full-affirmative',
       polarity: 'negative',
     },
     { text: 'sold his horses' },
@@ -38,7 +39,7 @@ test('a predicate fragment is Penman with <node: …> for the parts built later'
       '    :ARG1 <node: his horses>',
       '    :ARG2 <outside: Pope>',
       '    :aspect performance',
-      '    :modal-strength full-affirmative',
+      '    :modstr full-affirmative',
       '    :polarity -)',
     ].join('\n'),
   );

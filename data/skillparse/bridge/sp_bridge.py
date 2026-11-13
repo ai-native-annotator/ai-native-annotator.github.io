@@ -36,9 +36,9 @@ UMR_LISTS = FS + "/umr"                 # UMR's own lists (SP_and_Discourse.csv)
 for p in (FS + "/engine", FS + "/vendor"):
     if p not in sys.path:
         sys.path.insert(0, p)
-# the output handler's own: which skills write a fragment, a concept as it is written, and the
-# sort key of a step id ("0B" < "0" < "0.0B" < "0.0" < "0.1B"; "0.10" after "0.9")
-from umroutputhandler import FRAGMENT_SKILLS, _concept as _concept_key, _key as node_key  # noqa: E402
+# the output handler's own: the sort key of a step id ("0B" < "0" < "0.0B" < "0.0" < "0.1B";
+# "0.10" after "0.9"), and the step a node name stands for
+from umroutputhandler import TYPER, _key as node_key, step_of  # noqa: E402
 # what search_annotations / search_guidelines read: a local copy here, else (in the browser) the
 # site's data/skillparse/resources/, from $SP_BASE, which the worker sets
 os.environ.setdefault("SP_RESOURCES", FS + "/resources")
@@ -64,6 +64,7 @@ SYSTEM = ("You are an expert annotator of Uniform Meaning Representation (UMR), 
 SHARED_MODULES = ("jevlib", "prompt_loader")
 TOOL_PREFIXES = ("skill_rules.", "skill_tools.", "skillset_tools.", "shared_tools")
 RULE80 = "#" * 80
+SNAPSHOT = 4          # the form of the work kept in the browser (snapshot / restore; the page's WORK_VERSION)
 # a person's hint for re-running a step: written after the skill's input (agent skills), or put in
 # the state Jev sees (sent_type)
 SENSE = re.compile(r"-\d+$")          # a concept with a sense number (报导-01) names an event
@@ -146,8 +147,7 @@ def _unconfirmed(n):
 # Step ids (web): a sent_type step is "<n>B" and the step it decides on takes "<n>": the root
 # sent_type is "0B", the predicate it starts "0", that predicate's placeholders "0.0B", "0.1B",
 # the steps they start "0.0", "0.1". A sent_type leaf (type stop) is the node itself and is
-# called "<n>" too (ref_id). An antecedent node of an `outside` item is "<step>.<k>A".
-TYPER = "sent_type"
+# called "<n>" too (ref_id).
 
 
 def under(k, nid):
@@ -170,7 +170,7 @@ def new_id(parent_id, skill, position):
 
 def event_attr(out, role):
     """A predicate step's aspect or modstr: an attribute of its event node (the fragment's first
-    node), or the field of that name (work from before)."""
+    node)."""
     if not isinstance(out, dict):
         return None
     g = out.get("graph") if isinstance(out.get("graph"), dict) else {}
@@ -180,23 +180,13 @@ def event_attr(out, role):
     for a in g.get("attrs") or []:
         if isinstance(a, (list, tuple)) and len(a) == 3 and a[0] == var and str(a[1]).lstrip(":") in roles:
             return str(a[2]).strip('"')
-    v = out.get(role)
-    return v if v not in (None, "", "none") else None
+    return None
 
 
 def ref_id(n):
     """How the node a step stands for is named: a sent_type step "0.1B" stands for "0.1" (its
     leaf when it is a stop, else the step it starts); any other step by its id."""
     return n["id"][:-1] if n["skill"] == TYPER and n["id"].endswith("B") else n["id"]
-
-
-def step_of(nodes, ref):
-    """The step a node name stands for, in an episode's nodes: "0.1" is step 0.1, else the sent_type
-    leaf 0.1B."""
-    n = nodes.get(ref)
-    if n is None or n.get("status") == "dropped":
-        n = nodes.get(ref + "B")
-    return n if n is not None and n.get("status") != "dropped" else None
 
 
 def _load_module(path, name):
@@ -486,7 +476,7 @@ class RegistryEngine:
         tokens = sent.tokenized_text
         joiner = " " if self.doc.lang != "zh" else ""
         rows = []
-        by_id = {n["id"]: n for n in steps if n["status"] != "dropped"}
+        by_id = {n["id"]: n for n in steps}
         for n in steps:
             out = n.get("output") if n["status"] == "ok" else None
             g = (out or {}).get("graph") if isinstance(out, dict) else None
@@ -533,7 +523,7 @@ class RegistryEngine:
     def _roles(by_id, n, index):
         """The nodes a predicate step's event has in the roles the modal rule reads (MODAL_ROLES),
         as "<sentence>:<node>": a placeholder's node, a node inside its fragment, or an outside
-        item's (its node, else the step with its span)."""
+        item's node."""
         out = {}
         o = n.get("output") or {}
         g = o.get("graph") or {}
@@ -553,32 +543,10 @@ class RegistryEngine:
             if r not in MODAL_ROLES or r in out:
                 continue
             ref = x.get("node")
-            if isinstance(ref, str) and step_of(by_id, ref.strip()):
+            if isinstance(ref, str) and step_of(by_id, ref):
                 out[r] = "%d:%s" % (index, ref.strip())
-                continue
-            out_r = None
-            for c in by_id.values():
-                co = c.get("output") or {} if c["status"] == "ok" else {}
-                gn = ((co.get("graph") or {}).get("nodes") or [{}])[0] if isinstance(co.get("graph"), dict) else {}
-                if not gn:
-                    continue
-                # the step with the item's span, or whose node is aligned there (a loaded file)
-                if (c["input"] or {}).get("span") == x.get("span"):
-                    out_r = ref_id(c)
-                    break
-                if out_r is None and x.get("span") in (gn.get("span"), co.get("alignment")) and x.get("span") != [0, 0]:
-                    out_r = ref_id(c)
-            if out_r is not None:
-                out[r] = "%d:%s" % (index, out_r)
         return out
 
-
-    def _partial_tree(self, w, i):
-        ep = self.eps[w].get(i)
-        if not ep:
-            return None
-        nodes = sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"]))
-        return {"nodes": [self._node_dict(n) for n in nodes if n["status"] != "dropped"]}
 
     @staticmethod
     def _node_dict(n):
@@ -689,8 +657,7 @@ class RegistryEngine:
         depth = parent["depth"] + 1 if parent else 0
         if wave.max_depth is not None and depth > wave.max_depth:
             return "depth %d is over max_depth %d" % (depth, wave.max_depth)
-        live = [n for n in ep["nodes"].values() if n["status"] != "dropped"]
-        if wave.max_nodes is not None and len(live) >= wave.max_nodes:
+        if wave.max_nodes is not None and len(ep["nodes"]) >= wave.max_nodes:
             return "episode already has max_nodes %d" % wave.max_nodes
         a = None if self.loading else parent        # a loaded tree may repeat a part on purpose
         while a:
@@ -790,7 +757,7 @@ class RegistryEngine:
         a placeholder whose node is not built yet is there too."""
         rows = []
         for n in sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"])):
-            if n is node or n["status"] == "dropped":
+            if n is node:
                 continue
             o = n.get("output") if n["status"] == "ok" else None
             o = o if isinstance(o, dict) else {}
@@ -973,7 +940,7 @@ class RegistryEngine:
             return "(not started: the sentence has no steps yet)"
         g = g or self.graph(i, auto_align=False)
         umr = self._umr_names(g)
-        steps = sorted((n for n in ep["nodes"].values() if n["status"] != "dropped"), key=lambda n: node_key(n["id"]))
+        steps = sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"]))
         status = {"ok": "done", "pending": "not run", "running": "running", "error": "error"}
         lines = []
         for n in steps:
@@ -1002,9 +969,8 @@ class RegistryEngine:
             attrs = [a for a in frag.get("attrs") or [] if isinstance(a, (list, tuple)) and len(a) == 3]
             if attrs:
                 parts.append("attributes: " + ", ".join("%s :%s %s" % (u(a), str(r).lstrip(":"), v) for a, r, v in attrs))
-            fields = [(k, o.get(k)) for k in ("aspect", "modstr", "polarity") if o.get(k) not in (None, "", "none")]
-            if fields:
-                parts.append(", ".join("%s %s" % kv for kv in fields))
+            if o.get("polarity") == "negative":
+                parts.append("polarity negative")
             kids = {c["edge"]: c["id"] for c in steps if c.get("parent") == nid}
             holes = [x for x in o.get("open") or [] if isinstance(x, dict)]
             if holes:
@@ -1181,9 +1147,7 @@ class RegistryEngine:
         for n in g["nodes"]:
             step = old_ep["nodes"].get(n.get("node") or "")
             if step and n.get("local") and not n.get("unfilled"):
-                # as the document wave names it, and the long form ("<step>/<var>") work from before used
-                old_ref[self._ref_of(sent.index, step, n["local"])] = n["var"]
-                old_ref.setdefault("%d:%s/%s" % (sent.index, ref_id(step), n["local"]), n["var"])
+                old_ref[self._ref_of(sent.index, step, n["local"])] = n["var"]      # as the document wave names it
 
         def load(graph, alignment):
             ld = umr_load.Loader(self, origin="changed")
@@ -1246,7 +1210,7 @@ class RegistryEngine:
             ep = self.eps.get(SENTENCE_WAVE, {}).get(i)
             if not ep:
                 continue
-            for var, x in (prov.get(str(sent.index)) or prov.get(sent.index) or {}).items():
+            for var, x in (prov.get(str(sent.index)) or {}).items():
                 step = ep["nodes"].get(x.get("node") or "")
                 if step and not x.get("unfilled"):
                     out[var] = self._ref_of(sent.index, step, x.get("var"))
@@ -1497,26 +1461,6 @@ class RegistryEngine:
                 if w != GENERATE_WAVE:
                     self._mark_stale(w, int(i))
 
-    def _side_by_side(self):
-        """Work kept from before: a wave that now starts with several skills (document: modal,
-        temporal, coref) kept them as one tree (modal 0, temporal 0.0, coref 0.1). They become the
-        wave's steps 1, 2, 3, side by side, as they are."""
-        for w in self.order:
-            starts = self.waves[w].start
-            if not isinstance(starts, list) or len(starts) < 2:
-                continue
-            for ep in self.eps[w].values():
-                nodes = ep["nodes"]
-                if "0" not in nodes or any(k != "0" and not re.fullmatch(r"0\.\d+", k) for k in nodes):
-                    continue
-                if sorted(n["skill"] for n in nodes.values()) != sorted(starts):
-                    continue
-                new = {}
-                for n in nodes.values():
-                    nid = str(starts.index(n["skill"]) + 1)
-                    new[nid] = dict(n, id=nid, parent=None, edge=None, depth=0, children=[])
-                ep["nodes"] = new
-
     def _tokens_from_steps(self):
         """After a restore: each sentence takes the tokens its tokenizer step gave (the document file
         has the first ones)."""
@@ -1714,8 +1658,7 @@ class RegistryEngine:
         ep, n = self._node(w, i, nid)
         skill = self.reg.skills[n["skill"]]
         files = skill_files(skill.path)
-        # a simulated call kept by earlier work is worked out again, like the others
-        calls = self._simulated_tools(n) + [c for c in n.get("tool_calls") or [] if not c.get("simulated")]
+        calls = self._simulated_tools(n) + (n.get("tool_calls") or [])
         return {**jsonable({k: v for k, v in n.items() if k != "trace"}), "tool_calls": jsonable(calls),
                 "kind": skill.kind,
                 "emit": jsonable(skill.emit), "files": files, "context_keys": list(ep["context"]),
@@ -1738,162 +1681,29 @@ class RegistryEngine:
 
     # -- output
 
-    def _sentence_out(self, i):
-        """Sentence i's tree as the output handler reads it, with one antecedent node for each item
-        of a step's `outside` (there is no antecedent step: the participant stays in the step that
-        found it). Such a node has the item's span and text, hangs under that step with the item's
-        role (predicate) or var (the others) as its edge, and is joined to a node by merges().
-        Each node keeps its step's output as `_output`, and an antecedent its item as `_item`."""
-        ep = self.eps["sentence"].get(i)
-        if not ep:
-            return None
-        nodes = sorted((n for n in ep["nodes"].values() if n["status"] != "dropped"), key=lambda n: node_key(n["id"]))
-        out = [dict(self._node_dict(n), _output=n.get("output") or {}) for n in nodes]
-        for n in nodes:
-            # an item names the node it stands for (web: "node", from the table in the input), or
-            # gives its span (a loaded file, or work from before)
-            items = [x for x in ((n.get("output") or {}).get("outside") or []) if n["status"] == "ok"
-                     and isinstance(x, dict) and (isinstance(x.get("node"), str)
-                                                  or (isinstance(x.get("span"), list) and len(x["span"]) == 2))]
-            for k, item in enumerate(items):
-                span = item.get("span")
-                if not (isinstance(span, list) and len(span) == 2):
-                    target = step_of(ep["nodes"], item["node"])
-                    span = list((target or {}).get("input", {}).get("span") or [0, 0])
-                out.append({"id": "%s.%dA" % (n["id"], k), "skill": "antecedent", "parent": n["id"],
-                            "input": {"text": item.get("text", ""), "span": list(span)},
-                            "edge": item.get("role") if n["skill"] == "predicate" else item.get("var"),
-                            "depth": n["depth"] + 1, "status": "ok", "span": list(span),
-                            "_output": {}, "_item": item})
-        out.sort(key=lambda x: node_key(x["id"]))
-        return out
+    def _steps(self, w, i):
+        """Episode i of wave w: its steps in order, or [] when it has none."""
+        ep = self.eps.get(w, {}).get(i)
+        return sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"])) if ep else []
 
-    def merges(self, i, nodes=None):
-        """Which nodes of sentence i's tree are one. There is no reentrancy wave (nor its rule,
-        reentrancy/reentrancy.py, which merged by type and span) and no antecedent step: this is
-        done when the .umr is written, by span and concept:
-          - two nodes with the same span and the same concept are one (the later is merged into
-            the first that is not its ancestor); a node is a step that writes a concept
-            (predicate, np_phrase, special_entity, a sent_type leaf), its span is its input's;
-          - a participant written outside a piece (an item of a step's `outside`) is the node
-            the item names (web: its "node", from the table of the sentence's nodes in the
-            step's input); an item with no node (a loaded file, earlier work) is the first
-            node with its span, else the first whose head (its alignment, or a leaf's node) has
-            it, never one it is inside of; when the item names the concept it stands for (one
-            loaded from a file does), the node's concept must be that one too, and it may be one
-            it is inside of (a relative clause's participant is the noun it describes)."""
-        nodes = nodes if nodes is not None else self._sentence_out(i)
-        if not nodes:
-            return []
-        parent = {n["id"]: n["parent"] for n in nodes}
-        ok = [n for n in nodes if n["status"] == "ok"]
-
-        def ancestors(nid):
-            out = set()
-            while parent.get(nid) is not None:
-                nid = parent[nid]
-                out.add(nid)
-            return out
-
-        def concept_of(n):
-            o = n["_output"]
-            if n["skill"] not in FRAGMENT_SKILLS and not (n["skill"] == "sent_type" and o.get("type") == "stop"):
-                return None
-            g = (o.get("graph") or {}).get("nodes") or []
-            return _concept_key(g[0].get("concept")) if g and isinstance(g[0], dict) else None
-
-        def head_of(n):
-            o = n["_output"]
-            head = o.get("alignment")
-            if not head and n["skill"] == "sent_type":
-                g = (o.get("graph") or {}).get("nodes") or []
-                head = g[0].get("span") if g and isinstance(g[0], dict) else None
-            return tuple(head) if isinstance(head, (list, tuple)) and len(head) == 2 else None
-
-        kept, by_span, by_head, out = {}, {}, {}, []
-        for n in ok:
-            c, span = concept_of(n), n["input"].get("span")
-            if c is None or not span:
-                continue
-            key = (tuple(span), c)
-            into = next((k for k in kept.get(key, []) if k not in ancestors(n["id"])), None)
-            if into is not None:
-                out.append({"node": n["id"], "into": into})
-                continue
-            kept.setdefault(key, []).append(n["id"])
-            by_span.setdefault(tuple(span), []).append((n["id"], c))
-            if head_of(n):
-                by_head.setdefault(head_of(n), []).append((n["id"], c))
-        by_id = {n["id"]: n for n in ok}
-        for n in ok:
-            if n["skill"] != "antecedent":
-                continue
-            ref = n["_item"].get("node")
-            if isinstance(ref, str) and ref.strip():
-                # named by its node: that node, whatever its span (web)
-                target = step_of(by_id, ref.strip())
-                if target is not None and target["skill"] != "antecedent" and target["id"] != n["parent"]:
-                    out.append({"node": n["id"], "into": target["id"]})
-                    continue
-            if not n["input"].get("span") or list(n["input"]["span"]) == [0, 0]:
-                continue
-            span = tuple(n["input"]["span"])
-            want = _concept_key(n["_item"]["concept"]) if n["_item"].get("concept") else None
-            # without a concept, never a node it is inside of; with one, span and concept say which
-            up = ancestors(n["id"]) if want is None else set()
-            into = next((k for k, c in by_span.get(span, []) + by_head.get(span, [])
-                         if k not in up and (want is None or c == want)), None)
-            if into is not None:
-                out.append({"node": n["id"], "into": into})
-        return out
-
-    def _worktree_out(self):
-        """The worktree the output handler reads: the sentence trees with their outside
-        participants as antecedent nodes, the merges (by span and concept) where its reentrancy
-        wave would be, and the other waves as they are."""
-        wt = {w: [self._partial_tree(w, i) for i in range(len(self.doc.sents))] for w in self.order}
-        sentence, merges = [], []
-        for i in range(len(self.doc.sents)):
-            nodes = self._sentence_out(i)
-            merges.append({"nodes": [{"id": "0", "merges": self.merges(i, nodes)}]} if nodes else None)
-            sentence.append({"nodes": [{k: v for k, v in n.items() if not k.startswith("_")} for n in nodes]}
-                            if nodes else None)
-        wt["sentence"], wt["reentrancy"] = sentence, merges
-        # a document relation names a sentence leaf "3:0.1" (ref_id); its step is 0.1B
-        ids = [{n["id"] for n in (t or {}).get("nodes") or []} for t in sentence]
-
-        def step_ref(x):
-            m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+)(/\S+)?\s*", str(x))
-            if not m or not 0 < int(m.group(1)) <= len(ids):
-                return x
-            have = ids[int(m.group(1)) - 1]
-            if m.group(2) not in have and m.group(2) + "B" in have:
-                return "%s:%sB%s" % (m.group(1), m.group(2), m.group(3) or "")
-            return x
-        for t in wt.get("document") or []:
-            for n in (t or {}).get("nodes") or []:
-                rels = n.get("relations")
-                if isinstance(rels, list):
-                    n["relations"] = [dict(r, source=step_ref(r.get("source")), target=step_ref(r.get("target")))
-                                      if isinstance(r, dict) else r for r in rels]
-            # web: modal, temporal and coref are three steps; the output handler reads the root's
-            if t and t.get("nodes"):
-                t["nodes"][0] = dict(t["nodes"][0], relations=[r for n in t["nodes"] if n.get("status") == "ok"
-                                                              for r in n.get("relations") or []])
-        return wt
+    def _assembled(self):
+        """Every sentence's graph, alignment, document-level annotation and provenance, from the
+        steps as they are: the sentence wave's steps, and the relations of the document wave's
+        steps (modal, temporal, coref) that are done."""
+        from umroutputhandler import assemble
+        n = range(len(self.doc.sents))
+        relations = [[r for d in self._steps("document", i) if d["status"] == "ok"
+                      for r in (d.get("output") or {}).get("relations") or []] for i in n]
+        return assemble(self.doc, [self._steps(SENTENCE_WAVE, i) for i in n], relations)
 
     def render(self, auto_align=True):
-        from umroutputhandler import UMROutputHandler, provenance
-        wt = self._worktree_out()
-        text = UMROutputHandler().render(self.doc, wt)
+        from umroutputhandler import umr_text
+        parts = self._assembled()
+        text = umr_text(self.doc, parts)
         added = []
         if auto_align:
             text, added = auto_align_umr(text, self.doc.lang)
-        try:
-            prov = provenance(self.doc, wt)
-        except Exception:
-            prov = {}
-        return {"text": text, "added": added, "provenance": jsonable(prov),
+        return {"text": text, "added": added, "provenance": {str(p["index"]): p["provenance"] for p in parts},
                 "sentences": split_umr(text)}
 
     def graph(self, i, auto_align=True):
@@ -1909,7 +1719,7 @@ class RegistryEngine:
         doc_text = block.split("# document level annotation:", 1)[-1]
         align = dict(re.findall(r"^\s*(\S+):\s*(\d+-\d+)\s*$", align_text, re.M))
         added = {v for n, v, _ in out["added"] if n == sent.index}
-        prov = out["provenance"].get(str(sent.index)) or out["provenance"].get(sent.index) or {}
+        prov = out["provenance"].get(str(sent.index)) or {}
         tokens = sent.tokenized_text
         res = {"index": sent.index, "tokens": tokens, "text": block, "top": None, "nodes": [], "edges": [],
                "attrs": [], "doc": read_doc(doc_text), "error": None}
@@ -2001,48 +1811,16 @@ class RegistryEngine:
                     if n["parent"] is None:
                         n["input"] = None
                 eps[w][str(i)] = pack(ep)
-        return {"version": 3, "skillset": self.sid, "doc": self.doc.doc_id,
+        return {"version": SNAPSHOT, "skillset": self.sid, "doc": self.doc.doc_id,
                 "windows": [[w, v, r] for (w, v), r in self.windows.items()], "texts": texts, "eps": eps,
                 "refs": {str(k): v for k, v in self.refs.items()}}
-
-    def _renumber_old(self):
-        """Work kept before the step ids changed (version < 3: "0", "0.0", "0.0.0", ...): every
-        step gets its id as _make gives it now ("0B", "0", "0.0B", ...), and the document
-        relations name the new nodes."""
-        names = {}                      # (sentence number, old id) -> the node's name now
-        for w in self.order:
-            for i, ep in self.eps[w].items():
-                old = ep.get("nodes") or {}
-                ids, new = {}, {}
-                for oid in sorted(old, key=node_key):
-                    n = old[oid]
-                    pid = ids.get(n["parent"]) if n.get("parent") is not None else None
-                    nid = new_id(pid, n["skill"], int(str(oid).rsplit(".", 1)[-1]))
-                    ids[oid] = nid
-                    new[nid] = dict(n, id=nid, parent=pid)
-                for n in new.values():
-                    n["children"] = [ids[c] for c in n.get("children") or [] if c in ids]
-                ep["nodes"] = new
-                if w == "sentence" and i < len(self.doc.sents):
-                    for oid, nid in ids.items():
-                        names[(self.doc.sents[i].index, oid)] = ref_id(new[nid])
-
-        def fix(x):
-            m = re.fullmatch(r"\s*(\d+)\s*:\s*([\d.]+)(/\S+)?\s*", str(x))
-            key = (int(m.group(1)), m.group(2)) if m else None
-            return "%s:%s%s" % (m.group(1), names[key], m.group(3) or "") if key in names else x
-        for ep in self.eps.get("document", {}).values():
-            for n in ep["nodes"].values():
-                for field in ("output", "machine_output", "stored"):
-                    o = n.get(field)
-                    if isinstance(o, dict) and isinstance(o.get("relations"), list):
-                        o["relations"] = [dict(r, source=fix(r.get("source")), target=fix(r.get("target")))
-                                          if isinstance(r, dict) else r for r in o["relations"]]
 
     def restore(self, state):
         """Put a snapshot back. A step that was running when it was taken is pending again (the
         model's answer never came); each episode's context and first input are made again from
         the restored work, earlier waves first."""
+        if state.get("version") != SNAPSHOT:
+            raise StepError("this work was kept by an earlier version of the page and cannot be restored")
         texts = state.get("texts") or []
 
         def unpack(x):
@@ -2063,7 +1841,7 @@ class RegistryEngine:
                 continue
             for i, ep in eps.items():
                 ep = unpack(ep)
-                # a step of a skill the procedure no longer has (antecedent) goes, with what is under it
+                # a step of a skill the registry no longer has (it can be edited) goes, with what is under it
                 gone = [k for k, n in ep.get("nodes", {}).items() if n.get("skill") not in self.reg.skills]
                 for k in gone:
                     for j in [j for j in ep["nodes"] if j == k or under(j, k)]:
@@ -2074,9 +1852,6 @@ class RegistryEngine:
                         n["status"] = "pending"
                 ep["missing"] = [tuple(x) for x in ep.get("missing") or []]
                 self.eps[w][int(i)] = ep
-        if int(state.get("version") or 0) < 3:
-            self._renumber_old()
-        self._side_by_side()
         self._tokens_from_steps()          # before the contexts: they read the tokens
         for w in self.order:
             for i, ep in self.eps[w].items():
