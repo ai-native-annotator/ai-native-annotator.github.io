@@ -77,6 +77,9 @@ module.exports = function mocks() {
     const part = input.split('The sentences before them')[0].split('The sentences to annotate:')[1] || '';
     const sentences = [...part.matchAll(/### Sentence (\d+)[\s\S]*?\[1\](\S+)/g)].map((m) => ({ n: Number(m[1]), tok: m[2] }));
     calls.generatedDoc = [...(calls.generatedDoc || []), sentences.map((s) => s.n)];
+    // the sentences it was given as already annotated, and whether each came with its graph and document blocks
+    const before = input.split('The sentences before them')[1] || '';
+    calls.generatedBefore = [...(calls.generatedBefore || []), [...before.matchAll(/### Sentence (\d+)\n\n[^\n]*\n\n```\n\(s\d+x[\s\S]*?```\n\n```\n\(s\d+s0 \/ sentence/g)].map((m) => Number(m[1]))];
     return { sentences: sentences.map(({ n, tok }, k) => {
       const v = `s${n}x`;
       const next = sentences[k + 1];

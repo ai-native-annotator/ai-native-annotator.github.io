@@ -157,6 +157,9 @@ const check = (label, ok, extra = '') => {
   await page.click('.fx-regen');
   await settled();
   check('one sentence can be generated again (wave 1 for that sentence)', calls.generated.length === before + 1 && calls.generated[calls.generated.length - 1].n === 3);
+  const again = calls.inputs[calls.inputs.length - 1].split('The sentences before it')[1] || '';
+  check('it is given every sentence before it as it is now, corrections included, each graph and annotation in a block',
+    /### Sentence 1[\s\S]*```\n\(s1x[\s\S]*:aspect activity[\s\S]*```[\s\S]*### Sentence 2[\s\S]*:mod \(s2x2 \/ 测试\)[\s\S]*\(s2s0 \/ sentence/.test(again), again.slice(0, 300));
   await page.click('.fx-sentences li >> nth=0');
   await page.waitForFunction(() => /第 1 句/.test(document.querySelector('.fx-title')?.textContent || ''));
   await page.waitForSelector('.fx-next:not([disabled])');
@@ -176,13 +179,27 @@ const check = (label, ok, extra = '') => {
   check('the manual mode has every step of what the expert mode made',
     (await page.$$eval('.tree li', (e) => e.length)) >= 2 && await page.evaluate(() => getComputedStyle(document.getElementById('focus')).display === 'none'));
 
+  // a longer document is written in several answers; each is given all that was written before
+  await importDoc('long', '一。\n二。\n三。\n四。\n五。\n六。\n七。\n八。\n九。\n十。\n十一。\n十二。\n十三。\n十四。');
+  await mode('expert');
+  await page.waitForSelector('.fx-start .fx-generate');
+  const docsBefore = calls.generatedDoc.length;
+  await page.click('.fx-start .fx-generate');
+  await page.waitForFunction(() => document.querySelectorAll('.fx-sentences li.made').length === 14, null, { timeout: 180000 });
+  await settled();
+  const chunks = calls.generatedDoc.slice(docsBefore).map((c) => `${c[0]}-${c[c.length - 1]}`).join(' ');
+  const given = calls.generatedBefore.slice(docsBefore).map((b) => b.length).join(' ');
+  check('a longer document is written in several answers (3 sentences first), each given every sentence written before it, not the last five',
+    chunks === '1-3 4-13 14-14' && given === '0 3 13', `${chunks} | given ${given}`);
+
   // ---- apprentice
+  const docsMade = calls.generatedDoc.length;
   await importDoc('ap', '玳瑁是海龟。\n它们吃海绵。');
   await mode('apprentice');
   await page.waitForSelector('.ap-main');
   const jevBefore = calls.jev;
   check('nothing is generated for an apprentice: the sentence waits to be started',
-    /开始这一句/.test(await page.textContent('.ap-main')) && calls.generatedDoc.length === 1);
+    /开始这一句/.test(await page.textContent('.ap-main')) && calls.generatedDoc.length === docsMade);
   await page.click('.ap-main');
   await settled();
   await page.waitForSelector('.ap-answer');

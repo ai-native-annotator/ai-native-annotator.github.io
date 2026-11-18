@@ -693,7 +693,18 @@ class RegistryEngine:
             # convert checks the alignment against the sentence's tokens as they are now: web-uz cuts
             # them in its first step (tokenizer), and its wave's context has none of its own
             out["token_sent"] = [[k, t] for k, t in enumerate(self.doc.sents[ep["index"]].tokenized_text, 1)]
+        if node["skill"] == GENERATE and isinstance(ep.get("index"), int):
+            out["before"] = self._before(ep["index"])
         return out
+
+    def _before(self, i):
+        """What a generation of sentence i (or of sentences from i on) is given of the document so far:
+        every sentence before it that has a graph, as it is now (corrections included), with its
+        document-level annotation: [{sentence, text, graph, document}]. prompt_value writes each
+        under its heading, the graph and the annotation each in a block."""
+        from umroutputhandler import EMPTY
+        return [{"sentence": x.index, "text": x.text, "graph": part["graph"], "document": part["document"]}
+                for x, part in list(zip(self.doc.sents, self._assembled()))[:int(i)] if part["graph"] != EMPTY % x.index]
 
     def _skill_module(self, skill):
         path = os.path.join(skill.path, skill.name + ".py")
@@ -1019,15 +1030,12 @@ class RegistryEngine:
                            % (x.index, x.text, numbered(x), part["graph"], align or "(none)"))
             return "\n\n".join(out)
 
-        def before():
-            made = [(self._tree(GENERATE_WAVE, k) or {}).get("generated") for k in range(max(0, i - 5), i)]
-            return prompt_value([m for m in made if m])
 
         values = {
             "sentence": lambda: sent.text, "tokens": lambda: numbered(sent), "index": lambda: sent.index,
             "tree": lambda: self.tree_markdown(i, g()), "variables": lambda: self.variables_markdown(g()),
             "graph": lambda: g()["penman"] or "(empty)", "comment": lambda: str(comment or "").strip(),
-            "lang": lambda: self.doc.lang, "document": document, "before": before,
+            "lang": lambda: self.doc.lang, "document": document, "before": lambda: prompt_value(self._before(i)),
             "sentence_skill": lambda: self.skill_guide(GENERATE),
             "sentences": lambda: "\n\n".join("### Sentence %d\n\nSentence: %s\nTokens, each with its number: %s"
                                                % (x.index, x.text, numbered(x)) for x in self.doc.sents[i:upto + 1]),

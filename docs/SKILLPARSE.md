@@ -312,7 +312,7 @@ document 这一波每句三个并列的步骤，互不依赖：registry 里这�
 
 **乌兹别克语先分词**：`web-uz` 的 generate 这一波第一步是规则 `tokenizer`（`skills/uz/tokenizer/tokenizer.py`，左栏可改），不只按空格切：标点、词首词尾的引号单独成 token，小数（3,5）不拆；oʻ、gʻ 和 tutuq belgisi（ʼ）留在词里（不管打的是 ' ʻ ʼ ‘ ’ ` 哪一个）；数字和词用连字符连着的拆成三个（2023-yil → 2023 | - | yil）；连字符连着的语气词单独成 token（kecha-yu → kecha | -yu；u、yu、chi、ku、mi、da、oq、yoq、gina…）；问号前写在词尾的 mi 拆开（kelasizmi? → kelasiz | mi | ?）；词与词用连字符连成的复合词（ota-ona）和词尾后缀不拆（token 是词，不是语素）。句子去掉空格后的每个字符都恰好在一个 token 里，bridge 会检查。确认后这些 token 就是这一句的 token（convert 检查对齐时也按它数，`_inputs` 给 convert 的是这一句当前的 token；`_set_tokens`：后面各步的 span 按它数，导出的 Words: 也是它；保存的进度恢复时重新给这一句），后面的波标成过期。`umr_generate` 从它拿带编号的 token（输入 `tokens`；这一波的 context 不再有 token_sent）。
 
-1. **`umr_generate`**（agent，`skills/<lang>/umr_generate/skill.md`）：一次写出这一句的句级图（penman）、每个节点的对齐（`{变量: [首, 尾]}`，页面的 token 编号）和文档级标注（`(s<N>s0 / sentence :temporal … :modal … :coref …)`）。输入是句子、token、句号，以及前五句生成的图和文档级标注（`before`，registry 里 `pick: generated`）。变量以 `s<句号>` 开头，文档级标注用前几句图里的变量名指它们的节点。**模型单独设置**：角色 `generate`，默认 GPT-6.1 Sol（OpenRouter `openai/gpt-6.1-sol`），也可以换成 Opus 5.5；在 generate 这一波时，工具栏的「模型」就是这一波的模型。
+1. **`umr_generate`**（agent，`skills/<lang>/umr_generate/skill.md`）：一次写出这一句的句级图（penman）、每个节点的对齐（`{变量: [首, 尾]}`，页面的 token 编号）和文档级标注（`(s<N>s0 / sentence :temporal … :modal … :coref …)`）。输入是句子、token、句号，以及前面所有已有图的句子现在的图和文档级标注（`before`，由 `_before` 给出，改过的也算；registry 里的窗口只管先后顺序）。变量以 `s<句号>` 开头，文档级标注用前几句图里的变量名指它们的节点。**模型单独设置**：角色 `generate`，默认 GPT-6.1 Sol（OpenRouter `openai/gpt-6.1-sol`），也可以换成 Opus 5.5；在 generate 这一波时，工具栏的「模型」就是这一波的模型。
 2. **`convert`**（规则，`skills/shared/convert/convert.py`）：用 penman 解析图（解析不了、一个变量两个概念、span 超出句子就算出错，让人带提示重跑 umr_generate），检查对齐和文档级标注，`problems` 里列出能载入但可疑的地方。确认它之后，网页（`RegistryEngine._apply_generated` → `umr_load.load_generated`）把它载入 sentence、document 两波：和载入 .umr 文件的同一套办法，每一步标「生成」（算已确认，`origin: generated`）；这一句在这两波原来的步骤会被替换。文档级标注里的变量换成 document 这一波的节点名，和它的节点表一样：一步的第一个节点是 `句号:步骤`（`2:0.1`），片段里的其他节点是 `句号:步骤/变量`。前面各句的变量从它们现在的图里查（`node_refs`：不管是生成的、载入的还是一步步标的）；查不到的变量原样留下，并在 convert 的结果里列出来。
 
 **模拟的工具调用**：没有模型跑过的步骤（wave 0 生成的、从 `.umr` 载入的、右栏改图之后重新拆出来的，都经过 `umr_load` 的 `Loader`，都标了 `loaded`），凡是输出里有带义项号的概念，页面都替它调一次 `propbank_lookup`，在这一步的「工具调用」里显示，标「替这一步模拟的调用」（`_simulated_tools`）。这些调用不存下来：每次看这一步时按它现在的输出算（`node`），所以人改了输出，查的词也跟着变；重跑之后这一步是模型跑的，显示的就是模型自己的调用。
@@ -509,10 +509,10 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 
 **专家（`mode-expert.js`）**
 
-1. 文档还没有任何图时，中间是一个按钮「▶ 生成整篇」，点了才开始 `generateDocument()`：第一次调用写前 3 句（先有东西可改），之后每 10 句一次调用，跑 `user_panel` 的 `umr_generate_doc`（`panel_start(name, i, upto=…)`，输入是这几句的原文和 token、前面几句已生成的图、以及这套流程 `umr_generate` 的说明 `sentence_skill`）。
+1. 文档还没有任何图时，中间是一个按钮「▶ 生成整篇」，点了才开始 `generateDocument()`：第一次调用写前 3 句（先有东西可改），之后每 10 句一次调用，跑 `user_panel` 的 `umr_generate_doc`（`panel_start(name, i, upto=…)`，输入是这几句的原文和 token、前面**所有**已有图的句子现在的图和文档级标注（`_before`：改过的也算，各放在一个代码块里，没有五句的限制）、以及这套流程 `umr_generate` 的说明 `sentence_skill`）。
 2. `distribute_generated(sentences, model)` 把回答按句分到 wave 0：每句的 `umr_generate` 步骤直接取这一句的回答，`convert` 检查后照常载入 sentence、document 两波，都算已确认。分之前 `_to_later_sentence` 把涉及两句的文档级关系归到靠后的那一句。某句载不进去就停在那里（后面的句子要读它）。
 3. 生成时 `S.generating` 记着进度（在写哪几句、完成了几句、这一次调用开始的时间、查了几次资料、每句大约几秒）；界面每秒更新进度条、已用时间和估计的剩余时间。每句几秒按模型记在 `localStorage`（`skillparse_generate_rate`），每次调用后用实际用时更新，第一次按 20 秒估。
-3. 中间栏只看一句：UMR 文本（句级图，后面是文件里原样的文档级标注 `graph(i).document`）、`graphPanel`（默认折叠；点节点 = 把它填进对话框）、按词显示的文档级关系、工具调用（`sentence_tools`，结果点开才取 `tool_result`）。
+3. 中间栏只看一句：工具调用（`sentence_tools`，折叠着，结果点开才取 `tool_result`）、UMR 文本（句级图，后面是文件里原样的文档级标注 `graph(i).document`）、`graphPanel`（默认折叠；点节点 = 把它填进对话框）、按词显示的文档级关系、工具调用（`sentence_tools`，结果点开才取 `tool_result`）。
 4. 文档级关系：`graph(i).doc` 的每一条带两端的词（`a_text`、`b_text`）和 `origin`（哪一步的第几条）。有 `origin` 的可以改：`change_doc_relation(i, origin, relation)`（`relation` 为空 = 删）、`add_doc_relation(i, group, source, relation, target)`（两端是变量或常量，`doc_nodes(i)` 给出可选的节点和它们的词）；都是改那一步的输出（`set_output`）。由事件的 modstr 写出的那条没有 `origin`，在图里改。
 5. 右边的对话：改本句 = `local_change`，改全文 = `global_change`（`scope: document`，输入是每一句的原文、token、图和对齐；每条改动带 `sentence`）。改动先 `preview_changes` 画在当前这一句上；全文的改动点一下跳到那一句再预览。应用时按句调 `apply_changes(i, changes, name)`。
 6. 「重新生成这句」= 这一句 wave 0 的 `umr_generate` 步骤带提示重跑、`convert`、确认（`regenerateSentence`）。「确认，下一句」只是翻到下一句并记下看过（`skillparse_reviewed`）。

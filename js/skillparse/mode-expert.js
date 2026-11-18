@@ -3,9 +3,9 @@
  * sentence.
  *
  *   left    the sentences, each with whether it has a graph and whether it has been looked at
- *   middle  one sentence: its UMR text (graph, then document-level annotation as the file has
- *           them), its drawing (closed), its document-level relations written with the words they
- *           are about (not variables), its tool calls (closed), and "next sentence"
+ *   middle  one sentence: its tool calls (closed), its UMR text (graph, then document-level
+ *           annotation as the file has them), its drawing (closed), its document-level relations
+ *           written with the words they are about (not variables), and "next sentence"
  *   right   a chat: say what is wrong with this sentence (user_panel local_change) or with the
  *           whole document (global_change); the changes proposed are shown in color on the graph,
  *           picked, and applied
@@ -393,11 +393,11 @@ function sentenceView(g, i) {
   const hint = h('input', { type: 'text', class: 'fx-hint', placeholder: t('fxRegenHint') });
   hint.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); regenerate(hint.value.trim()); } });
   return [
+    toolsBlock(i),
     fold('umr', t('fxUmr'), text),
     fold('graph', t('fxGraph'), graphPanel(shown, { onPick: (v) => nameInChat(g, v), docRelations: false, help: t('fxGraphHelp') })),
     h('h3', { class: 'fx-h', text: t('fxDoc') }),
     relationsBlock(g, { edit: true }),
-    toolsBlock(i),
     h('div', { class: 'fx-actions' },
       h('button', { class: 'btn fx-regen', disabled: S.running > 0, text: t('fxRegen'), onclick: () => regenerate(hint.value.trim()) }), hint,
       h('span', { class: 'grow' }),

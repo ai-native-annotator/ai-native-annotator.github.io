@@ -47,7 +47,8 @@ waves:
         token_sent: sentence.numbered_tokens
         lang: annotation.lang
       input:
-        before:                         # 前五句生成的图和文档级标注（这一波确认过的）
+        before:                         # 这一句前面的句子。这个窗口只管顺序（前五句要先生成）；交给 umr_generate 的是
+                                        # 前面所有已有图的句子现在的图和文档级标注（改过的也算），见 sp_bridge.py 的 _before
           window: worktree.generate
           range: [-5, 0]
           pick: generated
@@ -299,7 +300,7 @@ user_panel:
     scope: document
     input:
       sentences: str            # 要标的几句：句号、原文、带编号的 token
-      before: str               # 它们前面几句已经生成的图和文档级标注
+      before: str               # 它们前面所有已有图的句子：现在的图和文档级标注，各放在一个代码块里
       sentence_skill: str       # 这套流程的 umr_generate 怎么写一句
       lang: str
     emit:
