@@ -509,12 +509,13 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 
 **专家（`mode-expert.js`）**
 
-1. 文档还没有任何图时，中间是一个按钮「▶ 生成整篇」，点了才开始 `generateDocument()`：第一次调用写前 3 句（先有东西可改），之后每 10 句一次调用，跑 `user_panel` 的 `umr_generate_doc`（`panel_start(name, i, upto=…)`，输入是这几句的原文和 token、前面**所有**已有图的句子现在的图和文档级标注（`_before`：改过的也算，各放在一个代码块里，没有五句的限制）、以及这套流程 `umr_generate` 的说明 `sentence_skill`）。
-2. `distribute_generated(sentences, model)` 把回答按句分到 wave 0：每句的 `umr_generate` 步骤直接取这一句的回答，`convert` 检查后照常载入 sentence、document 两波，都算已确认。分之前 `_to_later_sentence` 把涉及两句的文档级关系归到靠后的那一句。某句载不进去就停在那里（后面的句子要读它）。
+1. 文档还没有任何图时，中间是一个按钮「▶ 生成整篇」，点了才开始 `generateDocument()`：第一次调用写前 3 句（先有东西可改），之后每 10 句一次调用；一次调用的回答用不了（漏了句子，或某句载不进去）就从缺的那一句起再问一次，还不行才停下。每次调用跑 `user_panel` 的 `umr_generate_doc`（`panel_start(name, i, upto=…)`，输入是这几句的原文和 token、前面**所有**已有图的句子现在的图和文档级标注（`_before`：改过的也算，各放在一个代码块里，没有五句的限制）、以及这套流程 `umr_generate` 的说明 `sentence_skill`）。
+2. `distribute_generated(sentences, model)` 把回答按句分到 wave 0（载入时前面的句子按现状读，`_as_they_are`：前面某句还有没做完的一步，不妨碍后面的句子有文档级标注；手动加、改文档级关系和恢复暂存时也一样）：每句的 `umr_generate` 步骤直接取这一句的回答，`convert` 检查后照常载入 sentence、document 两波，都算已确认。分之前 `_to_later_sentence` 把涉及两句的文档级关系归到靠后的那一句。某句载不进去就停在那里（后面的句子要读它）。
 3. 生成时 `S.generating` 记着进度（在写哪几句、完成了几句、这一次调用开始的时间、查了几次资料、每句大约几秒）；界面每秒更新进度条、已用时间和估计的剩余时间。每句几秒按模型记在 `localStorage`（`skillparse_generate_rate`），每次调用后用实际用时更新，第一次按 20 秒估。
 3. 中间栏只看一句：工具调用（`sentence_tools`，折叠着，结果点开才取 `tool_result`）、UMR 文本（句级图，后面是文件里原样的文档级标注 `graph(i).document`）、`graphPanel`（默认折叠；点节点 = 把它填进对话框）、按词显示的文档级关系、工具调用（`sentence_tools`，结果点开才取 `tool_result`）。
 4. 文档级关系：`graph(i).doc` 的每一条带两端的词（`a_text`、`b_text`）和 `origin`（哪一步的第几条）。有 `origin` 的可以改：`change_doc_relation(i, origin, relation)`（`relation` 为空 = 删）、`add_doc_relation(i, group, source, relation, target)`（两端是变量或常量，`doc_nodes(i)` 给出可选的节点和它们的词）；都是改那一步的输出（`set_output`）。由事件的 modstr 写出的那条没有 `origin`，在图里改。
-5. 右边的对话：改本句 = `local_change`，改全文 = `global_change`（`scope: document`，输入是每一句的原文、token、图和对齐；每条改动带 `sentence`）。改动先 `preview_changes` 画在当前这一句上；全文的改动点一下跳到那一句再预览。应用时按句调 `apply_changes(i, changes, name)`。
+5. 右边的对话只有一个，总是 `global_change`（`scope: document`）：输入是每一句的原文、token、图和对齐，加上人正在看的句号（`index`）；skill.md 里写明评论只说这一句时只改这一句、说全文时各句都改。每条改动带 `sentence`，先 `preview_changes` 画在那一句上，点改动上的句号跳过去看。应用时按句调 `apply_changes(i, changes, name)`。
+5. 图上直接改（`graph-view.js` 的 `onConcept`、`onEdge`）：点概念 = `rename_node`，点关系标签 = `delete_relation` + `add_relation`，也走 `apply_changes`，所以步骤重拆、文档级关系跟着走都和对话改图一样。
 6. 「重新生成这句」= 这一句 wave 0 的 `umr_generate` 步骤带提示重跑、`convert`、确认（`regenerateSentence`）。「确认，下一句」只是翻到下一句并记下看过（`skillparse_reviewed`）。
 
 **学徒（`mode-apprentice.js`）**

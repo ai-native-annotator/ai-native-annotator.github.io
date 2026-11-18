@@ -19,6 +19,7 @@ the page drives it:
 
 The page calls `call(method, json_args)` and gets JSON back; see `Session` for the methods.
 """
+import contextlib
 import dataclasses
 import importlib.util
 import inspect
@@ -379,6 +380,7 @@ class RegistryEngine:
         self.gens = {}                              # (wave, i, node id) -> a jev skill's generator
         self.modules = {}
         self.loading = False                        # umr_load: a person's tree, made without limits
+        self.partial = False                        # trees are read as far as they are (_as_they_are)
         self.loaded = None                          # what umr_load reported
         self.refs = {}                              # sentence index -> {variable: node name} (umr_load)
 
@@ -451,11 +453,27 @@ class RegistryEngine:
             wt[w] = [self._tree(w, i) for i in range(n)]
         return wt
 
+    @contextlib.contextmanager
+    def _as_they_are(self):
+        """While something is put in place that does not wait for a person (a file or a generated
+        sentence loaded, a document-level relation written by hand, kept work restored), an
+        earlier sentence is read as far as it is: one of its steps not being finished must not
+        stop the sentences after it from having their document-level annotation."""
+        was, self.partial = self.partial, True
+        try:
+            yield
+        finally:
+            self.partial = was
+
     def _tree(self, w, i):
+        """Episode i of wave w as the waves after it read it: None until every step of it is done
+        and confirmed (a step waits for its person), unless trees are read as they are."""
         ep = self.eps[w].get(i)
-        if not ep or ep["error"]:
-            return None
-        if any(n["status"] in ("pending", "running") or _unconfirmed(n) for n in ep["nodes"].values()):
+        if self.partial:
+            if not ep:
+                sent = self.doc.sents[i] if i < len(self.doc.sents) else None
+                return {"nodes": [], "table": {"sentence": sent.index, "text": sent.text, "nodes": []}} if sent else None
+        elif not ep or ep["error"] or any(n["status"] in ("pending", "running") or _unconfirmed(n) for n in ep["nodes"].values()):
             return None
         nodes = sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"]))
         tree = {"nodes": [self._node_dict(n) for n in nodes], "table": self._table(i, nodes)}
@@ -1173,7 +1191,9 @@ class RegistryEngine:
                 node = ep["nodes"][nid]
                 if node["skill"] == GENERATE:
                     node["retried"] = True          # nobody to ask again: an answer that does not fit is an error
-                    self.complete(GENERATE_WAVE, i, nid, {k: it.get(k) for k in self.reg.skills[GENERATE].emit}, model)
+                    blank = {"alignment": {}, "document": "", "graph": ""}
+                    self.complete(GENERATE_WAVE, i, nid, {k: it.get(k) if it.get(k) is not None else blank.get(k)
+                                                          for k in self.reg.skills[GENERATE].emit}, model)
                 else:
                     self.step(GENERATE_WAVE, i, nid)
                 if node["status"] != "ok":
@@ -1196,8 +1216,16 @@ class RegistryEngine:
         """Sentence i's document step that holds the relations of a group (the step named after it,
         else the first), made if the document wave has not started for the sentence."""
         i = int(i)
-        if not (self.eps.get("document") or {}).get(i):
-            self.start("document", i)
+        with self._as_they_are():           # whatever the sentences before it still wait for
+            ep = (self.eps.get("document") or {}).get(i)
+            if not ep or not ep["nodes"]:
+                self.start("document", i)
+            elif ep["error"]:               # its steps are there: only what they were given is missing
+                ep["context"], inp = self._context("document", i)
+                ep["error"] = None
+                for n in ep["nodes"].values():
+                    if n["parent"] is None and n["input"] is None:
+                        n["input"] = jsonable(inp)
         ep = self._ep("document", i)
         if ep["error"] or not ep["nodes"]:
             raise StepError("sentence %d has no document-level steps yet: %s" % (i + 1, ep["error"] or "none"))
@@ -2084,7 +2112,8 @@ class RegistryEngine:
                 if ep.get("error"):
                     continue
                 try:
-                    ctx, inp = self._context(w, i)
+                    with self._as_they_are():
+                        ctx, inp = self._context(w, i)
                 except Exception as e:
                     ep["error"] = "could not be restored (%s: %s); restart it" % (type(e).__name__, e)
                     continue

@@ -126,8 +126,9 @@ const check = (label, ok, extra = '') => {
   await page.press('.fx-say', 'Enter');
   await page.waitForSelector('.fx-apply', { timeout: 60000 });
   await page.waitForSelector('.fx-main .penman-preview .mk-add, .fx-main .penman-preview .mk-chg', { timeout: 20000 });
-  check('the chat proposes changes of this sentence, drawn in color on its text',
-    (await page.$$eval('.fx-turn.ai .change-item', (e) => e.length)) === 2 && calls.localChange === 1);
+  check('the chat, told nothing about the whole document, proposes changes of the sentence on screen, drawn in color on its text',
+    (await page.$$eval('.fx-turn.ai .change-item', (e) => e.length)) === 2 && calls.globalChange === 1 && calls.globalHere[0] === 2 && !calls.localChange,
+    JSON.stringify(calls.globalHere));
   await page.locator('.fx-title').click();            // away from the chat box
   await page.keyboard.press('Enter');
   await settled();
@@ -135,13 +136,30 @@ const check = (label, ok, extra = '') => {
   umr = await page.textContent('.fx-umr pre');
   check('Enter applies the proposal', /:aspect activity/.test(umr) && /测试/.test(umr) && /已应用 2\/2/.test(await page.textContent('.fx-closed')), umr);
 
-  // the chat: the whole document
-  await page.click('.fx-scope button[data-scope="document"]');
+  // a concept and a relation's label are changed on the drawing itself
+  await page.click('.fx-graph > summary');
+  await page.waitForSelector('.fx-graph .graph-svg .g-role.editable');
+  await page.click('.fx-graph .graph-svg .g-role.editable');
+  await page.fill('.fx-pop-input', 'ARG1');
+  await page.press('.fx-pop-input', 'Enter');
+  await settled();
+  await page.waitForSelector('.fx-umr pre');
+  check("a relation's label is changed where it is drawn, and the UMR follows", /:ARG1 \(s2x2 \/ 测试\)/.test(await page.textContent('.fx-umr pre')), await page.textContent('.fx-umr pre'));
+  await page.waitForSelector('.fx-graph .graph-svg [data-var="s2x2"] .g-concept.editable');
+  await page.click('.fx-graph .graph-svg [data-var="s2x2"] .g-concept.editable');
+  await page.fill('.fx-pop-input', '海绵');
+  await page.press('.fx-pop-input', 'Enter');
+  await settled();
+  await page.waitForSelector('.fx-umr pre');
+  check('a concept too, and the file has both', /:ARG1 \(s2x2 \/ 海绵\)/.test(await exported()), await page.textContent('.fx-umr pre'));
+  check('the drawing stays open after a change', await page.evaluate(() => document.querySelector('.fx-graph').open));
+
+  // the same chat, about the whole document
   await page.fill('.fx-say', '全文的 aspect 都改成 activity');
   await page.press('.fx-say', 'Enter');
   await page.waitForSelector('.fx-apply', { timeout: 60000 });
   const tags = await page.$$eval('.fx-turn.ai:last-child .fx-jump', (e) => e.map((x) => x.textContent));
-  check('a change of the whole document names the sentence of each change', calls.globalChange === 1 && tags.join() === '句1,句2,句3', tags.join());
+  check('a change of the whole document, asked in the same chat, names the sentence of each change', calls.globalChange === 2 && tags.join() === '句1,句2,句3', tags.join());
   await page.locator('.fx-turn.ai:last-child .fx-jump').nth(2).click();
   await page.waitForFunction(() => /第 3 句/.test(document.querySelector('.fx-title')?.textContent || ''));
   await page.waitForSelector('.fx-main .penman-preview .mk-add, .fx-main .penman-preview .mk-chg', { timeout: 20000 });
@@ -159,7 +177,7 @@ const check = (label, ok, extra = '') => {
   check('one sentence can be generated again (wave 1 for that sentence)', calls.generated.length === before + 1 && calls.generated[calls.generated.length - 1].n === 3);
   const again = calls.inputs[calls.inputs.length - 1].split('The sentences before it')[1] || '';
   check('it is given every sentence before it as it is now, corrections included, each graph and annotation in a block',
-    /### Sentence 1[\s\S]*```\n\(s1x[\s\S]*:aspect activity[\s\S]*```[\s\S]*### Sentence 2[\s\S]*:mod \(s2x2 \/ 测试\)[\s\S]*\(s2s0 \/ sentence/.test(again), again.slice(0, 300));
+    /### Sentence 1[\s\S]*```\n\(s1x[\s\S]*:aspect activity[\s\S]*```[\s\S]*### Sentence 2[\s\S]*:ARG1 \(s2x2 \/ 海绵\)[\s\S]*\(s2s0 \/ sentence/.test(again), again.slice(0, 300));
   await page.click('.fx-sentences li >> nth=0');
   await page.waitForFunction(() => /第 1 句/.test(document.querySelector('.fx-title')?.textContent || ''));
   await page.waitForSelector('.fx-next:not([disabled])');
@@ -184,13 +202,39 @@ const check = (label, ok, extra = '') => {
   await mode('expert');
   await page.waitForSelector('.fx-start .fx-generate');
   const docsBefore = calls.generatedDoc.length;
+  calls.dropOnce = true;                 // the first answer leaves its last sentence out
   await page.click('.fx-start .fx-generate');
   await page.waitForFunction(() => document.querySelectorAll('.fx-sentences li.made').length === 14, null, { timeout: 180000 });
   await settled();
   const chunks = calls.generatedDoc.slice(docsBefore).map((c) => `${c[0]}-${c[c.length - 1]}`).join(' ');
   const given = calls.generatedBefore.slice(docsBefore).map((b) => b.length).join(' ');
   check('a longer document is written in several answers (3 sentences first), each given every sentence written before it, not the last five',
-    chunks === '1-3 4-13 14-14' && given === '0 3 13', `${chunks} | given ${given}`);
+    chunks === '1-3 3-3 4-13 14-14' && given === '0 2 3 13', `${chunks} | given ${given}`);
+  check('a sentence an answer left out is asked for once more, and the generation goes on', /生成了 14 句/.test(await page.textContent('#status')), await page.textContent('#status'));
+  // a step of an earlier sentence that is not finished does not stop a later sentence's document level
+  await page.evaluate(async () => {
+    const { py } = await import('./js/skillparse/py.js');
+    // sentence 1 gets a second node, whose step is then undone: the sentence waits for it
+    await py('apply_changes', { i: 0, name: 'global_change', changes: [{ op: 'add_node', var: 'n1', concept: '甲', span: null, parent: 's1x', role: 'mod' }] });
+    const ep = await py('episode', { w: 'sentence', i: 0 });
+    await py('reset', { w: 'sentence', i: 0, nid: ep.nodes[ep.nodes.length - 1].id });
+    if (!(await py('items', { w: 'sentence' }))[0].status.startsWith('pending')) throw new Error('sentence 1 should have a step to do');
+  });
+  await page.click('.fx-sentences li >> nth=1');
+  await page.waitForFunction(() => /第 2 句/.test(document.querySelector('.fx-title')?.textContent || ''));
+  await page.waitForSelector('.fx-rel-add summary');
+  await page.click('.fx-rel-add summary');
+  await page.waitForSelector('.fx-rel-form select');
+  const f2 = page.locator('.fx-rel-form select');
+  await f2.nth(0).selectOption('coref');
+  await f2.nth(1).selectOption('s1x');
+  await f2.nth(2).selectOption('subset-of');
+  await f2.nth(3).selectOption('s2x');
+  await page.click('.fx-rel-form button');
+  await settled();
+  await page.waitForSelector('.fx-umr pre');
+  check('a relation to an earlier sentence can be added while that sentence still has a step to do',
+    /\(s1x :subset-of s2x\)/.test(await page.textContent('.fx-umr pre')), await page.textContent('#toast'));
 
   // ---- apprentice
   const docsMade = calls.generatedDoc.length;

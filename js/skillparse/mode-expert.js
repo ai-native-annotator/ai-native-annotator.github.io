@@ -6,9 +6,10 @@
  *   middle  one sentence: its tool calls (closed), its UMR text (graph, then document-level
  *           annotation as the file has them), its drawing (closed), its document-level relations
  *           written with the words they are about (not variables), and "next sentence"
- *   right   a chat: say what is wrong with this sentence (user_panel local_change) or with the
- *           whole document (global_change); the changes proposed are shown in color on the graph,
- *           picked, and applied
+ *   right   a chat: say what is wrong, with this sentence or all over the document (user_panel
+ *           global_change is given the whole document and which sentence is on screen); each
+ *           change proposed says its sentence, is shown in color on that sentence, picked, and
+ *           applied
  *
  * Nothing here is about steps: they are made and kept underneath (wave 0 loads each sentence
  * into the sentence and document waves), and the manual mode shows them. Keys: Enter applies the
@@ -28,7 +29,7 @@ import { addStrings, t, getLang } from './i18n.js';
 import { freeKey } from './modes.js';
 
 addStrings({
-  fxGraphHelp: '点一个框，把它填进右边的对话框；悬停看它对着的字。',
+  fxGraphHelp: '点概念改概念，点关系的标签改标签（回车保存）；点框的其他地方，把它填进右边的对话框。',
   fxProgress: '已看 {done} / {n} 句', fxSentence: '第 {n} 句', fxNoGraph: '这一句还没有图。',
   fxGenerating: '正在写第 {a}–{b} 句（共 {n} 句）', fxDoneOf: '已完成 {done}/{n} 句', fxElapsed: '已用 {t}', fxLeftMin: '大约还要 {n} 分钟', fxLeftSec: '大约还要 {n} 秒',
   fxAlmost: '比平时慢，快好了…', fxLooked: '查了 {n} 次资料', fxWhileWaiting: '前几句先出来：写好的句子左边会亮起来，可以先点进去改。估计的时间按这个浏览器里上次的速度算。', fxGenerateAll: '▶ 生成整篇',
@@ -40,13 +41,13 @@ addStrings({
   fxGroup: { temporal: '时间', modal: '情态', coref: '共指' },
   fxConst: { author: '作者', 'document-creation-time': '文档创建时间', root: 'root', 'null-conceiver': '无 conceiver' },
   fxTools: '工具调用（{n}）', fxToolsNone: '这一句没有工具调用。', fxSimulated: '模拟',
-  fxChat: '改图', fxScopeSentence: '改本句', fxScopeDocument: '改全文',
-  fxSaySentence: '说这一句哪里不对（回车发送）。点图里的节点可以把它填进来。', fxSayDocument: '说全文里什么要统一改（回车发送），比如「共和党都标成 political-party」。',
+  fxChat: '改图', fxChatHelp: '可以说这一句，也可以说全文', fxAsked: '看着第 {n} 句时说的',
+  fxSay: '说哪里不对（回车发送）：可以只说这一句，也可以说全文里要统一改的，比如「共和党都标成 political-party」。点图里的节点可以把它填进来。',
   fxThinking: '在想…', fxNoChanges: '没有要改的。', fxApply: '应用 {n} 处', fxApplyDoc: '应用 {n} 处（{k} 句）', fxDiscard: '放弃',
   fxApplied: '已应用 {ok}/{n} 处。', fxDiscarded: '已放弃。', fxCannot: '做不了：{why}', fxJump: '去第 {n} 句看',
   fxExport: '导出 .umr',
 }, {
-  fxGraphHelp: 'Click a box to name it in the chat; hover to see its words.',
+  fxGraphHelp: "Click a concept to change it, a relation's label to change it (Enter keeps it); click elsewhere on a box to name it in the chat.",
   fxProgress: '{done} of {n} sentences checked', fxSentence: 'Sentence {n}', fxNoGraph: 'This sentence has no graph yet.',
   fxGenerating: 'Writing sentences {a}–{b} (of {n})', fxDoneOf: '{done} of {n} done', fxElapsed: '{t} so far', fxLeftMin: 'about {n} min left', fxLeftSec: 'about {n} s left',
   fxAlmost: 'slower than usual, nearly there …', fxLooked: '{n} look-ups', fxWhileWaiting: 'The first sentences come first: a sentence lights up on the left when it is written, and can be corrected at once. The estimate goes by the speed last measured in this browser.', fxGenerateAll: '▶ Generate the document',
@@ -58,8 +59,8 @@ addStrings({
   fxGroup: { temporal: 'temporal', modal: 'modal', coref: 'coref' },
   fxConst: { author: 'author', 'document-creation-time': 'document creation time', root: 'root', 'null-conceiver': 'null conceiver' },
   fxTools: 'Tool calls ({n})', fxToolsNone: 'No tool calls for this sentence.', fxSimulated: 'simulated',
-  fxChat: 'Change the graph', fxScopeSentence: 'This sentence', fxScopeDocument: 'Whole document',
-  fxSaySentence: 'Say what is wrong with this sentence (Enter sends). Click a node of the graph to name it here.', fxSayDocument: 'Say what should change all over the document (Enter sends), e.g. “every Republican Party is a political-party”.',
+  fxChat: 'Change the graph', fxChatHelp: 'about this sentence, or the whole document', fxAsked: 'said while looking at sentence {n}',
+  fxSay: 'Say what is wrong (Enter sends): about this sentence only, or something to change all over the document, e.g. “every Republican Party is a political-party”. Click a node of the drawing to name it here.',
   fxThinking: 'Thinking …', fxNoChanges: 'Nothing to change.', fxApply: 'Apply {n}', fxApplyDoc: 'Apply {n} (in {k} sentences)', fxDiscard: 'Discard',
   fxApplied: '{ok} of {n} applied.', fxDiscarded: 'Discarded.', fxCannot: 'Cannot: {why}', fxJump: 'Look at sentence {n}',
   fxExport: 'Export .umr',
@@ -73,13 +74,13 @@ const LABELS = {
 };
 const GROUPS = ['temporal', 'modal', 'coref'];
 const CONSTANTS = ['author', 'document-creation-time', 'root', 'null-conceiver'];
-const PANEL = { sentence: 'local_change', document: 'global_change' };
+/** The chat's skill (registry user_panel): it is given the whole document, and which sentence is on screen. */
+const CHANGE = 'global_change';
 
 const ui = {
   doc: '',                // the document this state is about
-  scope: 'sentence',
-  log: [],                // the chat: {who: 'me' | 'ai' | 'note', text, scope, item, proposal}
-  proposal: null,         // the one being decided: {scope, name, item, summary, changes, picked, results, tools}
+  log: [],                // the chat: {who: 'me' | 'ai' | 'note', text, item, proposal}
+  proposal: null,         // the one being decided: {name, item, summary, changes, picked, results, tools}
   thinking: false,
   graph: null,            // {key, g}: the shown sentence's graph
   previewed: '',          // what the preview on screen was made from
@@ -138,7 +139,8 @@ function sentenceOf(c) {
   return m ? Number(m[1]) - 1 : -1;
 }
 
-const whereOf = (p, k) => (p.scope === 'document' ? sentenceOf(p.changes[k]) : p.item);
+/** The sentence a change is about: the one it says, else the one that was on screen when it was asked for. */
+const whereOf = (p, k) => { const at = sentenceOf(p.changes[k]); return at >= 0 && at < total() ? at : p.item; };
 const pickedAt = (p, i) => p.changes.map((_, k) => k).filter((k) => p.picked[k] && whereOf(p, k) === i);
 
 /** The picked changes of the shown sentence, tried on its graph and drawn in color (nothing is changed). */
@@ -166,16 +168,15 @@ async function preview() {
 }
 
 async function send(text) {
-  const scope = ui.scope;
   const item = S.item;
   if (ui.proposal) discard();
-  ui.log.push({ who: 'me', text, scope, item });
+  ui.log.push({ who: 'me', text, item });
   ui.thinking = true;
   render();
   try {
-    const r = await runPanel(PANEL[scope], item, text);
+    const r = await runPanel(CHANGE, item, text);
     const changes = Array.isArray(r?.output?.changes) ? r.output.changes : [];
-    const p = { id: Date.now(), scope, name: PANEL[scope], item, summary: r?.output?.summary || '', changes,
+    const p = { id: Date.now(), name: CHANGE, item, summary: r?.output?.summary || '', changes,
       picked: changes.map(() => true), results: new Map(), tools: r?.tool_calls || [] };
     ui.log.push({ who: 'ai', proposal: p });
     ui.proposal = changes.length ? p : null;
@@ -232,9 +233,9 @@ function proposalView(p) {
       const box = h('input', { type: 'checkbox', checked: p.picked[k], disabled: !live });
       box.addEventListener('change', () => { p.picked[k] = box.checked; ui.previewed = ''; render(); });
       // a change of a whole-document proposal is looked at in its own sentence
-      const jump = p.scope === 'document' && at >= 0
+      const jump = at >= 0
         ? h('button', { class: `btn sm link fx-jump${at === S.item ? ' here' : ''}`, title: t('fxJump', { n: at + 1 }), text: t('fxOtherSent', { n: at + 1 }), onclick: () => go(at) }) : null;
-      return h('div', { class: `change-item${res && !res.ok ? ' failed' : ''}${p.scope === 'document' && at === S.item ? ' here' : ''}` },
+      return h('div', { class: `change-item${res && !res.ok ? ' failed' : ''}${at === S.item ? ' here' : ''}` },
         h('label', {}, box, jump, h('span', { class: 'change-op', text: changeLine(c) })),
         c.reason ? h('div', { class: 'note', text: c.reason }) : null,
         res && !res.ok ? h('div', { class: 'err', text: t('fxCannot', { why: res.why }) }) : null);
@@ -243,22 +244,21 @@ function proposalView(p) {
       p.tools.map((c) => h('div', { class: 'note mono', text: `${c.tool}(${JSON.stringify(c.args)})` }))) : null,
     live ? h('div', { class: 'row' },
       h('button', { class: 'btn primary fx-apply', disabled: !n || S.running > 0,
-        text: p.scope === 'document' ? t('fxApplyDoc', { n, k: sentences }) : t('fxApply', { n }), onclick: apply }, h('kbd', { text: 'Enter' })),
+        text: sentences > 1 ? t('fxApplyDoc', { n, k: sentences }) : t('fxApply', { n }), onclick: apply }, h('kbd', { text: 'Enter' })),
       h('button', { class: 'btn fx-discard', text: t('fxDiscard'), onclick: discard })) : null,
     p.closed ? h('div', { class: 'note fx-closed', text: p.closed }) : null);
 }
 
 function drawChat(el) {
   const log = el.querySelector('.fx-log');
-  const tag = (e) => (e.scope === 'document' ? t('fxScopeDocument') : `${t('fxScopeSentence')} #${e.item + 1}`);
+  const tag = (e) => t('fxAsked', { n: e.item + 1 });
   clear(log, ui.log.map((e) => (e.who === 'me' ? h('div', { class: 'fx-turn me' }, h('span', { class: 'fx-tag', text: tag(e) }), h('div', { text: e.text }))
     : e.who === 'ai' ? h('div', { class: 'fx-turn ai' }, proposalView(e.proposal))
       : h('div', { class: 'fx-turn note err', text: e.text }))),
   ui.thinking ? h('div', { class: 'loading' }, h('span', { class: 'spinner' }), t('fxThinking')) : null);
   log.scrollTop = log.scrollHeight;
-  el.querySelectorAll('.fx-scope button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.scope === ui.scope)));
   const area = el.querySelector('textarea');
-  area.placeholder = t(ui.scope === 'document' ? 'fxSayDocument' : 'fxSaySentence');
+  area.placeholder = t('fxSay');
   area.disabled = ui.thinking;
 }
 
@@ -272,10 +272,8 @@ function chatSkeleton() {
     area.value = '';
     send(text);
   });
-  const scope = (name, key) => h('button', { 'data-scope': name, text: t(key), onclick: () => { ui.scope = name; render(); area.focus(); } });
   return h('aside', { class: 'fx-chat' },
-    h('div', { class: 'fx-chat-head' }, h('strong', { text: t('fxChat') }),
-      h('div', { class: 'seg fx-scope' }, scope('sentence', 'fxScopeSentence'), scope('document', 'fxScopeDocument'))),
+    h('div', { class: 'fx-chat-head' }, h('strong', { text: t('fxChat') }), h('span', { class: 'note', text: t('fxChatHelp') })),
     h('div', { class: 'fx-log' }), area);
 }
 
@@ -367,6 +365,58 @@ function toolsBlock(i) {
   return details;
 }
 
+/** The roles a relation usually has, offered when its label is changed (any other can be typed). */
+const ROLES = ['ARG0', 'ARG1', 'ARG2', 'ARG3', 'ARG4', 'ARG5', 'actor', 'undergoer', 'theme', 'experiencer', 'stimulus', 'recipient', 'affectee',
+  'causer', 'instrument', 'goal', 'source', 'start', 'companion', 'material', 'mod', 'poss', 'part', 'quant', 'unit', 'name', 'temporal', 'place',
+  'manner', 'purpose', 'cause', 'reason', 'condition', 'concession', 'duration', 'frequency', 'extent', 'degree', 'direction', 'path', 'medium',
+  'topic', 'example', 'age', 'group', 'other-role', 'quote', 'op1', 'op2', 'op3', 'op4'];
+
+/** A small box where something was clicked, to type its new value: Enter keeps it, Escape leaves it. */
+function editAt(ev, value, options, save) {
+  document.querySelector('.fx-pop')?.remove();
+  const input = h('input', { type: 'text', class: 'fx-pop-input', value, list: options ? 'fx-pop-list' : undefined });
+  const pop = h('div', { class: 'fx-pop', style: `left:${Math.max(8, ev.clientX - 60)}px;top:${ev.clientY + 10}px` }, input,
+    options ? h('datalist', { id: 'fx-pop-list' }, options.map((o) => h('option', { value: o }))) : null);
+  const close = () => pop.remove();
+  input.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = input.value.trim().replace(/^:/, '');
+    close();
+    if (next && next !== value) save(next);
+  });
+  input.addEventListener('blur', () => setTimeout(close, 150));
+  document.body.append(pop);
+  input.focus();
+  input.select();
+}
+
+/** A change made by hand on the drawing goes the way the chat's changes go: applied, and the steps follow. */
+async function changeGraph(i, changes) {
+  if (S.running > 0) return;
+  try {
+    const r = await applyPanel(CHANGE, i, changes);
+    const failed = r.applied.find((a) => !a.ok);
+    if (failed || r.problems.length) toast(failed ? t('fxCannot', { why: failed.why }) : r.problems.join(t('listSep')), 7000);
+  } catch (err) {
+    toast(err.message, 7000);
+  }
+}
+
+function editConcept(g, i, v, ev) {
+  const n = g.nodes.find((x) => x.var === v);
+  if (n) editAt(ev, n.concept, null, (concept) => changeGraph(i, [{ op: 'rename_node', var: v, concept }]));
+}
+
+function editRole(i, e, ev) {
+  editAt(ev, e.role, ROLES, (role) => changeGraph(i, [
+    { op: 'delete_relation', source: e.src, role: e.role, target: e.tgt },
+    { op: 'add_relation', source: e.src, role, target: e.tgt }]));
+}
+
 /** Clicking a node of the graph names it in the chat box. */
 function nameInChat(g, v) {
   const n = g.nodes.find((x) => x.var === v);
@@ -395,7 +445,9 @@ function sentenceView(g, i) {
   return [
     toolsBlock(i),
     fold('umr', t('fxUmr'), text),
-    fold('graph', t('fxGraph'), graphPanel(shown, { onPick: (v) => nameInChat(g, v), docRelations: false, help: t('fxGraphHelp') })),
+    // a concept or a relation's label is changed where it is drawn (not while a proposal is shown on it)
+    fold('graph', t('fxGraph'), graphPanel(shown, { onPick: (v) => nameInChat(g, v), docRelations: false, help: t('fxGraphHelp'),
+      ...(pv ? {} : { onConcept: (v, ev) => editConcept(g, i, v, ev), onEdge: (e, ev) => editRole(i, e, ev) }) })),
     h('h3', { class: 'fx-h', text: t('fxDoc') }),
     relationsBlock(g, { edit: true }),
     h('div', { class: 'fx-actions' },

@@ -438,11 +438,13 @@ class Loader:
             def __enter__(self):
                 self.saved = {w: (wave.max_depth, wave.max_nodes) for w, wave in engine.waves.items()}
                 engine.loading = True
+                self.partial, engine.partial = engine.partial, True       # sp_bridge._as_they_are
                 for wave in engine.waves.values():
                     wave.max_depth = wave.max_nodes = None
 
             def __exit__(self, *exc):
                 engine.loading = False
+                engine.partial = self.partial
                 for w, (d, m) in self.saved.items():
                     engine.waves[w].max_depth, engine.waves[w].max_nodes = d, m
         return _Loading()

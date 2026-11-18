@@ -80,7 +80,10 @@ module.exports = function mocks() {
     // the sentences it was given as already annotated, and whether each came with its graph and document blocks
     const before = input.split('The sentences before them')[1] || '';
     calls.generatedBefore = [...(calls.generatedBefore || []), [...before.matchAll(/### Sentence (\d+)\n\n[^\n]*\n\n```\n\(s\d+x[\s\S]*?```\n\n```\n\(s\d+s0 \/ sentence/g)].map((m) => Number(m[1]))];
-    return { sentences: sentences.map(({ n, tok }, k) => {
+    // a test can have one answer leave its last sentence out (calls.dropOnce), as a model sometimes does
+    const kept = calls.dropOnce && sentences.length > 1 ? sentences.slice(0, -1) : sentences;
+    calls.dropOnce = false;
+    return { sentences: kept.map(({ n, tok }, k) => {
       const v = `s${n}x`;
       const next = sentences[k + 1];
       const coref = next ? ` :coref ((${v} :same-event s${next.n}x))` : '';
@@ -89,10 +92,22 @@ module.exports = function mocks() {
     }) };
   }
 
-  /** user_panel global_change: the top node of every sentence of the document gets aspect activity. */
+  /**
+   * user_panel global_change (the expert mode's chat; it is given the whole document and the
+   * sentence on screen). A comment with 全文: the top node of every sentence gets aspect activity.
+   * Any other comment: the sentence on screen only, its aspect and a node added under its top.
+   */
   function globalChange(input) {
     calls.globalChange = (calls.globalChange || 0) + 1;
-    const numbers = [...input.matchAll(/### Sentence (\d+)/g)].map((m) => Number(m[1]));
+    const numbers = [...input.split('### The sentence on screen')[0].matchAll(/### Sentence (\d+)/g)].map((m) => Number(m[1]));
+    const here = Number(/### The sentence on screen\s+Sentence (\d+)/.exec(input)?.[1] || 0);
+    calls.globalHere = [...(calls.globalHere || []), here];
+    if (!/全文/.test(input.split("### The person's comment")[1] || '')) {
+      return { changes: [
+        { sentence: here, op: 'set_attribute', var: `s${here}x`, attribute: 'aspect', value: 'activity', reason: '评论说是 activity' },
+        { sentence: here, op: 'add_node', var: 'n1', concept: '测试', span: null, parent: `s${here}x`, role: 'mod', reason: '测试新增' },
+      ], summary: `s${here}x 的 aspect 改成 activity，加一个 mod。` };
+    }
     return { changes: numbers.map((n) => ({ sentence: n, op: 'set_attribute', var: `s${n}x`, attribute: 'aspect', value: 'activity', reason: '全文统一' })),
       summary: `${numbers.length} 句的 aspect 都改成 activity。` };
   }

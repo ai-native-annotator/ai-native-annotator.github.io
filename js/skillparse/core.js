@@ -413,19 +413,39 @@ export async function generateDocument(from = 0) {
         Object.assign(progress, { from: i, upto, since: Date.now(), tools: 0 });
         S.generating = progress;
         render();
-        const r = await askPanel('umr_generate_doc', i, signal, { upto, onTool: () => { progress.tools++; } });
-        const res = await py('distribute_generated', { sentences: r.output?.sentences || [], model: r.model });
-        // how long a sentence took, kept for the next estimate (the last answers count most)
-        const took = (Date.now() - progress.since) / 1000 / (upto - i + 1);
-        progress.rate = rates[model] ? (rates[model] + took) / 2 : took;
-        rates[model] = progress.rate;
-        writeJson(RATES, rates);
-        progress.done += res.made.length;
-        changed();
-        if (res.errors.length) error = t('genAllStopped', { n: res.errors[0].index, e: res.errors[0].error });
-        else if (res.made.length < upto - i + 1) error = t('genAllStopped', { n: i + res.made.length + 1, e: t('genMissing') });
-        await refresh({ detail: false });
-        i = upto + 1;
+        // an answer that could not be used (a sentence left out, or one that cannot be loaded) is
+        // asked for once more, from the first sentence still missing; then it stops there
+        let problem = '';
+        for (let attempt = 0; attempt < 2 && i <= upto && !S.cancel; attempt++) {
+          problem = '';
+          let made = 0;
+          try {
+            const r = await askPanel('umr_generate_doc', i, signal, { upto, onTool: () => { progress.tools++; } });
+            const res = await py('distribute_generated', { sentences: r.output?.sentences || [], model: r.model });
+            made = res.made.length;
+            if (res.errors.length) problem = t('genAllStopped', { n: res.errors[0].index, e: res.errors[0].error });
+            else if (made < upto - i + 1) problem = t('genAllStopped', { n: i + made + 1, e: t('genMissing') });
+          } catch (err) {
+            if (S.cancel || err?.name === 'AbortError' || [401, 402, 403].includes(err?.status)) throw err;   // asking again would not help
+            problem = err.message;
+          }
+          if (made) {
+            // how long a sentence took, kept for the next estimate (the last answers count most)
+            const took = (Date.now() - progress.since) / 1000 / made;
+            progress.rate = rates[model] ? (rates[model] + took) / 2 : took;
+            rates[model] = progress.rate;
+            writeJson(RATES, rates);
+          }
+          progress.done += made;
+          i += made;
+          changed();
+          await refresh({ detail: false });
+          if (problem && attempt === 0) {
+            status(`${problem} · ${t('genRetry')}`);
+            Object.assign(progress, { from: i, since: Date.now(), tools: 0 });
+          }
+        }
+        error = problem;
       }
     } catch (err) {
       error = err.message;

@@ -293,14 +293,15 @@ user_panel:
       summary: str              # 改了什么、为什么
     review: apply_change        # 人在 penman 和图上看过、勾选之后，执行改动的 skill
 
-  global_change:                # 「改全文」：模型读每一句的图，按人的评论提出各句的改动；人逐句审核后交给 review
-    title: {zh: 改全文, en: Change the whole document}
+  global_change:                # 专家模式的对话「改图」：模型读每一句的图，按人的评论提出改动（只改眼前这一句，或全文各句）；人逐句审核后交给 review
+    title: {zh: 改图（本句或全文）, en: Change the graphs (this sentence or the whole document)}
     kind: agent
     path: global_change
     role: generate
     scope: document             # 改动遍布全文：每条改动带 sentence（句号），逐句预览、执行
     input:
       document: str             # 每一句：句号、原文、带编号的 token、penman 图、对齐
+      index: int                # 人正在看的是第几句
       comment: str
     emit:
       changes: list[dict]       # 同 local_change，每条多一个 sentence

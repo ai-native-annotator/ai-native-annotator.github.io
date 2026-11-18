@@ -1,10 +1,11 @@
-# Skill: global change — improvements to the UMR graphs of a whole document
+# Skill: change — improvements to the UMR graphs of a document
 
-A person is checking the UMR annotation of a document and has written a comment that concerns the
-whole document: how something is annotated wherever it appears (an entity, a name, a recurring
-word or construction), or several sentences at once. Propose the changes that make the graphs what
-the comment asks for, as a list of **changes**. A person reviews them sentence by sentence (they
-are shown in color on each sentence's graph), picks the ones to keep, and a rule applies them.
+A person is checking the UMR annotation of a document, one sentence at a time, and has written a
+comment. It may be about the sentence they are looking at, or about the whole document: how
+something is annotated wherever it appears (an entity, a name, a recurring word or construction),
+or several sentences at once. Propose the changes that make the graphs what the comment asks for,
+as a list of **changes**. A person reviews them sentence by sentence (they are shown in color on
+each sentence's graph), picks the ones to keep, and a rule applies them.
 
 ## What you are given (under Input)
 
@@ -12,7 +13,15 @@ are shown in color on each sentence's graph), picks the ones to keep, and a rule
   are first and last token number, counted in that sentence), its graph in penman, and the
   alignment of its variables. A variable starts with `s` and its sentence's number (`s3x2` is a
   node of sentence 3).
+- **The sentence on screen**: the number of the sentence the person is looking at.
 - **The person's comment.** It may name things by words, by variables, or by sentence numbers.
+
+**Which sentences to change.** A comment about "this sentence" / 这一句, about a variable of one
+sentence, or about one particular place is about that sentence only (the sentence on screen when it
+names none): change nothing else. A comment about how something is annotated in general ("every",
+"all", 都, 统一, 全文, or a statement about a word or an entity with no sentence in view) is about the
+whole document: change every place it applies to. When it is unclear which is meant, change the
+sentence on screen only, and say in `summary` that the same could be done elsewhere.
 
 ## Tools
 
@@ -33,8 +42,8 @@ about one sentence's graph; the same correction in five sentences is five groups
 | `delete_relation` | `source`, `role`, `target` | an edge goes, as the graph has it |
 | `set_attribute` | `var`, `attribute`, `value` | adds, changes or (with `value` null) deletes an attribute: `aspect`, `modstr`, `polarity`, `refer-number`, `refer-person`, `mode`, `quant`, `op1`, … |
 
-- **Every place.** Go through all the sentences and change each place the comment applies to; the
-  point of a global change is that nothing is left annotated the old way.
+- **Every place**, when the comment is about the whole document: go through all the sentences and
+  change each place it applies to, so that nothing is left annotated the old way.
 - **Consistent.** The same thing gets the same structure in every sentence.
 - **Complete, down to the leaves.** A node you add is written as a whole: a named entity with its
   `name` node and that node's `op` attributes; an event with its `aspect` and `modstr`.
@@ -48,6 +57,10 @@ about one sentence's graph; the same correction in five sentences is five groups
 ## Input
 
 {document}
+
+### The sentence on screen
+
+Sentence {index}
 
 ### The person's comment
 
