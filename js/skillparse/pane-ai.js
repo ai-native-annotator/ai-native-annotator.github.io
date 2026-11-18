@@ -156,7 +156,7 @@ const comments = new Map();      // sentence -> the comment typed for a change
 const doneNote = new Map();      // sentence -> what the last applied change did
 
 /** One change, as a short line. */
-function changeLine(c) {
+export function changeLine(c) {
   const span = Array.isArray(c.span) ? ` [${c.span.join('-')}]` : '';
   switch (c.op) {
     case 'add_node': return `+ (${c.var} / ${c.concept}${span})  ← ${c.parent} :${String(c.role || '').replace(/^:/, '')}`;
@@ -281,7 +281,8 @@ function changeCard(entry) {
 function panelCards() {
   const entries = S.desc?.user_panel || [];
   const reviews = new Set(entries.map((e) => e.review).filter(Boolean));
-  return entries.filter((e) => e.review && !reviews.has(e.name) && e.kind === 'agent').map(changeCard);
+  // a change of the whole document (scope: document) is the expert mode's: it is looked at sentence by sentence
+  return entries.filter((e) => e.review && !reviews.has(e.name) && e.kind === 'agent' && e.scope !== 'document').map(changeCard);
 }
 
 /** The reflection on one step, as the user_panel says (its modes); without a user_panel, all three. */

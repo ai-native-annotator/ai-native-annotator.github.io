@@ -68,7 +68,35 @@ module.exports = function mocks() {
     ], summary: `${top} 的 aspect 改成 activity，加一个 mod。` };
   }
 
+  /**
+   * user_panel umr_generate_doc: every sentence listed under "The sentences to annotate", written
+   * as wave 0's stand-in writes one; the coreference to the sentence before is put with the
+   * EARLIER sentence on purpose, for the page to move it to the later one.
+   */
+  function generatedDoc(input) {
+    const part = input.split('The sentences before them')[0].split('The sentences to annotate:')[1] || '';
+    const sentences = [...part.matchAll(/### Sentence (\d+)[\s\S]*?\[1\](\S+)/g)].map((m) => ({ n: Number(m[1]), tok: m[2] }));
+    calls.generatedDoc = [...(calls.generatedDoc || []), sentences.map((s) => s.n)];
+    return { sentences: sentences.map(({ n, tok }, k) => {
+      const v = `s${n}x`;
+      const next = sentences[k + 1];
+      const coref = next ? ` :coref ((${v} :same-event s${next.n}x))` : '';
+      return { index: n, graph: `(${v} / ${tok}-01 :aspect state)`, alignment: { [v]: [1, 1] },
+        document: `(s${n}s0 / sentence :temporal ((document-creation-time :before ${v})) :modal ((root :modal author) (author :full-affirmative ${v}))${coref})` };
+    }) };
+  }
+
+  /** user_panel global_change: the top node of every sentence of the document gets aspect activity. */
+  function globalChange(input) {
+    calls.globalChange = (calls.globalChange || 0) + 1;
+    const numbers = [...input.matchAll(/### Sentence (\d+)/g)].map((m) => Number(m[1]));
+    return { changes: numbers.map((n) => ({ sentence: n, op: 'set_attribute', var: `s${n}x`, attribute: 'aspect', value: 'activity', reason: '全文统一' })),
+      summary: `${numbers.length} 句的 aspect 都改成 activity。` };
+  }
+
   function emitFor(schema, input = '') {
+    if (schema.properties?.sentences) return generatedDoc(input);
+    if (input.includes("### The person's comment") && /### Sentence \d+[\s\S]*Alignment:/.test(input)) return globalChange(input);
     if (input.includes("### The person's comment")) return localChange(input);
     if (schema.properties?.document && schema.properties?.graph?.type === 'string') return generated(input);
     const out = {};

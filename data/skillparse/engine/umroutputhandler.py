@@ -79,7 +79,10 @@ def assemble(annotation, steps, relations, fill_alignments=False):
       graph        its graph, penman
       align        [(variable, "first-last")], "0-0" for one that is not aligned
       added        [[sentence, variable, "first-last"]]: the alignments filled in (fill_alignments)
-      relations    [{group, a, rel, b}]: its document-level relations, variables for nodes
+      relations    [{group, a, rel, b[, origin]}]: its document-level relations, variables for
+                   nodes; origin is the `origin` of the relation given that it was made from (one
+                   written from an event's modal strength has none)
+      concepts     {variable: concept}
       document     the same as the file writes it (with the root's fixed (root :modal author))
       provenance   {variable: {"node": step id, "skill", "var": the skill's own var[, "unfilled":
                    True]}}: which step made each node (unfilled: a leaf made for a placeholder
@@ -99,10 +102,13 @@ def assemble(annotation, steps, relations, fill_alignments=False):
                     prov.setdefault(u.var, {"node": node_id, "skill": g.nodes[node_id]["skill"],
                                             "var": var, "unfilled": True})
         document, rels = _doc_graph(sent.index, relations[i] or [], graphs, g.modal)
+        origins = {(grp, a, rel, b): o for grp, a, rel, b, o in rels}
         parts.append({"index": sent.index, "graph": graph, "align": align, "provenance": prov,
                       "added": [[sent.index, var, a] for var, a in added],
-                      "relations": [{"group": grp, "a": a, "rel": rel, "b": b} for grp, a, rel, b in rels],
-                      "document": document})
+                      "relations": [dict({"group": grp, "a": a, "rel": rel, "b": b},
+                                         **({"origin": o} if o is not None else {}))
+                                    for (grp, a, rel, b), o in origins.items()],
+                      "concepts": dict(g.concepts), "document": document})
     return parts
 
 
@@ -200,7 +206,8 @@ def _index_words(tokens):
 
 def _doc_graph(n, relations, graphs, modal):
     """The document-level block of sentence n, and its relations [(group, source, relation,
-    target)] as the block has them (without the root's fixed one). `modal` is the sentence's
+    target, origin)] as the block has them (without the root's fixed one; origin: the `origin` of
+    the relation it was made from, None for one made from an event's modal strength). `modal` is the sentence's
     [(var, modal strength)]; see the module docstring for how it is merged with the modal
     relations."""
     def ref(x):
@@ -214,12 +221,14 @@ def _doc_graph(n, relations, graphs, modal):
         return u.var if u else None
 
     resolved = []                   # (group, source, relation, target)
+    origin = {}
     for r in relations:
         if isinstance(r, dict) and {"group", "source", "relation", "target"} <= set(r):
             source, target = ref(r["source"]), ref(r["target"])
             if source is None or target is None:
                 continue
             resolved.append((str(r["group"]), source, str(r["relation"]).lstrip(":"), target))
+            origin.setdefault(resolved[-1], r.get("origin"))
 
     # modal: the root, the document skill's relations, the events' strengths
     strength = dict(modal)
@@ -244,7 +253,8 @@ def _doc_graph(n, relations, graphs, modal):
         if g in groups:
             pad = " " * (len(f"{INDENT}:{g} ("))
             lines.append(f"{INDENT}:{g} (" + ("\n" + pad).join(f"({s_} :{rel} {t})" for s_, rel, t in groups[g]) + ")")
-            written += [(g, s_, rel, t) for s_, rel, t in groups[g] if (g, s_) != ("modal", "root")]
+            written += [(g, s_, rel, t, origin.get((g, s_, rel, t))) for s_, rel, t in groups[g]
+                        if (g, s_) != ("modal", "root")]
     return "\n".join(lines) + ")", written
 
 

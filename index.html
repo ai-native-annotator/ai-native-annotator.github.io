@@ -29,6 +29,11 @@
     <select id="model-pick"></select>
   </label>
   <button id="btn-import" class="btn ghost sm" data-i18n="import">Import…</button>
+  <div id="mode-switch" class="seg" role="group" data-i18n-title="modeTitle">
+    <button data-mode="manual" data-i18n="modeManual">Manual</button>
+    <button data-mode="expert" data-i18n="modeExpert">Expert</button>
+    <button data-mode="apprentice" data-i18n="modeApprentice">Apprentice</button>
+  </div>
 
   <button id="btn-next-all" class="btn primary sm" data-i18n="nextAll" data-i18n-title="nextAllTitle">All sentences: next step</button>
   <button id="btn-export-umr" class="btn sm" data-i18n="exportUmrShort">Export .umr</button>
@@ -86,6 +91,8 @@
     <h2 id="h-ai" class="pane-head"><span data-i18n="ai">AI</span><small data-i18n="aiGloss">reflect on this step</small></h2>
     <div class="pane-body" id="ai"></div>
   </section>
+  <!-- expert and apprentice modes draw here (js/skillparse/modes.js); the four panes are the manual mode -->
+  <section id="focus" class="focus" aria-live="polite"></section>
 </main>
 
 <div id="modal" class="modal" hidden>

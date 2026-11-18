@@ -34,6 +34,8 @@ export const SKILLSETS = [
 ];
 
 export const S = {
+  mode: 'manual',         // 'manual' | 'expert' | 'apprentice' (modes.js): which view drives the page
+  generating: null,       // {from, upto, total}: the sentences a whole-document generation is writing now
   skillset: null, doc: null, docs: [], desc: null,
   wave: null, item: 0, node: null,
   items: [], episode: null, detail: null,
@@ -356,20 +358,103 @@ export const panelKey = (i = S.item) => `${S.skillset}|${S.doc}|${i}`;
  */
 export async function runPanel(name, i, comment) {
   return guarded(async (signal) => {
-    let r = await py('panel_start', { name, i, comment });
-    while (r.need === 'llm') {
-      const role = settings().roles[r.role] ? r.role : 'haiku';
-      const model = modelFor(role);
-      status(t('running', { what: `#${i + 1} ${name} · ${model}${r.retry ? ' · retry' : ''}` }));
-      const out = await withSlot(() => llm({
-        role, system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
-        schema: emitSchema(r.emit), signal, callTool: (tool, args) => py('panel_tool', { name, i, tool, args }),
-      }));
-      r = await py('panel_complete', { name, i, output: out, model });
-    }
+    const r = await askPanel(name, i, signal, { comment });
     status('');
     return r;
   });
+}
+
+/** One user_panel model skill, asked to the end (its tools and one retry included). */
+async function askPanel(name, i, signal, { comment = '', upto } = {}) {
+  let r = await py('panel_start', { name, i, comment, ...(upto === undefined ? {} : { upto }) });
+  while (r.need === 'llm') {
+    const role = settings().roles[r.role] ? r.role : 'haiku';
+    const model = modelFor(role);
+    const what = upto === undefined || upto === i ? `#${i + 1}` : `#${i + 1}–${upto + 1}`;
+    status(t('running', { what: `${what} ${name} · ${model}${r.retry ? ' · retry' : ''}` }));
+    const out = await withSlot(() => llm({
+      role, system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
+      schema: emitSchema(r.emit), signal, callTool: (tool, args) => py('panel_tool', { name, i, tool, args }),
+    }));
+    r = await py('panel_complete', { name, i, output: out, model });
+  }
+  return r;
+}
+
+/** How many sentences one answer of a whole-document generation writes. */
+const GENERATE_CHUNK = 10;
+
+/**
+ * The whole document generated (user_panel umr_generate_doc), from sentence `from` on: several
+ * sentences in one answer, each put where wave 0 would have put it and loaded into the waves after
+ * it. Stops at a sentence that could not be loaded. Returns {made, error}.
+ */
+export async function generateDocument(from = 0) {
+  return guarded(async (signal) => {
+    const total = S.desc.doc.sents.length;
+    let made = 0;
+    let error = '';
+    try {
+      for (let i = from; i < total && !S.cancel && !error; i += GENERATE_CHUNK) {
+        const upto = Math.min(total, i + GENERATE_CHUNK) - 1;
+        S.generating = { from: i, upto, total };
+        render();
+        const r = await askPanel('umr_generate_doc', i, signal, { upto });
+        const res = await py('distribute_generated', { sentences: r.output?.sentences || [], model: r.model });
+        made += res.made.length;
+        changed();
+        if (res.errors.length) error = t('genAllStopped', { n: res.errors[0].index, e: res.errors[0].error });
+        else if (res.made.length < upto - i + 1) error = t('genAllStopped', { n: i + res.made.length + 1, e: t('genMissing') });
+        await refresh({ detail: false });
+      }
+    } catch (err) {
+      error = err.message;
+    } finally {
+      S.generating = null;
+    }
+    status(error ? `${t('error')}: ${error}` : S.cancel ? t('stopped') : t('genAllDone', { n: made }));
+    await refresh();
+    return { made, error };
+  });
+}
+
+/**
+ * One sentence written again by wave 0 (its umr_generate step, with the person's hint when there
+ * is one), checked, loaded into the waves after it and confirmed. Returns the error, or ''.
+ */
+export async function regenerateSentence(i, hint) {
+  return guarded(async (signal) => {
+    let error = '';
+    try {
+      const ep = await py('episode', { w: GENERATE_WAVE, i });
+      const node = ep.started && !ep.error ? ep.nodes.find((n) => n.skill === 'umr_generate') : null;
+      if (node) {
+        const r = await drive(GENERATE_WAVE, i, node.id, signal, hint ? { hint } : {});
+        if (r.status === 'error') error = r.error || t('error');
+        else await py('confirm', { w: GENERATE_WAVE, i, nid: node.id });
+      }
+      if (!error) error = await generateItem(GENERATE_WAVE, i, signal);
+    } catch (err) {
+      error = err.message;
+    }
+    changed();
+    status(error ? `${t('error')}: ${error}` : t('ready'));
+    await refresh();
+    return error;
+  });
+}
+
+/** Item i of wave 0 run to its end, each step confirmed as it finishes. Returns the error, or ''. */
+async function generateItem(w, i, signal) {
+  for (let round = 0; round < 8; round++) {
+    const r = await nextStep(w, i, signal);
+    const done = r.ran ? [r.ran] : r.awaiting || [];
+    if (r.ran && r.status === 'error') return r.error || t('error');
+    if (!done.length) return r.error || '';
+    for (const nid of done) await py('confirm', { w, i, nid });
+    changed();
+  }
+  return '';
 }
 
 /** The changes a person picked, applied by the entry's review skill (apply_change); the steps follow. */
@@ -524,22 +609,8 @@ export async function generateAll(w = GENERATE_WAVE) {
     let made = 0;
     for (const it of items) {
       if (S.cancel) break;
-      for (let round = 0; round < 8; round++) {
-        const r = await nextStep(w, it.index, signal);
-        const done = r.ran ? [r.ran] : r.awaiting || [];
-        if (r.ran && r.status === 'error') { status(t('genAllStopped', { n: it.index + 1, e: r.error || '' })); await refresh(); return made; }
-        if (!done.length) break;
-        for (const nid of done) {
-          try {
-            await py('confirm', { w, i: it.index, nid });
-          } catch (err) {
-            status(t('genAllStopped', { n: it.index + 1, e: err.message }));
-            await refresh();
-            return made;
-          }
-        }
-        changed();
-      }
+      const error = await generateItem(w, it.index, signal).catch((err) => err.message);
+      if (error) { status(t('genAllStopped', { n: it.index + 1, e: error })); await refresh(); return made; }
       made++;
       if (w === S.wave) await refresh({ detail: false });
     }
@@ -576,6 +647,12 @@ export async function saveOutput(output) {
   S.hinting = false;
   await refresh();
   return r;
+}
+
+/** Something outside these actions changed the results (a document-level relation): redraw and keep. */
+export async function afterChange() {
+  changed();
+  await refresh();
 }
 
 export async function resetNode(nid = S.node) {

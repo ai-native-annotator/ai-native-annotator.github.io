@@ -93,6 +93,12 @@ The feature list people see in the page (the **?** button) is
 [`data/skillparse/FEATURES.en.md`](data/skillparse/FEATURES.en.md) ·
 [`FEATURES.zh.md`](data/skillparse/FEATURES.zh.md).
 
+**Three ways to work** (the toolbar's Manual | Expert | Apprentice; views of the same steps,
+switched at any time). _Expert_: the whole document is generated, then corrected one sentence at
+a time, with the document-level relations written in words and a chat that changes this sentence
+or the whole document. _Apprentice_: one step at a time, each explained. _Manual_: the four panes
+above.
+
 ## Keys and privacy
 
 There is no server in this project. Model keys (OpenRouter, Anthropic, OpenAI, TypeSafe) live in
@@ -103,7 +109,8 @@ kept in IndexedDB in the same browser.
 
 ```
 index.html  css/skillparse.css  serve.py
-js/skillparse/     the page: core (state, running steps), the four panes, models, the Python worker
+js/skillparse/     the page: core (state, running steps), the four panes, the expert and apprentice
+                   modes, models, the Python worker
 data/skillparse/   what the Python runs — see its README
   bridge/            the page's own Python: runs a registry one step at a time, loads .umr files
   skills/            every skill: <lang>/ is a procedure (registry.yaml and its skills), shared/ what
@@ -167,6 +174,10 @@ Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<n
 
 网页每一层怎么调用（按钮 → 浏览器里的 Python → 模型服务 → .umr），详见
 **[`docs/SKILLPARSE.md`](docs/SKILLPARSE.md)**。
+
+**三种做法**（顶栏：手动 | 专家 | 学徒，是同一份标注的三种界面，随时切换）：专家模式整篇自动生成，
+再一句一句改，文档级关系用词显示，右边的对话可以改本句或改全文；学徒模式一次只看一步，每步有讲解；
+手动模式就是上面说的四栏。
 
 **Key 存在哪**：只存本机 `localStorage`，浏览器直连模型服务（OpenRouter、Anthropic、OpenAI、TypeSafe），
 不经过任何服务器（本项目也没有服务器）。标注进度存在同一个浏览器的 IndexedDB 里。

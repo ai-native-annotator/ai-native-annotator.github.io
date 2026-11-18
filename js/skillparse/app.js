@@ -22,9 +22,13 @@ import './pane-skills.js';
 import './pane-work.js';
 import './pane-ai.js';
 import './timer.js';
+import { setupModes } from './modes.js';
+import './mode-expert.js';
+import './mode-apprentice.js';
 
 function wire() {
   setupFolding();
+  setupModes();
   document.getElementById('modal-close').addEventListener('click', closeModal);
   document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('modal').hidden) closeModal(); });
@@ -86,7 +90,7 @@ function wire() {
 
 /** The toolbar's model menu: which model runs the agent skills from the next step on. */
 /** The model picker is for the wave shown: wave 0's own model (umr_generate), else the agent skills'. */
-const pickRole = () => (S.desc?.waves?.[0]?.name === S.wave && S.wave === 'generate' ? 'generate' : 'haiku');
+const pickRole = () => (S.mode === 'expert' || (S.desc?.waves?.[0]?.name === S.wave && S.wave === 'generate') ? 'generate' : 'haiku');
 function fillModels() {
   const sel = document.getElementById('model-pick');
   const role = pickRole();

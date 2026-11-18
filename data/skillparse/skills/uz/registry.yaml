@@ -292,6 +292,34 @@ user_panel:
       summary: str              # 改了什么、为什么
     review: apply_change        # 人在 penman 和图上看过、勾选之后，执行改动的 skill
 
+  global_change:                # 「改全文」：模型读每一句的图，按人的评论提出各句的改动；人逐句审核后交给 review
+    title: {zh: 改全文, en: Change the whole document}
+    kind: agent
+    path: global_change
+    role: generate
+    scope: document             # 改动遍布全文：每条改动带 sentence（句号），逐句预览、执行
+    input:
+      document: str             # 每一句：句号、原文、带编号的 token、penman 图、对齐
+      comment: str
+    emit:
+      changes: list[dict]       # 同 local_change，每条多一个 sentence
+      summary: str
+    review: apply_change
+
+  umr_generate_doc:             # 「整篇生成」（专家模式）：一次写出几句的图、对齐和文档级标注；网页按句分到 wave 0
+    title: {zh: 整篇生成, en: Generate the whole document}
+    kind: agent
+    path: umr_generate_doc
+    role: generate
+    scope: document
+    input:
+      sentences: str            # 要标的几句：句号、原文、带编号的 token
+      before: str               # 它们前面几句已经生成的图和文档级标注
+      sentence_skill: str       # 这套流程的 umr_generate 怎么写一句
+      lang: str
+    emit:
+      sentences: list[dict]     # 每句 {index, graph, alignment, document}
+
   apply_change:                 # 规则（apply_change/apply_change.py）：把勾选的改动用到这一句的图上；网页再把新图拆回步骤（到 stop 为止）
     title: {zh: 执行改动, en: Apply the changes}
     kind: rule

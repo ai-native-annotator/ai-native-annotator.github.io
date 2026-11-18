@@ -285,8 +285,8 @@ const statusIs = (page, re, timeout = 180000) =>
   await page.click('#modal-close');
   // the right pane (registry user_panel): a comment, the model's changes (with call_skill), shown
   // in color on the UMR text and the graph, picked, and applied by apply_change
-  check('the skills pane lists the user_panel skills (local_change, apply_change, reflect)',
-    (await page.$$eval('#skills .panel-skill .name', (e) => e.map((x) => x.textContent))).join(',') === 'local_change,apply_change,reflect');
+  check('the skills pane lists the user_panel skills (the two whole-document ones of the expert mode too)',
+    (await page.$$eval('#skills .panel-skill .name', (e) => e.map((x) => x.textContent))).join(',') === 'local_change,global_change,umr_generate_doc,apply_change,reflect');
   await page.fill('#ai .panel-comment', 's1x 的 aspect 应该是 activity');
   const nLocal = calls.localChange || 0;
   await page.click('#ai .panel-propose');

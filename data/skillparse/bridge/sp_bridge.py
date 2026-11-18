@@ -112,7 +112,7 @@ ROLE_OF = {GENERATE: "generate"}
 TOKENIZER = "tokenizer"
 GENERATE_WAVE = "generate"
 # a user_panel entry's keys that are not a skill's (registry.py builds the rest as skills)
-PANEL_KEYS = ("title", "role", "review", "modes")
+PANEL_KEYS = ("title", "role", "review", "modes", "scope")
 NOT_BUILT = "(not built yet)"
 KNOWN_HEAD = ("Nodes of this sentence so far (an `outside` item names one of them by its `node`; "
               "a placeholder whose node is not built yet is listed too):")
@@ -417,7 +417,7 @@ class RegistryEngine:
         shared.append(os.path.relpath(self.path, FS))
         shared.append(os.path.relpath(os.path.join(SKILLS, "tools", "propbank.py"), FS))
         panel = [{"name": n, "title": e.get("title") or n, "kind": e["skill"].kind, "role": e.get("role"),
-                  "review": e.get("review"), "modes": e.get("modes"), "input": jsonable(e["skill"].input),
+                  "review": e.get("review"), "modes": e.get("modes"), "scope": e.get("scope") or "sentence", "input": jsonable(e["skill"].input),
                   "emit": jsonable(e["skill"].emit), "files": skill_files(e["skill"].path)} for n, e in self.panel.items()]
         return {"engine": self.kind, "skillset": self.sid, "waves": waves, "skills": skills, "user_panel": panel,
                 "shared_files": shared, "doc": self._doc()}
@@ -994,31 +994,67 @@ class RegistryEngine:
                                                              n.get("local") or "", n.get("words") or ""))
         return "\n".join(rows)
 
-    def panel_values(self, i, comment=""):
-        """Every value a user_panel skill may take as input (its registry `input` picks them)."""
+    def panel_values(self, i, comment="", upto=None, keys=None):
+        """The values a user_panel skill may take as input (its registry `input` picks them, `keys`):
+        about sentence i (sentence, tokens, tree, variables, graph, index), about the whole
+        document (document: every sentence with its tokens, graph and alignment), for generating
+        sentences i..upto at once (sentences, before, sentence_skill: how this procedure writes one
+        sentence), and comment, lang."""
         i = int(i)
+        upto = i if upto is None else int(upto)
         sent = self.doc.sents[i]
-        g = self.graph(i, auto_align=False)
-        return {"sentence": sent.text, "tokens": prompt_value([[k + 1, t] for k, t in enumerate(sent.tokenized_text)]),
-                "tree": self.tree_markdown(i, g), "variables": self.variables_markdown(g),
-                "graph": g["penman"] or "(empty)", "comment": str(comment or "").strip(),
-                "lang": self.doc.lang, "index": sent.index}
+        numbered = lambda x: prompt_value([[k + 1, t] for k, t in enumerate(x.tokenized_text)])  # noqa: E731
+        drawn = []
 
-    def panel_start(self, name, i, comment=""):
-        """Run an agent skill of the right pane on sentence i: what the page must ask the model."""
+        def g():                    # the sentence's graph, made once and only when a value needs it
+            if not drawn:
+                drawn.append(self.graph(i, auto_align=False))
+            return drawn[0]
+
+        def document():
+            out = []
+            for x, part in zip(self.doc.sents, self._assembled()):
+                align = ", ".join("%s %s" % va for va in part["align"] if va[1] != "0-0")
+                out.append("### Sentence %d\n\n%s\n\nTokens: %s\n\n```\n%s\n```\n\nAlignment: %s"
+                           % (x.index, x.text, numbered(x), part["graph"], align or "(none)"))
+            return "\n\n".join(out)
+
+        def before():
+            made = [(self._tree(GENERATE_WAVE, k) or {}).get("generated") for k in range(max(0, i - 5), i)]
+            return prompt_value([m for m in made if m])
+
+        values = {
+            "sentence": lambda: sent.text, "tokens": lambda: numbered(sent), "index": lambda: sent.index,
+            "tree": lambda: self.tree_markdown(i, g()), "variables": lambda: self.variables_markdown(g()),
+            "graph": lambda: g()["penman"] or "(empty)", "comment": lambda: str(comment or "").strip(),
+            "lang": lambda: self.doc.lang, "document": document, "before": before,
+            "sentence_skill": lambda: self.skill_guide(GENERATE),
+            "sentences": lambda: "\n\n".join("### Sentence %d\n\nSentence: %s\nTokens, each with its number: %s"
+                                               % (x.index, x.text, numbered(x)) for x in self.doc.sents[i:upto + 1]),
+        }
+        return {k: v() for k, v in values.items() if keys is None or k in keys}
+
+    PANEL_VALUES = ("sentence", "tokens", "index", "tree", "variables", "graph", "comment", "lang", "document",
+                    "before", "sentences", "sentence_skill")
+
+    def panel_start(self, name, i, comment="", upto=None):
+        """Run an agent skill of the right pane on sentence i (or, a skill that generates, on
+        sentences i..upto): what the page must ask the model."""
         entry = self._panel(name)
         skill = entry["skill"]
         if skill.kind != "agent":
             raise StepError("%s is not a model skill" % name)
-        if not str(comment or "").strip():
+        if "comment" in skill.input and not str(comment or "").strip():
             raise StepError("write a comment first")
-        values = self.panel_values(i, comment)
-        missing = [k for k in skill.input if k not in values]
+        missing = [k for k in skill.input if k not in self.PANEL_VALUES]
         if missing:
-            raise StepError("user_panel.%s.input: no value %s (there are: %s)" % (name, ", ".join(missing), ", ".join(values)))
-        p = self._agent_prompt(skill, {k: values[k] for k in skill.input})
+            raise StepError("user_panel.%s.input: no value %s (there are: %s)"
+                            % (name, ", ".join(missing), ", ".join(self.PANEL_VALUES)))
+        if "sentences" in skill.input:
+            self._tokenize(int(i), int(i) if upto is None else int(upto))
+        p = self._agent_prompt(skill, self.panel_values(i, comment, upto, keys=set(skill.input)))
         self.panel_runs[(name, int(i))] = {"name": name, "i": int(i), "prompt": p, "tool_calls": [], "retried": False,
-                                          "comment": str(comment).strip()}
+                                          "comment": str(comment or "").strip()}
         return self._panel_request(name, int(i))
 
     def _panel_request(self, name, i, retry=""):
@@ -1060,9 +1096,187 @@ class RegistryEngine:
         run["output"], run["model"] = output, model
         res = {"done": True, "skill": name, "output": output, "prompt": run["prompt"], "tool_calls": run["tool_calls"],
                "model": model}
-        if entry.get("review") and isinstance(output, dict) and "changes" in output:
+        # a change of one sentence is tried on its graph at once; changes all over the document are
+        # tried sentence by sentence as the person looks at them
+        if entry.get("review") and entry.get("scope") != "document" and isinstance(output, dict) and "changes" in output:
             res["preview"] = self.preview_changes(i, output["changes"], name)
         return res
+
+    # -- the whole document at once (expert mode)
+
+    def _tokenize(self, first, last):
+        """A procedure that cuts its sentences into tokens in wave 0 (web-uz: tokenizer) does it now for
+        sentences first..last, so that what is generated for them counts the tokens they will have."""
+        skill = self.reg.skills.get(TOKENIZER)
+        if skill is None:
+            return
+        for i in range(first, last + 1):
+            sent = self.doc.sents[i]
+            self._set_tokens(i, self._skill_module(skill).run(sent=sent.text, lang=self.doc.lang).get("tokens"))
+
+    @staticmethod
+    def _to_later_sentence(items):
+        """Each sentence's document-level annotation again, a relation between two of these sentences
+        with the later one (a relation is read where its second mention is)."""
+        group_at = re.compile(r":(temporal|modal|coref)\s*\(")
+        triple = re.compile(r"\(\s*([^\s()]+)\s+:(\S+)\s+([^\s()]+)\s*\)")
+        numbers = {int(it["index"]) for it in items}
+        by = {n: {} for n in numbers}
+        for it in items:
+            text = str(it.get("document") or "")
+            marks = [(m.start(), m.group(1)) for m in group_at.finditer(text)]
+            for k, (start, group) in enumerate(marks):
+                end = marks[k + 1][0] if k + 1 < len(marks) else len(text)
+                for a, rel, b in triple.findall(text[start:end]):
+                    named = [int(m.group(1)) for m in (re.match(r"s(\d+)[A-Za-z]", x) for x in (a, b)) if m]
+                    n = max([x for x in named if x in numbers] + [int(it["index"])])
+                    if (a, rel, b) not in by[n].setdefault(group, []):
+                        by[n][group].append((a, rel, b))
+        out = []
+        for it in items:
+            groups = by[int(it["index"])]
+            lines = ["(s%ds0 / sentence" % int(it["index"])]
+            for group in ("temporal", "modal", "coref"):
+                if groups.get(group):
+                    pad = " " * len("    :%s (" % group)
+                    lines.append("    :%s (" % group + ("\n" + pad).join("(%s :%s %s)" % x for x in groups[group]) + ")")
+            out.append(dict(it, document="\n".join(lines) + ")"))
+        return out
+
+    def distribute_generated(self, sentences, model=None):
+        """Several sentences generated in one answer ([{index, graph, alignment, document}], index
+        the sentence's number), each put where wave 0 would have put it: its sentence's umr_generate
+        step takes it as its output, convert checks it and loads it into the sentence and
+        document waves, and both are confirmed. Stops at a sentence that cannot be loaded (the ones
+        after it read it). Returns {"made": [numbers], "errors": [{index, error}]}."""
+        valid = [x for x in sentences or [] if isinstance(x, dict) and str(x.get("index", "")).strip().isdigit()
+                 and 1 <= int(x["index"]) <= len(self.doc.sents)]
+        items = self._to_later_sentence(sorted(valid, key=lambda x: int(x["index"])))
+        made, errors = [], []
+        for it in items:
+            i = int(it["index"]) - 1
+            self.start(GENERATE_WAVE, i)
+            ep = self.eps[GENERATE_WAVE][i]
+            error = ep["error"]
+            for _ in range(8):
+                nid = None if error else self.next_pending(GENERATE_WAVE, i)
+                if not nid:
+                    break
+                node = ep["nodes"][nid]
+                if node["skill"] == GENERATE:
+                    node["retried"] = True          # nobody to ask again: an answer that does not fit is an error
+                    self.complete(GENERATE_WAVE, i, nid, {k: it.get(k) for k in self.reg.skills[GENERATE].emit}, model)
+                else:
+                    self.step(GENERATE_WAVE, i, nid)
+                if node["status"] != "ok":
+                    error = "%s: %s" % (node["skill"], node.get("error") or "not done")
+                    break
+                problems = (node.get("applied") or {}).get("problems") if node["skill"] == CONVERT else None
+                if node["skill"] == CONVERT and not (node.get("applied") or {}).get("steps"):
+                    error = "convert: %s" % "; ".join(problems or ["nothing was loaded"])
+                    break
+                node["confirmed"] = True
+            if error:
+                errors.append({"index": int(it["index"]), "error": error})
+                break
+            made.append(int(it["index"]))
+        return {"made": made, "errors": errors}
+
+    # -- the document-level relations, as a person reads and changes them (expert mode)
+
+    def _doc_step(self, i, group):
+        """Sentence i's document step that holds the relations of a group (the step named after it,
+        else the first), made if the document wave has not started for the sentence."""
+        i = int(i)
+        if not (self.eps.get("document") or {}).get(i):
+            self.start("document", i)
+        ep = self._ep("document", i)
+        if ep["error"] or not ep["nodes"]:
+            raise StepError("sentence %d has no document-level steps yet: %s" % (i + 1, ep["error"] or "none"))
+        roots = sorted((n for n in ep["nodes"].values() if n["parent"] is None), key=lambda n: node_key(n["id"]))
+        return next((n for n in roots if n["skill"] == group), roots[0])
+
+    def _write_relations(self, i, node, relations):
+        out = dict(node.get("output") or {}, relations=relations)
+        res = self.set_output("document", int(i), node["id"], out)
+        if res.get("status") == "error":
+            raise StepError(res.get("error") or "the relations could not be written")
+        return self.graph(i)
+
+    def change_doc_relation(self, i, origin, relation=None):
+        """A document-level relation of sentence i, as graph(i)["doc"] names it (origin: [step, its
+        place in the step's relations]): its label changed, or (relation None) the relation removed."""
+        nid, k = str(origin[0]), int(origin[1])
+        ep, node = self._node("document", i, nid)
+        rels = [dict(r) if isinstance(r, dict) else r for r in (node.get("output") or {}).get("relations") or []]
+        if not 0 <= k < len(rels):
+            raise StepError("step %s has no relation %d" % (nid, k))
+        if relation is None:
+            del rels[k]
+        else:
+            rels[k]["relation"] = str(relation).strip().lstrip(":")
+        return self._write_relations(i, node, rels)
+
+    def add_doc_relation(self, i, group, source, relation, target):
+        """A new document-level relation of sentence i: source and target are variables of this or
+        an earlier sentence's graph, or constants (author, document-creation-time, ...)."""
+        refs = self.node_refs(int(i))
+
+        def ref(x):
+            x = str(x).strip()
+            if re.fullmatch(r"s\d+[A-Za-z]\w*", x):
+                if x not in refs:
+                    raise StepError("%s is not a node of this or an earlier sentence" % x)
+                return refs[x]
+            return x
+        relation = str(relation or "").strip().lstrip(":")
+        if not relation or not str(source).strip() or not str(target).strip():
+            raise StepError("a relation needs a source, a label and a target")
+        node = self._doc_step(i, group)
+        rels = list((node.get("output") or {}).get("relations") or [])
+        rels.append({"group": str(group), "source": ref(source), "relation": relation, "target": ref(target)})
+        return self._write_relations(i, node, rels)
+
+    def doc_nodes(self, i, back=5):
+        """The nodes a document-level relation of sentence i may name: those of the sentence and of
+        the `back` sentences before it, each with its words."""
+        i = int(i)
+        parts = self._assembled(True)
+        out = []
+        for k in range(max(0, i - int(back)), i + 1):
+            out += [{"var": var, "sentence": k + 1, "text": self._phrase(parts, var)} for var, _ in parts[k]["align"]
+                    if parts[k]["concepts"].get(var) != "name"]
+        return out
+
+    def _phrase(self, parts, var):
+        """A variable as a person reads it: the words it is aligned to, else its concept; a constant
+        (author, document-creation-time) as it is."""
+        m = re.match(r"s(\d+)[A-Za-z]", str(var))
+        k = int(m.group(1)) - 1 if m else -1
+        if not 0 <= k < len(parts):
+            return str(var)
+        lo, hi = (int(x) for x in dict(parts[k]["align"]).get(var, "0-0").split("-"))
+        if lo:
+            return ("" if self.doc.lang == "zh" else " ").join(self.doc.sents[k].tokenized_text[lo - 1:hi])
+        return parts[k]["concepts"].get(var, str(var))
+
+    def sentence_tools(self, i):
+        """Every tool call of sentence i's steps, without the results (tool_result has one)."""
+        out = []
+        for n in self._steps(SENTENCE_WAVE, int(i)):
+            lemmas = self._simulated_lemmas(n)
+            calls = ([{"tool": "propbank_lookup", "args": {"lemmas": lemmas, "language": self.doc.lang}, "simulated": True}]
+                     if lemmas else []) + (n.get("tool_calls") or [])
+            out += [{"step": n["id"], "skill": n["skill"], "k": k, "tool": c["tool"], "args": c.get("args"),
+                     "simulated": bool(c.get("simulated")), "manual": bool(c.get("manual"))} for k, c in enumerate(calls)]
+        return out
+
+    def tool_result(self, i, nid, k):
+        """What call k of step nid (as sentence_tools lists them) answered."""
+        ep, n = self._node(SENTENCE_WAVE, int(i), nid)
+        calls = self._simulated_tools(n) + (n.get("tool_calls") or [])
+        return calls[int(k)]["result"] if 0 <= int(k) < len(calls) else ""
+
 
     def _review_skill(self, name):
         review = self._panel(name).get("review")
@@ -1479,15 +1693,13 @@ class RegistryEngine:
             return {"steps": 0, "problems": ["%s: %s" % (type(e).__name__, e)]}
         return {"steps": rep["steps"], "problems": rep["problems"][:20]}
 
-    def _simulated_tools(self, n):
-        """The tool calls the skill of a step no model ran would have made (a step loaded from a
-        .umr file, generated in wave 0, or made again after a local change: umr_load marks them all
-        "loaded"), made for it so that a person checking the step sees them: propbank_lookup for
-        every concept with a sense. They are worked out from the step's output as it is now each
-        time the step is looked at (node), and not kept."""
+    def _simulated_lemmas(self, n):
+        """The lemmas the skill of a step no model ran would have looked up in PropBank: every
+        concept with a sense in the step's output, when its skill has the tool."""
         o = n.get("output") if n.get("loaded") and n["status"] == "ok" else None
         g = (o or {}).get("graph") if isinstance(o, dict) else None
-        if not isinstance(g, dict):
+        skill = self.reg.skills.get(n["skill"])
+        if not isinstance(g, dict) or not skill or "propbank_lookup" not in {t.__name__ for t in skill_tools(skill.path)}:
             return []
         lemmas = []
         for x in g.get("nodes") or []:
@@ -1496,10 +1708,18 @@ class RegistryEngine:
                 lemma = SENSE.sub("", c)
                 if lemma not in lemmas:
                     lemmas.append(lemma)
-        skill = self.reg.skills.get(n["skill"])
-        fns = {t.__name__: t for t in skill_tools(skill.path)} if skill and lemmas else {}
-        if "propbank_lookup" not in fns:
+        return lemmas
+
+    def _simulated_tools(self, n):
+        """The tool calls the skill of a step no model ran would have made (a step loaded from a
+        .umr file, generated in wave 0, or made again after a local change: umr_load marks them all
+        "loaded"), made for it so that a person checking the step sees them: propbank_lookup for
+        every concept with a sense. They are worked out from the step's output as it is now each
+        time the step is looked at (node), and not kept."""
+        lemmas = self._simulated_lemmas(n)
+        if not lemmas:
             return []
+        fns = {t.__name__: t for t in skill_tools(self.reg.skills[n["skill"]].path)}
         args = {"lemmas": lemmas, "language": self.doc.lang}
         try:
             res = fns["propbank_lookup"](**args)
@@ -1689,8 +1909,10 @@ class RegistryEngine:
         a variable left at 0-0 whose concept is written in the sentence gets those words."""
         from umroutputhandler import assemble
         n = range(len(self.doc.sents))
-        relations = [[r for d in self._steps("document", i) if d["status"] == "ok"
-                      for r in (d.get("output") or {}).get("relations") or []] for i in n]
+        # each relation says where it is kept (its step, its place there), so that it can be changed
+        relations = [[dict(r, origin=[d["id"], k]) if isinstance(r, dict) else r
+                      for d in self._steps("document", i) if d["status"] == "ok"
+                      for k, r in enumerate((d.get("output") or {}).get("relations") or [])] for i in n]
         return assemble(self.doc, [self._steps(SENTENCE_WAVE, i) for i in n], relations, auto_align)
 
     def render(self, auto_align=True):
@@ -1716,7 +1938,9 @@ class RegistryEngine:
         tokens = sent.tokenized_text
         res = {"index": sent.index, "tokens": tokens, "text": umr_blocks(self.doc, parts)[int(i)].rstrip() + "\n",
                "penman": part["graph"], "top": None, "nodes": [], "edges": [], "attrs": [],
-               "doc": part["relations"], "error": None}
+               # the document-level relations, each end also as a person reads it (its words)
+               "doc": [dict(r, a_text=self._phrase(parts, r["a"]), b_text=self._phrase(parts, r["b"]))
+                       for r in part["relations"]], "error": None}
         if part["graph"] == EMPTY % sent.index:
             return res
         try:

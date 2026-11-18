@@ -2,6 +2,17 @@
 
 Step-by-step UMR annotation in the browser: SkillParseUMR's annotation procedure runs in the page itself, with no server. Your model API keys stay in this computer's browser.
 
+## 0. Three ways to work (toolbar: Manual | Expert | Apprentice)
+
+They are three views of the same annotation; switch at any time, and everything is still there.
+
+- **Expert** (for speed): switching to it generates the whole document (several sentences in one answer: graph, alignment, document-level annotation), then you correct it sentence by sentence.
+  - The middle shows one sentence: its graph, its UMR text, its document-level relations. Those are written with **words** (「Republicans」 snt 1 same-entity 「the party」), not variables; a relation's label can be changed, a relation deleted, one added (nodes are picked by their words).
+  - The right is a chat: say what is wrong, the model proposes changes, they are drawn in color on the graph, and Enter applies the ones ticked. Choose **this sentence** or **whole document** above it; a whole-document change says its sentence, and a click goes there.
+  - "Generate this sentence again" takes an optional hint; Enter = right, next sentence; Shift+Enter = previous. No step ids; tool calls stay closed.
+- **Apprentice** (for understanding): nothing is generated ahead. One step is on screen: its piece of the sentence, what it decides, the skill's full instructions, what it looked up, its answer, what it hands on. Enter if it is right; otherwise correct it yourself, or Tab to run it again with a hint. The sentence graphs first, then the document level.
+- **Manual**: the four panes described below, everything by hand.
+
 ## 1. Procedures and waves
 
 - **Three languages**: Chinese (web-zh), English (web-en), Uzbek (web-uz), picked from the document's language.

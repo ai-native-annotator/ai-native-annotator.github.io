@@ -315,7 +315,8 @@ async function goToMaker(g, v, tab = 'graph') {
 
 let fit = true;
 
-function graphPanel(g) {
+/** A sentence's graph with its tokens; onPick(variable) for a click on a box (default: go to its step). */
+export function graphPanel(g, { onPick, docRelations = true, help = t('graphHelp') } = {}) {
   const tokens = h('div', { class: 'tokens' }, g.tokens.map((w, k) => h('span', { class: 'tok', 'data-k': k + 1 }, w, h('sub', { text: k + 1 }))));
   const onHover = (v) => {
     tokens.querySelectorAll('.tok.on').forEach((x) => x.classList.remove('on'));
@@ -328,7 +329,7 @@ function graphPanel(g) {
   const mine = new Set(S.wave === sentenceWave && S.node ? g.nodes.filter((n) => n.node === S.node).map((n) => n.var) : []);
   const parts = [h('div', { class: 'graph-tools' },
     h('strong', { text: t('graphOf', { n: g.index }) }),
-    h('span', { class: 'note', text: t('graphHelp') }),
+    h('span', { class: 'note', text: help }),
     h('span', { class: 'grow' }),
     h('button', { class: 'btn sm ghost', text: fit ? '100%' : t('fit'), onclick: () => { fit = !fit; render(); } })),
   tokens];
@@ -337,9 +338,9 @@ function graphPanel(g) {
     parts.push(h('div', { class: 'empty', text: t('noGraph') }));
   } else {
     parts.push(h('div', { class: `graph-wrap${fit ? ' fit' : ''}` },
-      drawGraph(g, { highlight: mine, onPick: (v) => goToMaker(g, v), onHover })));
+      drawGraph(g, { highlight: mine, onPick: onPick || ((v) => goToMaker(g, v)), onHover })));
   }
-  if (g.doc.length) {
+  if (docRelations && g.doc.length) {
     const name = (x) => { const n = g.nodes.find((m) => m.var === x); return n ? `${x}/${n.concept}` : x; };
     parts.push(h('details', { open: S.wave !== sentenceWave },
       h('summary', { text: t('docRels', { n: g.doc.length }) }),
@@ -459,6 +460,7 @@ function waitingStep() {
 
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Enter' && e.key !== 'Tab') return;
+  if (S.mode !== 'manual') return;            // the other modes have their own keys
   if (e.defaultPrevented || e.isComposing || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
   if (!S.desc || S.running > 0 || !document.getElementById('modal').hidden) return;
   const el = e.target instanceof Element ? e.target : null;

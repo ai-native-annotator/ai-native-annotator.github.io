@@ -8,8 +8,8 @@ skills/            every skill, in one place
   zh/ en/ uz/        a language: its skill.md files, and whatever else it has of its own (zh: sent_type's
                      prompts.yaml; uz: registry.yaml with a tokenizer first, and the tokenizer)
   shared/            what every language uses unless it has its own: registry.yaml (the procedure),
-                     the rules convert, apply_change, modal; local_change, reflect; sent_type with
-                     jevlib.py and prompt_loader.py
+                     the rules convert, apply_change, modal; local_change, reflect; the expert mode's
+                     umr_generate_doc and global_change; sent_type with jevlib.py and prompt_loader.py
   tools/             the tools any skill may call: propbank.py, search.py
   REGISTRY.md        the syntax of registry.yaml
 engine/            registry.py (the registry parser and its expressions), umrinputhandler.py (a document's
