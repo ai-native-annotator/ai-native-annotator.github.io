@@ -3,8 +3,9 @@
  * sentence.
  *
  *   left    the sentences, each with whether it has a graph and whether it has been looked at
- *   middle  one sentence: its graph, its UMR text, its document-level relations written with the
- *           words they are about (not variables), its tool calls (closed), and "next sentence"
+ *   middle  one sentence: its UMR text (graph, then document-level annotation as the file has
+ *           them), its drawing (closed), its document-level relations written with the words they
+ *           are about (not variables), its tool calls (closed), and "next sentence"
  *   right   a chat: say what is wrong with this sentence (user_panel local_change) or with the
  *           whole document (global_change); the changes proposed are shown in color on the graph,
  *           picked, and applied
@@ -34,7 +35,7 @@ addStrings({
   fxStartHelp: '这篇文档 {n} 句，还没有标注。点一下，「{model}」一次写出整篇的图、对齐和文档级标注，然后一句一句改。', fxGenerateFrom: '从这一句起继续生成', fxGenerateOne: '只生成这一句',
   fxNeedKey: '整篇生成要用「{model}」，还没有能用的 key。', fxOpenSettings: '去设置里填 key',
   fxRegen: '↻ 重新生成这句', fxRegenHint: '可以写一句提示（可不写）', fxNext: '确认，下一句', fxPrev: '上一句', fxAllDone: '每一句都看过了，可以导出。',
-  fxUmr: 'UMR 文本', fxDoc: '文档级关系', fxDocNone: '这一句还没有文档级关系。', fxFromEvent: '来自事件的 modstr（在图里改）',
+  fxUmr: 'UMR 文本', fxGraph: '图（点开看）', fxDoc: '文档级关系', fxDocNone: '这一句还没有文档级关系。', fxFromEvent: '来自事件的 modstr（在图里改）',
   fxAddRel: '＋ 加一条关系', fxAdd: '加上', fxDelete: '删掉', fxOtherSent: '句{n}', fxPick: '（选一个）',
   fxGroup: { temporal: '时间', modal: '情态', coref: '共指' },
   fxConst: { author: '作者', 'document-creation-time': '文档创建时间', root: 'root', 'null-conceiver': '无 conceiver' },
@@ -52,7 +53,7 @@ addStrings({
   fxStartHelp: 'This document has {n} sentences and no annotation yet. One click, and “{model}” writes the whole document (graphs, alignment, document-level annotation); then you correct it sentence by sentence.', fxGenerateFrom: 'Go on generating from this sentence', fxGenerateOne: 'Generate this sentence only',
   fxNeedKey: 'The document is generated with “{model}”, and no key reaches it yet.', fxOpenSettings: 'Add a key in Settings',
   fxRegen: '↻ Generate this sentence again', fxRegenHint: 'A hint, if you like', fxNext: 'Right, next sentence', fxPrev: 'Previous', fxAllDone: 'Every sentence has been checked: ready to export.',
-  fxUmr: 'UMR text', fxDoc: 'Document-level relations', fxDocNone: 'This sentence has no document-level relations yet.', fxFromEvent: "from the event's modstr (change it in the graph)",
+  fxUmr: 'UMR text', fxGraph: 'Drawing (open to see)', fxDoc: 'Document-level relations', fxDocNone: 'This sentence has no document-level relations yet.', fxFromEvent: "from the event's modstr (change it in the graph)",
   fxAddRel: '+ Add a relation', fxAdd: 'Add', fxDelete: 'Delete', fxOtherSent: 'snt {n}', fxPick: '(pick one)',
   fxGroup: { temporal: 'temporal', modal: 'modal', coref: 'coref' },
   fxConst: { author: 'author', 'document-creation-time': 'document creation time', root: 'root', 'null-conceiver': 'null conceiver' },
@@ -85,6 +86,7 @@ const ui = {
   tools: null,            // {key, calls}: the shown sentence's tool calls, once asked for
   nodes: null,            // {key, list}: the nodes a new relation may name
   drawn: '',
+  open: { umr: true, graph: false },     // which folding parts of the sentence are open
 };
 
 const docKey = () => `${S.skillset}|${S.doc}`;
@@ -377,13 +379,22 @@ function nameInChat(g, v) {
 function sentenceView(g, i) {
   const pv = S.preview?.key === panelKey(i) ? S.preview : null;
   const shown = pv ? pv.graph : g;
-  const text = pv ? h('pre', { class: 'block penman-preview' }, pv.lines.map((ln) => h('span', { style: 'display:block' }, ln.map((x) => (x.m ? h('span', { class: `mk-${x.m}`, text: x.t }) : x.t)))))
-    : h('pre', { class: 'block', text: g.penman || '' });
+  // the sentence's UMR as the file has it: its graph (with a proposal's changes in color), then its
+  // document-level annotation as written, variables and all (the same relations are below, in words)
+  const lines = pv ? pv.lines.map((ln) => h('span', { style: 'display:block' }, ln.map((x) => (x.m ? h('span', { class: `mk-${x.m}`, text: x.t }) : x.t))))
+    : [g.penman || ''];
+  const text = h('pre', { class: `block${pv ? ' penman-preview' : ''}` }, lines, h('span', { class: 'fx-umr-doc', text: `\n\n${g.document || ''}` }));
+  // what is open stays open from sentence to sentence (the drawing starts closed)
+  const fold = (name, summary, body) => {
+    const d = h('details', { class: `fx-${name}`, open: ui.open[name] }, h('summary', { text: summary }), body);
+    d.addEventListener('toggle', () => { ui.open[name] = d.open; });
+    return d;
+  };
   const hint = h('input', { type: 'text', class: 'fx-hint', placeholder: t('fxRegenHint') });
   hint.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); regenerate(hint.value.trim()); } });
   return [
-    graphPanel(shown, { onPick: (v) => nameInChat(g, v), docRelations: false, help: t('fxGraphHelp') }),
-    h('details', { class: 'fx-umr', open: true }, h('summary', { text: t('fxUmr') }), text),
+    fold('umr', t('fxUmr'), text),
+    fold('graph', t('fxGraph'), graphPanel(shown, { onPick: (v) => nameInChat(g, v), docRelations: false, help: t('fxGraphHelp') })),
     h('h3', { class: 'fx-h', text: t('fxDoc') }),
     relationsBlock(g, { edit: true }),
     toolsBlock(i),

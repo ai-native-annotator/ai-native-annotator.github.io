@@ -1937,7 +1937,7 @@ class RegistryEngine:
         added = {var for _, var, _ in part["added"]}
         tokens = sent.tokenized_text
         res = {"index": sent.index, "tokens": tokens, "text": umr_blocks(self.doc, parts)[int(i)].rstrip() + "\n",
-               "penman": part["graph"], "top": None, "nodes": [], "edges": [], "attrs": [],
+               "penman": part["graph"], "document": part["document"], "top": None, "nodes": [], "edges": [], "attrs": [],
                # the document-level relations, each end also as a person reads it (its words)
                "doc": [dict(r, a_text=self._phrase(parts, r["a"]), b_text=self._phrase(parts, r["b"]))
                        for r in part["relations"]], "error": None}

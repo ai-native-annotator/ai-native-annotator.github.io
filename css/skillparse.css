@@ -364,7 +364,7 @@ body[data-mode="expert"] .focus { grid-template-columns: minmax(180px, 240px) mi
 .fx-sentence { font-size: 16px; line-height: 1.6; }
 .fx-empty { display: grid; gap: 8px; padding: 18px 0; }
 .fx-h { margin: 8px 0 0; font-size: 13px; }
-.fx-umr > summary, .fx-tools > summary, .fx-rel-add > summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.fx-umr > summary, .fx-graph > summary, .fx-tools > summary, .fx-rel-add > summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 .fx-rels { display: grid; gap: 6px; }
 .fx-rel-group { display: grid; grid-template-columns: 4em 1fr; gap: 8px; align-items: start; }
 .fx-rel-name { color: var(--muted); font-size: 12px; padding-top: 3px; }
@@ -412,3 +412,4 @@ body[data-mode="apprentice"] .focus { overflow: auto; }
 .fx-banner-row { display: flex; gap: 8px; align-items: center; }
 .fx-bar { height: 6px; border-radius: 3px; background: var(--line-soft); overflow: hidden; }
 .fx-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 1s linear; }
+.fx-umr-doc { color: var(--muted); }

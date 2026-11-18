@@ -86,6 +86,9 @@ const check = (label, ok, extra = '') => {
   await page.click('.fx-sentences li >> nth=1');
   await page.waitForFunction(() => /第 2 句/.test(document.querySelector('.fx-title')?.textContent || ''));
   await page.waitForSelector('.fx-rel');
+  check("the UMR text is the sentence's graph and then its document-level annotation as the file writes it; the drawing is folded",
+    /\(s2x \/ 它-01[\s\S]*\(s2s0 \/ sentence[\s\S]*:coref \(\(s1x :same-event s2x\)\)/.test(await page.textContent('.fx-umr pre'))
+      && await page.evaluate(() => document.querySelector('.fx-umr').open && !document.querySelector('.fx-graph').open));
   let rels = await page.$$eval('.fx-rel', (els) => els.map((e) => [...e.querySelectorAll('.fx-end')].map((x) => x.textContent).join(' → ')
     + ' :' + (e.querySelector('select.fx-rel-label')?.value || e.querySelector('.fx-rel-label')?.textContent)));
   check('a relation written with the earlier sentence is with the later one, in words, with the other sentence named',
@@ -118,7 +121,7 @@ const check = (label, ok, extra = '') => {
   check('and deleted', !/\(s1x :after s2x\)/.test(await exported()));
 
   // the chat: this sentence
-  await page.waitForSelector('.fx-main .graph-panel');
+  await page.waitForSelector('.fx-main .fx-umr pre');
   await page.fill('.fx-say', 's2x 的 aspect 应该是 activity');
   await page.press('.fx-say', 'Enter');
   await page.waitForSelector('.fx-apply', { timeout: 60000 });
