@@ -6,7 +6,7 @@ Step-by-step UMR annotation in the browser: SkillParseUMR's annotation procedure
 
 They are three views of the same annotation; switch at any time, and everything is still there.
 
-- **Expert** (for speed): switching to it generates the whole document (several sentences in one answer: graph, alignment, document-level annotation), then you correct it sentence by sentence.
+- **Expert** (for speed): one button, "▶ Generate the document", writes the whole document (several sentences in one answer: graph, alignment, document-level annotation); then you correct it sentence by sentence. While it is written there is a progress bar, the time so far and about how long is left; the first 3 sentences come first, to start on.
   - The middle shows one sentence: its graph, its UMR text, its document-level relations. Those are written with **words** (「Republicans」 snt 1 same-entity 「the party」), not variables; a relation's label can be changed, a relation deleted, one added (nodes are picked by their words).
   - The right is a chat: say what is wrong, the model proposes changes, they are drawn in color on the graph, and Enter applies the ones ticked. Choose **this sentence** or **whole document** above it; a whole-document change says its sentence, and a click goes there.
   - "Generate this sentence again" takes an optional hint; Enter = right, next sentence; Shift+Enter = previous. No step ids; tool calls stay closed.

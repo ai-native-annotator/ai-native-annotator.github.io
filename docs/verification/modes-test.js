@@ -3,7 +3,7 @@
  * steps as the manual mode, which the other two scripts cover.
  *
  * Expert:
- *   1. Switching to it generates the whole document by itself, several sentences in one answer;
+ *   1. One button generates the whole document, several sentences in one answer (nothing before it);
  *      a document-level relation the model wrote with the earlier sentence is with the later one.
  *   2. A sentence shows its graph, its UMR text and its document-level relations in words
  *      (「玳」 句1 … 「它」), not variables; a relation's label can be changed, a relation deleted, one added.
@@ -69,9 +69,15 @@ const check = (label, ok, extra = '') => {
   // ---- expert
   await importDoc('ex', '玳瑁是海龟。\n它们吃海绵。\n海绵很多。');
   await mode('expert');
+  await page.waitForSelector('.fx-start .fx-generate');
+  check('expert mode waits with one button: nothing is generated before it is clicked', !calls.generatedDoc && !calls.generated.length);
+  await page.click('.fx-start .fx-generate');
+  const banner = await page.waitForSelector('.fx-banner .fx-bar', { timeout: 10000 }).then(() => page.textContent('.fx-banner-text')).catch(() => '');
+  check('while it is written: which sentences, how many are done, the time so far and about how long is left, with a bar',
+    /第 1–3 句/.test(banner) && /已完成 0\/3 句/.test(banner) && /已用 0:0\d/.test(banner) && /大约还要/.test(banner), banner);
   await page.waitForFunction(() => document.querySelectorAll('.fx-sentences li.made').length === 3, null, { timeout: 120000 });
   await settled();
-  check('switching to expert generates the whole document by itself, in one answer',
+  check('the button generates the whole document, several sentences in one answer',
     JSON.stringify(calls.generatedDoc) === '[[1,2,3]]' && !calls.generated.length, JSON.stringify(calls.generatedDoc));
   check('the panes are gone, the sentence is in the middle and the chat on the right',
     await page.evaluate(() => getComputedStyle(document.getElementById('pane-work')).display === 'none'

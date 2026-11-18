@@ -19,6 +19,7 @@ import { edited } from './store.js';
 import { toast } from './ui.js';
 import { workKey, getWork, putWork, dropWork, lastOpen } from './save.js';
 import { t, getLang } from './i18n.js';
+import { readJson, writeJson } from './local.js';
 
 /** The wave whose steps make the sentence graph (wave 0, generate, may come before it). */
 export const SENTENCE_WAVE = 'sentence';
@@ -35,7 +36,7 @@ export const SKILLSETS = [
 
 export const S = {
   mode: 'manual',         // 'manual' | 'expert' | 'apprentice' (modes.js): which view drives the page
-  generating: null,       // {from, upto, total}: the sentences a whole-document generation is writing now
+  generating: null,       // a whole-document generation at work (generateDocument): how far it is
   skillset: null, doc: null, docs: [], desc: null,
   wave: null, item: 0, node: null,
   items: [], episode: null, detail: null,
@@ -365,7 +366,7 @@ export async function runPanel(name, i, comment) {
 }
 
 /** One user_panel model skill, asked to the end (its tools and one retry included). */
-async function askPanel(name, i, signal, { comment = '', upto } = {}) {
+async function askPanel(name, i, signal, { comment = '', upto, onTool } = {}) {
   let r = await py('panel_start', { name, i, comment, ...(upto === undefined ? {} : { upto }) });
   while (r.need === 'llm') {
     const role = settings().roles[r.role] ? r.role : 'haiku';
@@ -374,7 +375,7 @@ async function askPanel(name, i, signal, { comment = '', upto } = {}) {
     status(t('running', { what: `${what} ${name} · ${model}${r.retry ? ' · retry' : ''}` }));
     const out = await withSlot(() => llm({
       role, system: r.system, instructions: r.instructions, input: r.input, tools: r.tools || [],
-      schema: emitSchema(r.emit), signal, callTool: (tool, args) => py('panel_tool', { name, i, tool, args }),
+      schema: emitSchema(r.emit), signal, callTool: (tool, args) => { onTool?.(tool); return py('panel_tool', { name, i, tool, args }); },
     }));
     r = await py('panel_complete', { name, i, output: out, model });
   }
@@ -383,38 +384,57 @@ async function askPanel(name, i, signal, { comment = '', upto } = {}) {
 
 /** How many sentences one answer of a whole-document generation writes. */
 const GENERATE_CHUNK = 10;
+/** The first answer is short, so that there is something to correct while the rest is written. */
+const GENERATE_FIRST = 3;
+/** Seconds one sentence takes to generate, per model, as measured in this browser (a guess before that). */
+const RATES = 'skillparse_generate_rate';
+const RATE_GUESS = 20;
 
 /**
  * The whole document generated (user_panel umr_generate_doc), from sentence `from` on: several
  * sentences in one answer, each put where wave 0 would have put it and loaded into the waves after
  * it. Stops at a sentence that could not be loaded. Returns {made, error}.
+ *
+ * S.generating says how far it is, for a progress bar: the sentences being written now
+ * (from..upto), how many are done (of `count`), when it and this answer started, how many
+ * things the model has looked up for this answer, and the seconds a sentence takes.
  */
 export async function generateDocument(from = 0) {
   return guarded(async (signal) => {
     const total = S.desc.doc.sents.length;
-    let made = 0;
+    const model = modelFor('generate');
+    const rates = readJson(RATES);
+    const progress = { from, upto: from, total, first: from, count: total - from, done: 0, started: Date.now(), since: Date.now(),
+      tools: 0, rate: rates[model] || RATE_GUESS };
     let error = '';
     try {
-      for (let i = from; i < total && !S.cancel && !error; i += GENERATE_CHUNK) {
-        const upto = Math.min(total, i + GENERATE_CHUNK) - 1;
-        S.generating = { from: i, upto, total };
+      for (let i = from; i < total && !S.cancel && !error;) {
+        const upto = Math.min(total, i + (i === from ? GENERATE_FIRST : GENERATE_CHUNK)) - 1;
+        Object.assign(progress, { from: i, upto, since: Date.now(), tools: 0 });
+        S.generating = progress;
         render();
-        const r = await askPanel('umr_generate_doc', i, signal, { upto });
+        const r = await askPanel('umr_generate_doc', i, signal, { upto, onTool: () => { progress.tools++; } });
         const res = await py('distribute_generated', { sentences: r.output?.sentences || [], model: r.model });
-        made += res.made.length;
+        // how long a sentence took, kept for the next estimate (the last answers count most)
+        const took = (Date.now() - progress.since) / 1000 / (upto - i + 1);
+        progress.rate = rates[model] ? (rates[model] + took) / 2 : took;
+        rates[model] = progress.rate;
+        writeJson(RATES, rates);
+        progress.done += res.made.length;
         changed();
         if (res.errors.length) error = t('genAllStopped', { n: res.errors[0].index, e: res.errors[0].error });
         else if (res.made.length < upto - i + 1) error = t('genAllStopped', { n: i + res.made.length + 1, e: t('genMissing') });
         await refresh({ detail: false });
+        i = upto + 1;
       }
     } catch (err) {
       error = err.message;
     } finally {
       S.generating = null;
     }
-    status(error ? `${t('error')}: ${error}` : S.cancel ? t('stopped') : t('genAllDone', { n: made }));
+    status(error ? `${t('error')}: ${error}` : S.cancel ? t('stopped') : t('genAllDone', { n: progress.done }));
     await refresh();
-    return { made, error };
+    return { made: progress.done, error };
   });
 }
 

@@ -509,8 +509,9 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 
 **专家（`mode-expert.js`）**
 
-1. 进入时，如果这篇文档还没有任何图、又有能用的 key，自动开始 `generateDocument()`：每 10 句一次调用，跑 `user_panel` 的 `umr_generate_doc`（`panel_start(name, i, upto=…)`，输入是这几句的原文和 token、前面几句已生成的图、以及这套流程 `umr_generate` 的说明 `sentence_skill`）。
+1. 文档还没有任何图时，中间是一个按钮「▶ 生成整篇」，点了才开始 `generateDocument()`：第一次调用写前 3 句（先有东西可改），之后每 10 句一次调用，跑 `user_panel` 的 `umr_generate_doc`（`panel_start(name, i, upto=…)`，输入是这几句的原文和 token、前面几句已生成的图、以及这套流程 `umr_generate` 的说明 `sentence_skill`）。
 2. `distribute_generated(sentences, model)` 把回答按句分到 wave 0：每句的 `umr_generate` 步骤直接取这一句的回答，`convert` 检查后照常载入 sentence、document 两波，都算已确认。分之前 `_to_later_sentence` 把涉及两句的文档级关系归到靠后的那一句。某句载不进去就停在那里（后面的句子要读它）。
+3. 生成时 `S.generating` 记着进度（在写哪几句、完成了几句、这一次调用开始的时间、查了几次资料、每句大约几秒）；界面每秒更新进度条、已用时间和估计的剩余时间。每句几秒按模型记在 `localStorage`（`skillparse_generate_rate`），每次调用后用实际用时更新，第一次按 20 秒估。
 3. 中间栏只看一句：`graphPanel`（点节点 = 把它填进对话框）、UMR 文本、文档级关系、工具调用（`sentence_tools`，结果点开才取 `tool_result`）。
 4. 文档级关系：`graph(i).doc` 的每一条带两端的词（`a_text`、`b_text`）和 `origin`（哪一步的第几条）。有 `origin` 的可以改：`change_doc_relation(i, origin, relation)`（`relation` 为空 = 删）、`add_doc_relation(i, group, source, relation, target)`（两端是变量或常量，`doc_nodes(i)` 给出可选的节点和它们的词）；都是改那一步的输出（`set_output`）。由事件的 modstr 写出的那条没有 `origin`，在图里改。
 5. 右边的对话：改本句 = `local_change`，改全文 = `global_change`（`scope: document`，输入是每一句的原文、token、图和对齐；每条改动带 `sentence`）。改动先 `preview_changes` 画在当前这一句上；全文的改动点一下跳到那一句再预览。应用时按句调 `apply_changes(i, changes, name)`。
@@ -520,12 +521,17 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 
 只用 sentence、document 两波。屏幕上是等着确认的那一步（`episode.awaiting[0]`）：这一块原文（`input.span` 标出来）、这一步在决定什么（每个 skill 一段讲解）、skill 的全文（点开才取）、回答（Penman）、Jev 被问了什么、查了什么、交给下一步什么；下面是这一句到这一步为止的图。主按钮和回车做同一件事：没开始 → `runNext()`；等确认 → `confirmAndNext()`；这一句做完 → 下一句；最后一句做完 → 进文档级。「我来改」是 `saveOutput`，Tab 是带提示 `runNode`。
 
-## 15. 测试
+## 15. 网站更新之后页面起不来（`boot-check.js`）
+
+GitHub Pages 允许浏览器把每个脚本缓存 10 分钟。网站刚更新时刷新，可能新旧脚本混用；一个模块引用了旧模块里还没有的名字，整张模块图就连不上，页面画得出来但什么都不运行。`boot-check.js`（普通脚本，模块起不来它也能跑）在页面加载完之后看 `<body>` 有没有 `booted`：没有，就从 `app.js` 起把所有模块绕过缓存重新取一遍（`fetch(..., {cache: 'reload'})`），再刷新，最多两次。
+
+## 16. 测试
 
 | 命令 | 内容 |
 |---|---|
 | `npm run check` | Node 单元测试（含 `test/skillparse-penman.test.mjs`、`test/skillparse-json.test.mjs`）、ESLint、TypeScript 检查、Prettier |
 | `npm run test:browser -- skillparse-test.js` | 整个流程：启动、确认关卡、提示重跑、Penman、图、修改与 AI 反思、导出、英文流程、Anthropic key、运行动画、刷新后恢复 |
+| `npm run test:browser -- boot-recover-test.js` | 浏览器手里还是旧脚本时（新旧混用，模块图连不上），页面自己把脚本重新取一遍再刷新，然后正常启动 |
 | `npm run test:browser -- modes-test.js` | 专家模式（自动整篇生成、关系归到靠后的句子、按词显示和修改文档级关系、改本句、改全文并跳转、重新生成、下一句）和学徒模式（一步一步、讲解、手改、提示重跑、换句、进文档级） |
 | `npm run test:browser -- skillparse-fullrun-test.js` | 导入、所有句子逐步跑完两波、导出、文本导入、载入已有标注（按词转按字、重跑载入的步骤、按字文件原样载入）、刷新后文档还在 |
 

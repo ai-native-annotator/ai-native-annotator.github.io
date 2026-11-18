@@ -362,7 +362,6 @@ body[data-mode="expert"] .focus { grid-template-columns: minmax(180px, 240px) mi
 .fx-main { min-height: 0; overflow: auto; padding: 12px 18px 18px; display: flex; flex-direction: column; gap: 8px; }
 .fx-title { display: flex; gap: 6px; align-items: baseline; }
 .fx-sentence { font-size: 16px; line-height: 1.6; }
-.fx-banner { display: flex; gap: 8px; align-items: center; }
 .fx-empty { display: grid; gap: 8px; padding: 18px 0; }
 .fx-h { margin: 8px 0 0; font-size: 13px; }
 .fx-umr > summary, .fx-tools > summary, .fx-rel-add > summary { cursor: pointer; color: var(--muted); font-size: 12px; }
@@ -406,3 +405,10 @@ body[data-mode="apprentice"] .focus { overflow: auto; }
 .ap-box { display: grid; gap: 6px; }
 .ap-hint { font-family: var(--sans); font-size: 13px; }
 @media (max-width: 900px) { body[data-mode="expert"] .focus { grid-template-columns: 1fr; } .fx-list { max-height: 30vh; } }
+.fx-start { place-items: center; text-align: center; padding: 48px 0; gap: 16px; }
+.fx-start .note { font-size: 14px; max-width: 34em; }
+.fx-start .fx-generate { font-size: 16px; padding: 10px 28px; }
+.fx-banner { display: grid; gap: 6px; }
+.fx-banner-row { display: flex; gap: 8px; align-items: center; }
+.fx-bar { height: 6px; border-radius: 3px; background: var(--line-soft); overflow: hidden; }
+.fx-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 1s linear; }

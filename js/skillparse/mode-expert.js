@@ -1,5 +1,6 @@
 /**
- * Expert mode: the whole document is generated at once, then corrected sentence by sentence.
+ * Expert mode: the whole document is generated at once (one button), then corrected sentence by
+ * sentence.
  *
  *   left    the sentences, each with whether it has a graph and whether it has been looked at
  *   middle  one sentence: its graph, its UMR text, its document-level relations written with the
@@ -28,7 +29,9 @@ import { freeKey } from './modes.js';
 addStrings({
   fxGraphHelp: '点一个框，把它填进右边的对话框；悬停看它对着的字。',
   fxProgress: '已看 {done} / {n} 句', fxSentence: '第 {n} 句', fxNoGraph: '这一句还没有图。',
-  fxGenerating: '正在生成第 {a}–{b} 句（共 {n} 句）…', fxGenerateAll: '生成整篇', fxGenerateFrom: '从这一句起继续生成', fxGenerateOne: '只生成这一句',
+  fxGenerating: '正在写第 {a}–{b} 句（共 {n} 句）', fxDoneOf: '已完成 {done}/{n} 句', fxElapsed: '已用 {t}', fxLeftMin: '大约还要 {n} 分钟', fxLeftSec: '大约还要 {n} 秒',
+  fxAlmost: '比平时慢，快好了…', fxLooked: '查了 {n} 次资料', fxWhileWaiting: '前几句先出来：写好的句子左边会亮起来，可以先点进去改。估计的时间按这个浏览器里上次的速度算。', fxGenerateAll: '▶ 生成整篇',
+  fxStartHelp: '这篇文档 {n} 句，还没有标注。点一下，「{model}」一次写出整篇的图、对齐和文档级标注，然后一句一句改。', fxGenerateFrom: '从这一句起继续生成', fxGenerateOne: '只生成这一句',
   fxNeedKey: '整篇生成要用「{model}」，还没有能用的 key。', fxOpenSettings: '去设置里填 key',
   fxRegen: '↻ 重新生成这句', fxRegenHint: '可以写一句提示（可不写）', fxNext: '确认，下一句', fxPrev: '上一句', fxAllDone: '每一句都看过了，可以导出。',
   fxUmr: 'UMR 文本', fxDoc: '文档级关系', fxDocNone: '这一句还没有文档级关系。', fxFromEvent: '来自事件的 modstr（在图里改）',
@@ -44,7 +47,9 @@ addStrings({
 }, {
   fxGraphHelp: 'Click a box to name it in the chat; hover to see its words.',
   fxProgress: '{done} of {n} sentences checked', fxSentence: 'Sentence {n}', fxNoGraph: 'This sentence has no graph yet.',
-  fxGenerating: 'Generating sentences {a}–{b} (of {n}) …', fxGenerateAll: 'Generate the document', fxGenerateFrom: 'Go on generating from this sentence', fxGenerateOne: 'Generate this sentence only',
+  fxGenerating: 'Writing sentences {a}–{b} (of {n})', fxDoneOf: '{done} of {n} done', fxElapsed: '{t} so far', fxLeftMin: 'about {n} min left', fxLeftSec: 'about {n} s left',
+  fxAlmost: 'slower than usual, nearly there …', fxLooked: '{n} look-ups', fxWhileWaiting: 'The first sentences come first: a sentence lights up on the left when it is written, and can be corrected at once. The estimate goes by the speed last measured in this browser.', fxGenerateAll: '▶ Generate the document',
+  fxStartHelp: 'This document has {n} sentences and no annotation yet. One click, and “{model}” writes the whole document (graphs, alignment, document-level annotation); then you correct it sentence by sentence.', fxGenerateFrom: 'Go on generating from this sentence', fxGenerateOne: 'Generate this sentence only',
   fxNeedKey: 'The document is generated with “{model}”, and no key reaches it yet.', fxOpenSettings: 'Add a key in Settings',
   fxRegen: '↻ Generate this sentence again', fxRegenHint: 'A hint, if you like', fxNext: 'Right, next sentence', fxPrev: 'Previous', fxAllDone: 'Every sentence has been checked: ready to export.',
   fxUmr: 'UMR text', fxDoc: 'Document-level relations', fxDocNone: 'This sentence has no document-level relations yet.', fxFromEvent: "from the event's modstr (change it in the graph)",
@@ -75,7 +80,6 @@ const ui = {
   log: [],                // the chat: {who: 'me' | 'ai' | 'note', text, scope, item, proposal}
   proposal: null,         // the one being decided: {scope, name, item, summary, changes, picked, results, tools}
   thinking: false,
-  started: new Set(),     // documents whose generation this visit started by itself
   graph: null,            // {key, g}: the shown sentence's graph
   previewed: '',          // what the preview on screen was made from
   tools: null,            // {key, calls}: the shown sentence's tool calls, once asked for
@@ -120,16 +124,6 @@ async function generate(from) {
 async function regenerate(hint) {
   const error = await regenerateSentence(S.item, hint);
   if (error) toast(error, 8000);
-}
-
-/** A document nobody has generated yet starts by itself, once, when a key reaches the model. */
-function autoStart() {
-  if (S.running || S.generating || !S.items.length || ui.started.has(docKey())) return;
-  if (S.items.some((it) => it.status !== 'new')) return;
-  const model = currentChoice('generate');
-  if (!model || !route(model.id)) return;
-  ui.started.add(docKey());
-  generate(0);
 }
 
 // ------------------------------------------------------------------ the chat: proposals
@@ -405,14 +399,61 @@ function emptyView(i) {
   const model = currentChoice('generate');
   const reach = model && route(model.id);
   const busy = S.running > 0;
-  return h('div', { class: 'fx-empty' },
-    h('div', { class: 'note', text: t('fxNoGraph') }),
+  const none = !S.items.some((it) => it.status !== 'new');
+  return h('div', { class: `fx-empty${none ? ' fx-start' : ''}` },
+    h('div', { class: 'note', text: none ? t('fxStartHelp', { n: total(), model: model?.label || '' }) : t('fxNoGraph') }),
     reach ? h('div', { class: 'row' },
-      h('button', { class: 'btn primary fx-generate', disabled: busy, text: t(i === 0 ? 'fxGenerateAll' : 'fxGenerateFrom'), onclick: () => generate(i) }),
-      i > 0 ? h('button', { class: 'btn', disabled: busy, text: t('fxGenerateOne'), onclick: () => regenerate('') }) : null)
+      h('button', { class: 'btn primary fx-generate', disabled: busy, text: t(none ? 'fxGenerateAll' : 'fxGenerateFrom'), onclick: () => generate(none ? 0 : i) }),
+      !none ? h('button', { class: 'btn', disabled: busy, text: t('fxGenerateOne'), onclick: () => regenerate('') }) : null)
       : h('div', { class: 'row' }, h('span', { class: 'warn', text: t('fxNeedKey', { model: model?.label || '' }) }),
         h('button', { class: 'btn', text: t('fxOpenSettings'), onclick: openSettings })));
 }
+
+const clock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+/**
+ * How far the generation is, redrawn every second: a bar (the sentences done, and the answer
+ * being written by the time it usually takes), the time so far, and about how long is left.
+ */
+function progressState() {
+  const g = S.generating;
+  const now = Date.now();
+  const n = g.upto - g.from + 1;
+  const spent = (now - g.since) / 1000;
+  const expected = Math.max(1, n * g.rate);
+  // the answer being written fills its share of the bar as its usual time passes, never quite to the end
+  const part = Math.min(0.95, spent / expected);
+  const left = Math.max(0, expected - spent) + (g.count - g.done - n) * g.rate;
+  return { fraction: (g.done + n * part) / g.count, elapsed: (now - g.started) / 1000, left, late: spent > expected };
+}
+
+function progressText(p) {
+  const g = S.generating;
+  const about = p.left >= 90 ? t('fxLeftMin', { n: Math.round(p.left / 60) }) : t('fxLeftSec', { n: Math.max(5, Math.round(p.left / 5) * 5) });
+  return [t('fxGenerating', { a: g.from + 1, b: g.upto + 1, n: g.total }),
+    t('fxDoneOf', { done: g.done, n: g.count }), t('fxElapsed', { t: clock(p.elapsed) }),
+    p.late && p.left < 1 ? t('fxAlmost') : about,
+    g.tools ? t('fxLooked', { n: g.tools }) : ''].filter(Boolean).join(' · ');
+}
+
+function progressBanner() {
+  const p = progressState();
+  return h('div', { class: 'card fx-banner' },
+    h('div', { class: 'fx-banner-row' }, h('span', { class: 'spinner' }), h('span', { class: 'fx-banner-text', text: progressText(p) }),
+      h('span', { class: 'grow' }), h('button', { class: 'btn sm danger', text: t('stop'), onclick: stop })),
+    h('div', { class: 'fx-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': Math.round(p.fraction * 100) },
+      h('div', { class: 'fx-bar-fill', style: `width:${(p.fraction * 100).toFixed(1)}%` })),
+    h('div', { class: 'note', text: t('fxWhileWaiting') }));
+}
+
+setInterval(() => {
+  const el = S.generating && S.mode === 'expert' ? document.querySelector('#focus .fx-banner') : null;
+  if (!el) return;
+  const p = progressState();
+  el.querySelector('.fx-banner-text').textContent = progressText(p);
+  el.querySelector('.fx-bar-fill').style.width = `${(p.fraction * 100).toFixed(1)}%`;
+  el.querySelector('.fx-bar').setAttribute('aria-valuenow', String(Math.round(p.fraction * 100)));
+}, 1000);
 
 function drawList(el) {
   const seen = reviewed();
@@ -430,9 +471,7 @@ function drawList(el) {
 async function drawMain(el) {
   const i = S.item;
   const head = [
-    S.generating ? h('div', { class: 'card fx-banner' }, h('span', { class: 'spinner' }),
-      t('fxGenerating', { a: S.generating.from + 1, b: S.generating.upto + 1, n: S.generating.total }),
-      h('button', { class: 'btn sm danger', text: t('stop'), onclick: stop })) : null,
+    S.generating ? progressBanner() : null,
     h('div', { class: 'fx-title' }, h('strong', { text: t('fxSentence', { n: i + 1 }) }), h('span', { class: 'note', text: `/ ${total()}` })),
     h('div', { class: 'fx-sentence', text: S.desc.doc.sents[i]?.text || '' }),
   ];
@@ -467,7 +506,6 @@ function draw() {
     el.querySelector('.fx-main').addEventListener('click', (e) => { if (e.target.closest('.graph-tools')) ui.drawn = ''; }, true);
     ui.drawn = '';
   }
-  autoStart();
   drawList(el.querySelector('.fx-list'));
   drawChat(el.querySelector('.fx-chat'));
   // the middle is drawn again only when what it shows changed: an open list or a typed hint stays
