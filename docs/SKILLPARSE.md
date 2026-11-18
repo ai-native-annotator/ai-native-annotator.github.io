@@ -515,7 +515,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 3. 中间栏只看一句：工具调用（`sentence_tools`，折叠着，结果点开才取 `tool_result`）、UMR 文本（句级图，后面是文件里原样的文档级标注 `graph(i).document`）、`graphPanel`（默认折叠；点节点 = 把它填进对话框）、按词显示的文档级关系、工具调用（`sentence_tools`，结果点开才取 `tool_result`）。
 4. 文档级关系：`graph(i).doc` 的每一条带两端的词（`a_text`、`b_text`）和 `origin`（哪一步的第几条）。有 `origin` 的可以改：`change_doc_relation(i, origin, relation)`（`relation` 为空 = 删）、`add_doc_relation(i, group, source, relation, target)`（两端是变量或常量，`doc_nodes(i)` 给出可选的节点和它们的词）；都是改那一步的输出（`set_output`）。由事件的 modstr 写出的那条没有 `origin`，在图里改。
 5. 右边的对话只有一个，总是 `global_change`（`scope: document`）：输入是每一句的原文、token、图和对齐，加上人正在看的句号（`index`）；skill.md 里写明评论只说这一句时只改这一句、说全文时各句都改。每条改动带 `sentence`，先 `preview_changes` 画在那一句上，点改动上的句号跳过去看。应用时按句调 `apply_changes(i, changes, name)`。
-5. 图上直接改（`graph-view.js` 的 `onConcept`、`onEdge`）：点概念 = `rename_node`，点关系标签 = `delete_relation` + `add_relation`，也走 `apply_changes`，所以步骤重拆、文档级关系跟着走都和对话改图一样。
+5. 图上直接改（`graph-view.js` 的 `onConcept`、`onEdge`）：点概念 = `rename_node`，点属性的值 = `set_attribute`（清空 = 删），点关系标签 = `delete_relation` + `add_relation`，也走 `apply_changes`，所以步骤重拆、文档级关系跟着走都和对话改图一样。
 6. 「重新生成这句」= 这一句 wave 0 的 `umr_generate` 步骤带提示重跑、`convert`、确认（`regenerateSentence`）。「确认，下一句」只是翻到下一句并记下看过（`skillparse_reviewed`）。
 
 **学徒（`mode-apprentice.js`）**

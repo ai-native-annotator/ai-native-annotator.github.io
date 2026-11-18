@@ -152,6 +152,21 @@ const check = (label, ok, extra = '') => {
   await settled();
   await page.waitForSelector('.fx-umr pre');
   check('a concept too, and the file has both', /:ARG1 \(s2x2 \/ 海绵\)/.test(await exported()), await page.textContent('.fx-umr pre'));
+  await page.waitForSelector('.fx-graph .graph-svg [data-var="s2x"] .g-attr.editable');
+  await page.click('.fx-graph .graph-svg [data-var="s2x"] .g-attr.editable');
+  check('an attribute is changed there too: its value is in the box', (await page.inputValue('.fx-pop-input')) === 'activity');
+  await page.fill('.fx-pop-input', 'state');
+  await page.press('.fx-pop-input', 'Enter');
+  await settled();
+  await page.waitForSelector('.fx-umr pre');
+  check('and the UMR has the new value', /\(s2x \/ 它-01\s+:aspect state/.test(await page.textContent('.fx-umr pre')), await page.textContent('.fx-umr pre'));
+  await page.waitForSelector('.fx-graph .graph-svg [data-var="s2x"] .g-attr.editable');
+  await page.click('.fx-graph .graph-svg [data-var="s2x"] .g-attr.editable');
+  await page.fill('.fx-pop-input', '');
+  await page.press('.fx-pop-input', 'Enter');
+  await settled();
+  await page.waitForSelector('.fx-umr pre');
+  check('an attribute left empty goes', !/:aspect/.test((await page.textContent('.fx-umr pre')).split('(s2s0')[0]), await page.textContent('.fx-umr pre'));
   check('the drawing stays open after a change', await page.evaluate(() => document.querySelector('.fx-graph').open));
 
   // the same chat, about the whole document

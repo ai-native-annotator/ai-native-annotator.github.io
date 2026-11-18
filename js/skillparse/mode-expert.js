@@ -29,7 +29,7 @@ import { addStrings, t, getLang } from './i18n.js';
 import { freeKey } from './modes.js';
 
 addStrings({
-  fxGraphHelp: '点概念改概念，点关系的标签改标签（回车保存）；点框的其他地方，把它填进右边的对话框。',
+  fxGraphHelp: '点概念、属性的值或关系的标签就能改（回车保存；属性清空 = 删掉）；点框的其他地方，把它填进右边的对话框。',
   fxProgress: '已看 {done} / {n} 句', fxSentence: '第 {n} 句', fxNoGraph: '这一句还没有图。',
   fxGenerating: '正在写第 {a}–{b} 句（共 {n} 句）', fxDoneOf: '已完成 {done}/{n} 句', fxElapsed: '已用 {t}', fxLeftMin: '大约还要 {n} 分钟', fxLeftSec: '大约还要 {n} 秒',
   fxAlmost: '比平时慢，快好了…', fxLooked: '查了 {n} 次资料', fxWhileWaiting: '前几句先出来：写好的句子左边会亮起来，可以先点进去改。估计的时间按这个浏览器里上次的速度算。', fxGenerateAll: '▶ 生成整篇',
@@ -47,7 +47,7 @@ addStrings({
   fxApplied: '已应用 {ok}/{n} 处。', fxDiscarded: '已放弃。', fxCannot: '做不了：{why}', fxJump: '去第 {n} 句看',
   fxExport: '导出 .umr',
 }, {
-  fxGraphHelp: "Click a concept to change it, a relation's label to change it (Enter keeps it); click elsewhere on a box to name it in the chat.",
+  fxGraphHelp: "Click a concept, an attribute's value or a relation's label to change it (Enter keeps it; an attribute left empty goes); click elsewhere on a box to name it in the chat.",
   fxProgress: '{done} of {n} sentences checked', fxSentence: 'Sentence {n}', fxNoGraph: 'This sentence has no graph yet.',
   fxGenerating: 'Writing sentences {a}–{b} (of {n})', fxDoneOf: '{done} of {n} done', fxElapsed: '{t} so far', fxLeftMin: 'about {n} min left', fxLeftSec: 'about {n} s left',
   fxAlmost: 'slower than usual, nearly there …', fxLooked: '{n} look-ups', fxWhileWaiting: 'The first sentences come first: a sentence lights up on the left when it is written, and can be corrected at once. The estimate goes by the speed last measured in this browser.', fxGenerateAll: '▶ Generate the document',
@@ -372,7 +372,7 @@ const ROLES = ['ARG0', 'ARG1', 'ARG2', 'ARG3', 'ARG4', 'ARG5', 'actor', 'undergo
   'topic', 'example', 'age', 'group', 'other-role', 'quote', 'op1', 'op2', 'op3', 'op4'];
 
 /** A small box where something was clicked, to type its new value: Enter keeps it, Escape leaves it. */
-function editAt(ev, value, options, save) {
+function editAt(ev, value, options, save, { empty = false } = {}) {
   document.querySelector('.fx-pop')?.remove();
   const input = h('input', { type: 'text', class: 'fx-pop-input', value, list: options ? 'fx-pop-list' : undefined });
   const pop = h('div', { class: 'fx-pop', style: `left:${Math.max(8, ev.clientX - 60)}px;top:${ev.clientY + 10}px` }, input,
@@ -386,7 +386,7 @@ function editAt(ev, value, options, save) {
     e.stopPropagation();
     const next = input.value.trim().replace(/^:/, '');
     close();
-    if (next && next !== value) save(next);
+    if ((next || empty) && next !== value) save(next);
   });
   input.addEventListener('blur', () => setTimeout(close, 150));
   document.body.append(pop);
@@ -409,6 +409,21 @@ async function changeGraph(i, changes) {
 function editConcept(g, i, v, ev) {
   const n = g.nodes.find((x) => x.var === v);
   if (n) editAt(ev, n.concept, null, (concept) => changeGraph(i, [{ op: 'rename_node', var: v, concept }]));
+}
+
+/** The values an attribute usually has, offered when it is changed (any other can be typed). */
+const VALUES = {
+  aspect: ['habitual', 'generic', 'imperfective', 'state', 'reversible-state', 'irreversible-state', 'inherent-state', 'point-state', 'process',
+    'atelic-process', 'perfective', 'activity', 'undirected-activity', 'directed-activity', 'iterative', 'endeavor', 'semelfactive',
+    'undirected-endeavor', 'directed-endeavor', 'performance', 'incremental-accomplishment', 'nonincremental-accomplishment',
+    'directed-achievement', 'reversible-directed-achievement', 'irreversible-directed-achievement', 'inceptive'],
+  polarity: ['-'], 'refer-number': ['singular', 'plural', 'dual'], 'refer-person': ['1st', '2nd', '3rd'], mode: ['imperative', 'interrogative', 'expressive'],
+};
+
+/** An attribute's value changed; emptied, the attribute goes. */
+function editAttr(i, a, ev) {
+  editAt(ev, String(a.value), VALUES[a.role] || null,
+    (value) => changeGraph(i, [{ op: 'set_attribute', var: a.var, attribute: a.role, value: value || null }]), { empty: true });
 }
 
 function editRole(i, e, ev) {
@@ -445,9 +460,9 @@ function sentenceView(g, i) {
   return [
     toolsBlock(i),
     fold('umr', t('fxUmr'), text),
-    // a concept or a relation's label is changed where it is drawn (not while a proposal is shown on it)
+    // a concept, an attribute or a relation's label is changed where it is drawn (not while a proposal is shown on it)
     fold('graph', t('fxGraph'), graphPanel(shown, { onPick: (v) => nameInChat(g, v), docRelations: false, help: t('fxGraphHelp'),
-      ...(pv ? {} : { onConcept: (v, ev) => editConcept(g, i, v, ev), onEdge: (e, ev) => editRole(i, e, ev) }) })),
+      ...(pv ? {} : { onConcept: (v, ev) => editConcept(g, i, v, ev), onAttr: (a, ev) => editAttr(i, a, ev), onEdge: (e, ev) => editRole(i, e, ev) }) })),
     h('h3', { class: 'fx-h', text: t('fxDoc') }),
     relationsBlock(g, { edit: true }),
     h('div', { class: 'fx-actions' },
