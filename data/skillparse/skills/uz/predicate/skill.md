@@ -44,10 +44,12 @@ counts whole words.
 (`-il-`, `-in-`) is the active stem (*was built* `qurildi` → `qur`), with its subject as
 `undergoer`; a causative (`-tir-`, `-dir-`, `-giz-`) keeps its suffix (`o'qit` 'teach').
 
-- **Light verbs.** In noun + `qil-` / `et-` / `ber-` / `ol-` / `bo'l-` where the noun
-  names the event (`qaror qabul qildi`, `yordam berdi`, `suhbat qildi`), the event noun
-  is the head (`qaror`, `yordam`, `suhbat`) and the node's span and `alignment` cover the
-  light verb too. A verb of getting (`oldi`, `qo'lga kiritdi`) is not light: it is the
+- **Light verbs: one node, one compound concept.** In noun + `qil-` / `et-` / `ber-` / `ol-` /
+  `bo'l-` where the noun names the event (`sovg'a qildi`, `yordam berdi`, `suhbat qildi`,
+  `qaror qabul qildi`), the whole compound is ONE node whose concept is the compound's lemma:
+  the words in order, the light verb as its stem, joined by hyphens (`sovg'a-qil`,
+  `yordam-ber`, `suhbat-qil`, `qaror-qabul-qil`). The node's span and `alignment` cover all the
+  words of the compound. Never one node for the noun and another for the light verb. A verb of getting (`oldi`, `qo'lga kiritdi`) is not light: it is the
   head and the thing got is its `theme`.
 - **Auxiliaries are not the head**: the phase and ability auxiliaries after a converb
   (`o'qiy boshladi` 'began to read', `o'qiy oladi` 'can read', `yozib qo'ydi`, `ko'rib

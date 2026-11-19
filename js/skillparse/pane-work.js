@@ -316,7 +316,7 @@ async function goToMaker(g, v, tab = 'graph') {
 let fit = true;
 
 /** A sentence's graph with its tokens; onPick(variable) for a click on a box (default: go to its step). */
-export function graphPanel(g, { onPick, onConcept, onAttr, onEdge, docRelations = true, help = t('graphHelp') } = {}) {
+export function graphPanel(g, { onPick, onConcept, onSpan, onAttr, onEdge, docRelations = true, help = t('graphHelp') } = {}) {
   const tokens = h('div', { class: 'tokens' }, g.tokens.map((w, k) => h('span', { class: 'tok', 'data-k': k + 1 }, w, h('sub', { text: k + 1 }))));
   const onHover = (v) => {
     tokens.querySelectorAll('.tok.on').forEach((x) => x.classList.remove('on'));
@@ -338,7 +338,7 @@ export function graphPanel(g, { onPick, onConcept, onAttr, onEdge, docRelations 
     parts.push(h('div', { class: 'empty', text: t('noGraph') }));
   } else {
     parts.push(h('div', { class: `graph-wrap${fit ? ' fit' : ''}` },
-      drawGraph(g, { highlight: mine, onPick: onPick || ((v) => goToMaker(g, v)), onHover, onConcept, onAttr, onEdge })));
+      drawGraph(g, { highlight: mine, onPick: onPick || ((v) => goToMaker(g, v)), onHover, onConcept, onSpan, onAttr, onEdge })));
   }
   if (docRelations && g.doc.length) {
     const name = (x) => { const n = g.nodes.find((m) => m.var === x); return n ? `${x}/${n.concept}` : x; };

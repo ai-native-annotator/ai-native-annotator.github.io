@@ -11,6 +11,10 @@ there and takes it back into the predicate steps). Changes, each {"op", ...}:
     add_relation     source, role, target
     delete_relation  source, role, target
     set_attribute    var, attribute, value (null deletes it)
+    set_span         var, span ([first, last] token numbers, or null: no word of its own)
+    merge_nodes      var, into[, concept]: `var` becomes part of `into`: its edges and attributes
+                     go to `into` (the edge between the two goes), `into` is aligned to the words of
+                     both (and takes the new concept, when one is given): several words, one node
 
 A role ending in -of is the inverse of the role without it, as penman reads it. A new node gets
 the name s<index><first letter of its concept>[k], one the graph has not used (not even for a node
@@ -22,7 +26,8 @@ import re
 
 import penman
 
-OPS = ("add_node", "delete_node", "rename_node", "add_relation", "delete_relation", "set_attribute")
+OPS = ("add_node", "delete_node", "rename_node", "add_relation", "delete_relation", "set_attribute", "set_span",
+       "merge_nodes")
 # a number, - or +, or a symbol without dots stays bare; anything else (12306.cn, 张三) is quoted
 SYMBOL = re.compile(r"^-?\d+(\.\d+)?$|^[A-Za-z0-9][A-Za-z0-9_+\-]*$|^[-+]$")
 
@@ -48,7 +53,19 @@ def _bare(v):
     return v[1:-1] if len(v) >= 2 and v[0] == v[-1] == '"' else v
 
 
-def run(graph, alignment, changes, index):
+def _span(span, length):
+    """A span as [first, last], checked against the sentence's tokens."""
+    if isinstance(span, str) and re.fullmatch(r"\s*\d+\s*(-\s*\d+\s*)?", span):
+        span = [int(x) for x in span.split("-")] * (1 if "-" in span else 2)
+    if not (isinstance(span, (list, tuple)) and len(span) == 2 and all(isinstance(x, int) and not isinstance(x, bool) for x in span)):
+        raise ValueError("a span is [first, last] token numbers: %r" % (span,))
+    a, b = int(span[0]), int(span[1])
+    if not 1 <= a <= b or (length and b > length):
+        raise ValueError("the span [%d, %d] is not in the sentence's tokens 1-%s" % (a, b, length or "…"))
+    return [a, b]
+
+
+def run(graph, alignment, changes, index, length=None):
     g = penman.decode(graph)
     top = g.top
     concept = {v: str(c) for v, _, c in g.instances()}
@@ -91,9 +108,8 @@ def run(graph, alignment, changes, index):
                 concept[v] = c
                 order.append(v)
                 edges.append(_norm(parent, role, v))
-                span = ch.get("span")
-                if isinstance(span, (list, tuple)) and len(span) == 2 and all(isinstance(x, int) for x in span):
-                    align[v] = [int(span[0]), int(span[1])]
+                if ch.get("span") not in (None, "", [0, 0]):
+                    align[v] = _span(ch.get("span"), length)
                 if ch.get("var"):
                     new_name[str(ch["var"]).strip()] = v
                 res["var"] = v
@@ -146,6 +162,40 @@ def run(graph, alignment, changes, index):
                     pos = next((n for n, a in enumerate(attrs) if a[0] == v and a[1] == role), None)
                     kept.insert(pos if pos is not None else len(kept), (v, role, _value(value)))
                 attrs = kept
+            elif op == "set_span":
+                v = var(ch.get("var"))
+                if v not in concept:
+                    raise ValueError("no node %s" % v)
+                if ch.get("span") in (None, "", [0, 0]):
+                    align.pop(v, None)
+                else:
+                    align[v] = _span(ch.get("span"), length)
+            elif op == "merge_nodes":
+                v, into = var(ch.get("var")), var(ch.get("into"))
+                for x in (v, into):
+                    if x not in concept:
+                        raise ValueError("no node %s" % x)
+                if v == into:
+                    raise ValueError("a node cannot be merged into itself")
+                c = str(ch.get("concept") or "").strip()
+                if c:
+                    concept[into] = c
+                # what pointed at, or hung from, the node that goes now does so for the one that stays
+                moved = []
+                for s, r, t in edges:
+                    e = (into if s == v else s, r, into if t == v else t)
+                    if e[0] != e[2] and e not in moved:
+                        moved.append(e)
+                edges = moved
+                have = {r for a, r, _ in attrs if a == into}
+                attrs = [(into, r, x) if a == v else (a, r, x) for a, r, x in attrs if a != v or r not in have]
+                spans = [align[x] for x in (into, v) if x in align]
+                if spans:
+                    align[into] = [min(s[0] for s in spans), max(s[1] for s in spans)]
+                align.pop(v, None)
+                del concept[v]
+                if v == top:
+                    top = into
             res["ok"] = True
         except Exception as err:
             res["why"] = str(err)

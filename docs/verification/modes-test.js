@@ -167,6 +167,20 @@ const check = (label, ok, extra = '') => {
   await settled();
   await page.waitForSelector('.fx-umr pre');
   check('an attribute left empty goes', !/:aspect/.test((await page.textContent('.fx-umr pre')).split('(s2s0')[0]), await page.textContent('.fx-umr pre'));
+  // the words a node stands for: several tokens, one node
+  await page.waitForSelector('.fx-graph .graph-svg [data-var="s2x2"] .g-var.editable');
+  await page.click('.fx-graph .graph-svg [data-var="s2x2"] .g-var.editable');
+  await page.fill('.fx-pop-input', '4-5');
+  await page.press('.fx-pop-input', 'Enter');
+  await settled();
+  check('the words a node is aligned to are changed there: one node for several tokens', /^s2x2: 4-5$/m.test(await exported()));
+  await page.waitForSelector('.fx-graph .graph-svg [data-var="s2x2"] .g-var.editable');
+  await page.click('.fx-graph .graph-svg [data-var="s2x2"] .g-var.editable');
+  await page.fill('.fx-pop-input', '4-99');
+  await page.press('.fx-pop-input', 'Enter');
+  await settled();
+  const refused = await page.textContent('#toast');
+  check('a span outside the sentence is refused, and nothing changes', /not in the sentence/.test(refused) && /^s2x2: 4-5$/m.test(await exported()), refused);
   check('the drawing stays open after a change', await page.evaluate(() => document.querySelector('.fx-graph').open));
 
   // the same chat, about the whole document
@@ -226,6 +240,15 @@ const check = (label, ok, extra = '') => {
   check('a longer document is written in several answers (3 sentences first), each given every sentence written before it, not the last five',
     chunks === '1-3 3-3 4-13 14-14' && given === '0 2 3 13', `${chunks} | given ${given}`);
   check('a sentence an answer left out is asked for once more, and the generation goes on', /生成了 14 句/.test(await page.textContent('#status')), await page.textContent('#status'));
+  // two nodes that are one concept are merged: one node, the words of both, the edges of both
+  const merged = await page.evaluate(async () => {
+    const { py } = await import('./js/skillparse/py.js');
+    await py('apply_changes', { i: 4, name: 'global_change', changes: [{ op: 'add_node', var: 'n1', concept: '乙', span: [2, 2], parent: 's5x', role: 'mod' }] });
+    const r = await py('apply_changes', { i: 4, name: 'global_change', changes: [{ op: 'merge_nodes', var: 's5x2', into: 's5x', concept: '五-乙' }] });
+    const g = await py('graph', { i: 4 });
+    return { ok: r.applied.every((a) => a.ok), nodes: g.nodes.map((n) => `${n.var}/${n.concept}/${n.align}`) };
+  });
+  check('merge_nodes makes two nodes one, with the new concept and the words of both', merged.ok && merged.nodes.join() === 's5x/五-乙/1-2', JSON.stringify(merged));
   // a step of an earlier sentence that is not finished does not stop a later sentence's document level
   await page.evaluate(async () => {
     const { py } = await import('./js/skillparse/py.js');

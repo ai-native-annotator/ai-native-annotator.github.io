@@ -29,7 +29,9 @@ One penman graph, rooted at the sentence's main event (or its discourse relation
   different: `s3x`, `s3p`, `s3x2`. A node mentioned twice (a reentrancy) is written once and
   then named by its variable.
 - **Concepts** are stems without case, possessive, plural or tense suffixes (`maktabni` →
-  `maktab`); a light verb compound (`qaror qabul qildi`) is headed by its event noun; auxiliaries
+  `maktab`); a light verb compound (noun + `qil-` / `et-` / `ber-` / `ol-` / `bo'l-`: `sovg'a qildi`, `qaror qabul qildi`)
+  is ONE node whose concept is the compound's lemma, its words in order with the light verb as its
+  stem, joined by hyphens (`sovg'a-qil`, `qaror-qabul-qil`), aligned to all the words of the compound; auxiliaries
   (`boshla-`, ability `ol-`) are not the head; `kerak` (need) and `xohla-` (want) are.
 - Every event gets `:aspect` (`-di` / `-gan` `performance`, `-yap-` / `-moqda` `activity`,
   regular `-adi` `habitual`, states `state`, ...) and `:modal-strength`; `-ma-`, `emas`, `yo'q`

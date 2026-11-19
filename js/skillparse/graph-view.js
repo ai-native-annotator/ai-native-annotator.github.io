@@ -41,11 +41,11 @@ function boxLines(n, attrs) {
 }
 
 /**
- * onPick(variable): a box was clicked. onConcept(variable, event) / onAttr(attribute, event) /
- * onEdge(edge, event): its concept, one of its attributes, or an edge's label, was clicked (to
- * change it); without them those clicks are the box's.
+ * onPick(variable): a box was clicked. onConcept(variable, event) / onSpan(variable, event) /
+ * onAttr(attribute, event) / onEdge(edge, event): its concept, its words, one of its attributes, or
+ * an edge's label, was clicked (to change it); without them those clicks are the box's.
  */
-export function drawGraph(g, { highlight = new Set(), dashed = new Set(), onPick, onHover, onConcept, onAttr, onEdge } = {}) {
+export function drawGraph(g, { highlight = new Set(), dashed = new Set(), onPick, onHover, onConcept, onSpan, onAttr, onEdge } = {}) {
   const byVar = new Map(g.nodes.map((n) => [n.var, n]));
   const attrsOf = new Map();
   for (const a of g.attrs || []) {
@@ -145,7 +145,8 @@ export function drawGraph(g, { highlight = new Set(), dashed = new Set(), onPick
     const grp = el('g', { class: cls.join(' '), transform: `translate(${p.cx - p.w / 2},${p.y})`, tabindex: 0, 'data-var': n.var });
     grp.append(el('rect', { width: p.w, height: p.h, rx: 7 }));
     size.get(n.var).lines.forEach((l, k) => {
-      const edit = k === 0 ? onConcept && ((ev) => onConcept(n.var, ev)) : l.attr && onAttr && ((ev) => onAttr(l.attr, ev));
+      const edit = k === 0 ? onConcept && ((ev) => onConcept(n.var, ev)) : k === 1 ? onSpan && ((ev) => onSpan(n.var, ev))
+        : l.attr && onAttr && ((ev) => onAttr(l.attr, ev));
       const t = el('text', { x: PAD_X, y: 17 + k * LINE, class: `${l.cls}${edit ? ' editable' : ''}` });
       t.textContent = l.text;
       if (edit) t.addEventListener('click', (ev) => { ev.stopPropagation(); edit(ev); });

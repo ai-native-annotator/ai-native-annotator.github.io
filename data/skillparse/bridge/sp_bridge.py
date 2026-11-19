@@ -1358,7 +1358,8 @@ class RegistryEngine:
         skill = self._review_skill(name)
         work, align, g = self._working_graph(i)
         sent = self.doc.sents[int(i)]
-        inputs = {"graph": work, "alignment": align, "changes": jsonable(changes or []), "index": sent.index}
+        inputs = {"graph": work, "alignment": align, "changes": jsonable(changes or []), "index": sent.index,
+                  "length": len(sent.tokenized_text)}
         out = self._skill_module(skill).run(**{k: v for k, v in inputs.items() if k in skill.input})
         self._check_emit(skill, out)
         return work, align, g, out

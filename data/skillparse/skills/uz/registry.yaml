@@ -331,6 +331,7 @@ user_panel:
       alignment: dict           # 变量 → [首, 尾]
       changes: list[dict]
       index: int                # 句号：新节点的变量名 s<句号>…
+      length: int               # 这一句有几个 token：检查 span
     emit:
       graph: str
       alignment: dict

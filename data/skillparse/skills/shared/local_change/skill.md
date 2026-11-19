@@ -40,6 +40,8 @@ language of the comment).
 | `add_relation` | `source`, `role`, `target` | an edge between two nodes that exist (or were added before): a re-entrancy, or the second half of a move |
 | `delete_relation` | `source`, `role`, `target` | an edge goes, as the graph has it |
 | `set_attribute` | `var`, `attribute`, `value` | adds, changes or (with `value` null) deletes an attribute: `aspect`, `modstr`, `polarity`, `refer-number`, `refer-person`, `mode`, `quant`, `op1`, … |
+| `set_span` | `var`, `span` (`[first, last]`, or `null`) | the words the node is aligned to change: a node that stands for several words (a compound verb, a multi-word expression) gets the span of all of them |
+| `merge_nodes` | `var`, `into`, `concept` (optional) | two nodes that are one concept become one: `var` goes into `into`, which takes its edges and attributes, is aligned to the words of both, and gets the new `concept` when one is given (`sovg'a` + `qil` → `sovg'a-qil`) |
 
 - **Complete, down to the leaves.** A node you add is written as a whole: a named entity with its
   `name` node and that node's `op` attributes; an event with its `aspect` and `modstr` and the
