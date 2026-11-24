@@ -417,3 +417,10 @@ body[data-mode="apprentice"] .focus { overflow: auto; }
 .graph-svg .editable:hover { text-decoration: underline; fill: var(--accent); }
 .fx-pop { position: fixed; z-index: 60; background: var(--panel); border: 1px solid var(--accent); border-radius: var(--radius-sm); box-shadow: var(--shadow-md); padding: 4px; }
 .fx-pop-input { width: 12em; font-family: var(--mono); font-size: 12px; }
+.fx-flags { border: 1px solid var(--hi); background: var(--hi-soft); border-radius: var(--radius); padding: 6px 10px; }
+.fx-flags-head { font-weight: 600; font-size: 12.5px; }
+.fx-flags ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.fx-flag { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; font-size: 12.5px; }
+.fx-flag-kind { color: var(--muted); }
+.fx-flag.doubt .fx-flag-kind { color: var(--hi); font-weight: 600; }
+.fx-flagged { margin-left: auto; color: var(--hi); font-size: 11px; white-space: nowrap; }

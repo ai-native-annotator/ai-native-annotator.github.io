@@ -37,7 +37,8 @@ addStrings({
   fxStartHelp: '这篇文档 {n} 句，还没有标注。点一下，「{model}」一次写出整篇的图、对齐和文档级标注，然后一句一句改。', fxGenerateFrom: '从这一句起继续生成', fxGenerateOne: '只生成这一句',
   fxNeedKey: '整篇生成要用「{model}」，还没有能用的 key。', fxOpenSettings: '去设置里填 key',
   fxRegen: '↻ 重新生成这句', fxRegenHint: '可以写一句提示（可不写）', fxNext: '确认，下一句', fxPrev: '上一句', fxAllDone: '每一句都看过了，可以导出。',
-  fxUmr: 'UMR 文本', fxGraph: '图（点开看）', fxDoc: '文档级关系', fxDocNone: '这一句还没有文档级关系。', fxFromEvent: '来自事件的 modstr（在图里改）',
+  fxUmr: 'UMR 文本', fxGraph: '图（点开看）', fxFlags: '这一句有 {n} 处值得先看',
+  fxFlag: { doubt: '模型不确定', problem: '检查发现', unfinished: '还没展开', 'no-frame': 'PropBank 里没有这个义项', role: '框架里没有这个角色', 'no-aspect': '事件没有 aspect', unaligned: '没有对着任何字', 'no-time': '事件没有时间关系' }, fxDoc: '文档级关系', fxDocNone: '这一句还没有文档级关系。', fxFromEvent: '来自事件的 modstr（在图里改）',
   fxAddRel: '＋ 加一条关系', fxAdd: '加上', fxDelete: '删掉', fxOtherSent: '句{n}', fxPick: '（选一个）',
   fxGroup: { temporal: '时间', modal: '情态', coref: '共指' },
   fxConst: { author: '作者', 'document-creation-time': '文档创建时间', root: 'root', 'null-conceiver': '无 conceiver' },
@@ -56,7 +57,8 @@ addStrings({
   fxStartHelp: 'This document has {n} sentences and no annotation yet. One click, and “{model}” writes the whole document (graphs, alignment, document-level annotation); then you correct it sentence by sentence.', fxGenerateFrom: 'Go on generating from this sentence', fxGenerateOne: 'Generate this sentence only',
   fxNeedKey: 'The document is generated with “{model}”, and no key reaches it yet.', fxOpenSettings: 'Add a key in Settings',
   fxRegen: '↻ Generate this sentence again', fxRegenHint: 'A hint, if you like', fxNext: 'Right, next sentence', fxPrev: 'Previous', fxAllDone: 'Every sentence has been checked: ready to export.',
-  fxUmr: 'UMR text', fxGraph: 'Drawing (open to see)', fxDoc: 'Document-level relations', fxDocNone: 'This sentence has no document-level relations yet.', fxFromEvent: "from the event's modstr (change it in the graph)",
+  fxUmr: 'UMR text', fxGraph: 'Drawing (open to see)', fxFlags: '{n} places of this sentence to look at first',
+  fxFlag: { doubt: 'the model was unsure', problem: 'found by the check', unfinished: 'not expanded yet', 'no-frame': 'PropBank has no such sense', role: 'not a role of the frame', 'no-aspect': 'an event without aspect', unaligned: 'aligned to no word', 'no-time': 'an event with no temporal relation' }, fxDoc: 'Document-level relations', fxDocNone: 'This sentence has no document-level relations yet.', fxFromEvent: "from the event's modstr (change it in the graph)",
   fxAddRel: '+ Add a relation', fxAdd: 'Add', fxDelete: 'Delete', fxOtherSent: 'snt {n}', fxPick: '(pick one)',
   fxGroup: { temporal: 'temporal', modal: 'modal', coref: 'coref' },
   fxConst: { author: 'author', 'document-creation-time': 'document creation time', root: 'root', 'null-conceiver': 'null conceiver' },
@@ -84,7 +86,8 @@ const ui = {
   log: [],                // the chat: {who: 'me' | 'ai' | 'note', text, item, proposal}
   proposal: null,         // the one being decided: {name, item, summary, changes, picked, results, tools}
   thinking: false,
-  graph: null,            // {key, g}: the shown sentence's graph
+  graph: null,            // {key, g, flags}: the shown sentence's graph, and where it is likely to need a look
+  counts: null,           // {key, list}: how many such places each sentence has
   previewed: '',          // what the preview on screen was made from
   tools: null,            // {key, calls}: the shown sentence's tool calls, once asked for
   nodes: null,            // {key, list}: the nodes a new relation may name
@@ -546,7 +549,31 @@ setInterval(() => {
   el.querySelector('.fx-bar').setAttribute('aria-valuenow', String(Math.round(p.fraction * 100)));
 }, 1000);
 
+/** The places of a sentence that are likely to need a look: what the model doubted, and what the checks found. */
+function flagsBlock(flags, g) {
+  if (!flags?.length) return null;
+  return h('div', { class: 'fx-flags' },
+    h('div', { class: 'fx-flags-head', text: t('fxFlags', { n: flags.length }) }),
+    h('ul', {}, flags.map((f) => h('li', { class: `fx-flag ${f.kind}` },
+      h('span', { class: 'fx-flag-kind', text: t(`fxFlag.${f.kind}`) }),
+      f.var ? h('button', { class: 'btn sm link', title: f.var, text: `「${f.text}」`, onclick: () => nameInChat(g, f.var) }) : null,
+      f.note ? h('span', { class: 'fx-flag-note', text: f.note }) : null))));
+}
+
+/** How many such places each sentence has, for the list (asked again when the results change). */
+async function countFlags() {
+  const key = `${docKey()}|${S.graphStamp}`;
+  if (ui.counts?.key === key || S.running > 0) return;
+  ui.counts = { key, list: ui.counts?.list || [] };
+  const list = await py('flag_counts').catch(() => null);
+  if (!list || ui.counts.key !== key) return;
+  ui.counts.list = list;
+  const el = document.querySelector('#focus .fx-list');
+  if (el && S.mode === 'expert') drawList(el);
+}
+
 function drawList(el) {
+  const flagged = ui.counts?.list || [];
   const seen = reviewed();
   clear(el,
     h('div', { class: 'fx-progress' }, h('span', { text: t('fxProgress', { done: seen.size, n: total() }) }),
@@ -555,7 +582,8 @@ function drawList(el) {
       const writing = S.generating && i >= S.generating.from && i <= S.generating.upto && !hasGraph(i);
       return h('li', { 'aria-selected': String(i === S.item), class: seen.has(i) ? 'seen' : hasGraph(i) ? 'made' : 'new', onclick: () => go(i) },
         writing ? h('span', { class: 'spinner sm' }) : h('span', { class: 'fx-dot', text: seen.has(i) ? '✓' : hasGraph(i) ? '●' : '○' }),
-        h('span', { class: 'fx-num', text: i + 1 }), h('span', { class: 'fx-text', text: s.text }));
+        h('span', { class: 'fx-num', text: i + 1 }), h('span', { class: 'fx-text', text: s.text }),
+        flagged[i] ? h('span', { class: 'fx-flagged', title: t('fxFlags', { n: flagged[i] }), text: `⚠${flagged[i]}` }) : null);
     })));
 }
 
@@ -573,13 +601,14 @@ async function drawMain(el) {
     try {
       const g = await sentenceGraph(i);
       if (S.item !== i || S.mode !== 'expert') return;
-      ui.graph = { key, g };
+      ui.graph = { key, g, flags: await py('sentence_flags', { i }).catch(() => []) };
     } catch (err) {
       clear(el, head, h('div', { class: 'err', text: err.message }));
       return;
     }
   }
-  clear(el, head, sentenceView(ui.graph.g, i));
+  clear(el, head, flagsBlock(ui.graph.flags, ui.graph.g), sentenceView(ui.graph.g, i));
+  countFlags();
 }
 
 function draw() {

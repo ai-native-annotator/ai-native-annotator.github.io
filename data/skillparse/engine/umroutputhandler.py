@@ -299,7 +299,8 @@ def fragment_of(x):
 def same_nodes(steps):
     """{step id: the step it is one node with}: two steps that write the same concept over the same
     span (the later into the first that is not its ancestor). A step writes a concept when it is a
-    predicate, np_phrase, special_entity or a sent_type leaf; its span is its input's."""
+    predicate, np_phrase, special_entity or a sent_type leaf; its span is its input's. A node
+    aligned to no word ([0, 0]) is never merged: two implied participants are two nodes."""
     parent = {x["id"]: x["parent"] for x in steps}
 
     def ancestors(node_id):
@@ -318,6 +319,8 @@ def same_nodes(steps):
         span = (x.get("input") or {}).get("span")
         if not g or not isinstance(g[0], dict) or not span:
             continue
+        if g[0].get("span") == [0, 0]:
+            continue        # a node said to stand for no word (an implied participant) is nobody's double
         key = (tuple(span), _concept(g[0].get("concept")))
         into = next((k for k in kept.get(key, []) if k not in ancestors(x["id"])), None)
         if into is not None:

@@ -24,7 +24,13 @@ Each sentence is written exactly as this procedure writes one sentence alone. It
 - `graph`: its penman graph; every variable starts with `s` and that sentence's number (`s3x`);
 - `alignment`: `{{variable: [first token, last token]}}`, counted in that sentence's own tokens;
 - `document`: its document-level annotation, `(s<index>s0 / sentence :temporal (...) :modal (...)
-  :coref (...))`.
+  :coref (...))`;
+- `doubts`: the places of this sentence you are least sure of, for the person who will check it:
+  at most three, each `{{"var": <a variable of this sentence>, "note": <one sentence: what is
+  uncertain and what the alternative is>}}`, in the language of the document. A sense you could not
+  confirm, a role or an attachment with two readings, a doubtful coreference or temporal relation,
+  a name you may have typed wrongly. `[]` when you are sure of the sentence. Be honest: a person
+  looks at these places first.
 
 A document-level relation between two sentences is written **with the later sentence** (the one
 whose node is the second mention), and names the earlier sentence's node by its variable there: a

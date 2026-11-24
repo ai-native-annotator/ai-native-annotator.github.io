@@ -86,6 +86,10 @@ const check = (label, ok, extra = '') => {
   await page.click('.fx-sentences li >> nth=1');
   await page.waitForFunction(() => /第 2 句/.test(document.querySelector('.fx-title')?.textContent || ''));
   await page.waitForSelector('.fx-rel');
+  const flags = await page.$$eval('.fx-flag', (e) => e.map((x) => x.textContent));
+  check('the places to look at first are listed: what the model said it doubted, and what the checks found (a sense PropBank lacks)',
+    flags.some((f) => /模型不确定「它」义项不确定：也可能是 02/.test(f)) && flags.some((f) => /PropBank 里没有这个义项/.test(f)), flags.join(' | '));
+  check('and the list of sentences counts them', /⚠\d/.test(await page.textContent('.fx-sentences li >> nth=1')), await page.textContent('.fx-sentences li >> nth=1'));
   check("the UMR text is the sentence's graph and then its document-level annotation as the file writes it; the drawing is folded",
     /\(s2x \/ 它-01[\s\S]*\(s2s0 \/ sentence[\s\S]*:coref \(\(s1x :same-event s2x\)\)/.test(await page.textContent('.fx-umr pre'))
       && await page.evaluate(() => document.querySelector('.fx-umr').open && !document.querySelector('.fx-graph').open));

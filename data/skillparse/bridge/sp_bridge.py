@@ -1191,6 +1191,8 @@ class RegistryEngine:
                 node = ep["nodes"][nid]
                 if node["skill"] == GENERATE:
                     node["retried"] = True          # nobody to ask again: an answer that does not fit is an error
+                    # what the model said it is least sure of in this sentence (sentence_flags shows it)
+                    node["doubts"] = [d for d in it.get("doubts") or [] if isinstance(d, dict) and str(d.get("note") or "").strip()][:5]
                     blank = {"alignment": {}, "document": "", "graph": ""}
                     self.complete(GENERATE_WAVE, i, nid, {k: it.get(k) if it.get(k) is not None else blank.get(k)
                                                           for k in self.reg.skills[GENERATE].emit}, model)
@@ -1295,6 +1297,89 @@ class RegistryEngine:
         if lo:
             return ("" if self.doc.lang == "zh" else " ").join(self.doc.sents[k].tokenized_text[lo - 1:hi])
         return parts[k]["concepts"].get(var, str(var))
+
+    def sentence_flags(self, i):
+        """Where sentence i's annotation is likely to need a look, for a person correcting it
+        (expert mode): [{kind, var, text, note}], var and text (its words) when it is about a node.
+
+          doubt      what the model that generated the sentence said it was least sure of
+          problem    what the check of the generated sentence, or its loading into steps, reported
+          unfinished a placeholder whose step is not done: the node is only its text
+          no-frame   an event whose sense PropBank does not have (zh, en), or written with sense 00
+          role       a numbered role the event's roleset does not list
+          no-aspect  an event without an aspect
+          unaligned  a node with a concept of its own that is aligned to no word
+          no-time    an event no temporal relation of the sentence mentions
+        """
+        from umroutputhandler import ABSTRACT
+        i = int(i)
+        g = self.graph(i, auto_align=False)
+        flags = []
+        by_var = {n["var"]: n for n in g["nodes"]}
+
+        def flag(kind, var=None, note=""):
+            n = by_var.get(var) or {}
+            flags.append({"kind": kind, "var": var if var in by_var else None,
+                          "text": (self._words(n) or n.get("concept") or "") if n else "", "note": str(note)[:300]})
+
+        for n in self._steps(GENERATE_WAVE, i):
+            for d in n.get("doubts") or []:
+                flag("doubt", str(d.get("var") or "").strip(), d.get("note"))
+            if n["skill"] == CONVERT and n["status"] == "ok":
+                for p in ((n.get("output") or {}).get("problems") or []) + ((n.get("applied") or {}).get("problems") or []):
+                    if not str(p).startswith("not aligned"):        # each such node is listed below
+                        flag("problem", None, p)
+        aspect = {a["var"] for a in g["attrs"] if a["role"] == "aspect"}
+        timed = {x for r in g["doc"] if r["group"] == "temporal" for x in (r["a"], r["b"])}
+        rolesets = None
+        if self.doc.lang in ("zh", "en"):
+            tools = {t.__name__: t for t in skill_tools(self.reg.skills["predicate"].path)} if "predicate" in self.reg.skills else {}
+            module = sys.modules.get(tools["propbank_lookup"].__module__) if "propbank_lookup" in tools else None
+            rolesets = getattr(module, "_rolesets", None)
+        for n in g["nodes"]:
+            v, concept = n["var"], str(n["concept"])
+            if n.get("unfilled"):
+                flag("unfinished", v)
+                continue
+            m = re.fullmatch(r"(.+)-(\d\d)", concept)
+            event = bool(m) and not re.search(r"-9\d$", concept)
+            if event and rolesets:
+                try:
+                    known = {r["roleset"]: r for r in rolesets(m.group(1), self.doc.lang)}
+                except Exception:
+                    known = None                # PropBank could not be read: nothing to say
+                if known is not None:
+                    frame = known.get(concept)
+                    if frame is None:
+                        flag("no-frame", v, ", ".join(sorted(known)) or "")
+                    else:
+                        used = {e["role"] for e in g["edges"] if e["src"] == v and re.fullmatch(r"ARG\d", e["role"])}
+                        extra = sorted(used - set(frame.get("roles") or {}))
+                        if extra:
+                            flag("role", v, "%s: %s" % (concept, ", ".join(extra)))
+            if event and v not in aspect:
+                flag("no-aspect", v)
+            if event and n.get("skill") == "predicate" and v not in timed:
+                flag("no-time", v)
+            if n["align"] == "0-0" and concept != "name" and not ABSTRACT.match(concept) and not event:
+                flag("unaligned", v)
+            elif n["align"] == "0-0" and event:
+                flag("unaligned", v)
+        return flags
+
+    def _words(self, n):
+        """A graph node's words as they are written (Chinese without spaces between its characters)."""
+        return str(n.get("words") or "").replace(" ", "") if self.doc.lang == "zh" else str(n.get("words") or "")
+
+    def flag_counts(self):
+        """How many flags each sentence that has a graph has (sentence_flags), for the list of sentences."""
+        out = []
+        for i in range(len(self.doc.sents)):
+            try:
+                out.append(len(self.sentence_flags(i)) if (self.eps.get(SENTENCE_WAVE) or {}).get(i) else 0)
+            except Exception:
+                out.append(0)
+        return out
 
     def sentence_tools(self, i):
         """Every tool call of sentence i's steps, without the results (tool_result has one)."""

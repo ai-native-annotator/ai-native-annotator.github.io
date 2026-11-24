@@ -88,6 +88,8 @@ module.exports = function mocks() {
       const next = sentences[k + 1];
       const coref = next ? ` :coref ((${v} :same-event s${next.n}x))` : '';
       return { index: n, graph: `(${v} / ${tok}-01 :aspect state)`, alignment: { [v]: [1, 1] },
+        // the model says what it is least sure of in its second sentence
+        doubts: n === 2 ? [{ var: v, note: '义项不确定：也可能是 02' }] : [],
         document: `(s${n}s0 / sentence :temporal ((document-creation-time :before ${v})) :modal ((root :modal author) (author :full-affirmative ${v}))${coref})` };
     }) };
   }
