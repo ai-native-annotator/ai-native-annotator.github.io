@@ -4,7 +4,7 @@
  *
  *   setup   the repository, branch and file; the open pull requests that annotate it; start
  *   left    the sentences: agreed by all (taken as they are), decided, still open
- *   middle  how much the annotators agree (Smatch over the paired nodes, bridge/iaa.py); for the
+ *   middle  how much the annotators agree (AnCast++, run in the page's Python: bridge/iaa.py); for the
  *           sentence on screen two annotations side by side, the lines that differ marked, the
  *           list of differences, what a model says about each (user_panel compare_annotations),
  *           and what the merged version has for it: one annotator's, or that changed by hand
@@ -17,7 +17,7 @@
 
 import { h, clear, toast, openModal, closeModal } from './ui.js';
 import { S, SENTENCE_WAVE, onRender, render, selectWave, selectItem, sentenceGraph, runPanel, afterChange, assembled, status } from './core.js';
-import { py } from './py.js';
+import { py, loadPackages } from './py.js';
 import { lineDiff } from './diff.js';
 import { importDocument, openImported } from './dialogs.js';
 import { annotationPulls, fileText, docSource, umrPath, mergeModerated } from './github.js';
@@ -32,8 +32,8 @@ addStrings({
   moSetupDesc: '每位标注者用「GitHub ▾ → 提交我的标注」为同一个文件各开一个 pull request。这里把它们取下来逐句比较：一致的句子直接采用，不一致的由你决定用谁的，或者自己改；最后把定下来的版本合并进主分支。',
   moFind: '找这个文件的标注', moNone: '这个文件现在没有打开的标注 pull request。', moStart: '开始审定（{n} 份）', moNeedTwo: '至少要两份标注才能比较。',
   moFetching: '正在取 #{n}（{login}）…', moComparing: '正在比较…', moTaking: '一致的句子直接采用：{k}/{n}', moNoFile: '#{n} 里没有 {path}',
-  moProgress: '已定 {done}/{n} 句', moMerge: '合并进 {base}…', moAgreement: '一致性（{n} 句）', moPair: '比较', moGraphF: '句级图 Smatch F', moDocF: '文档级关系 F', moSame: '完全一致的句子',
-  moSentence: '第 {n} 句', moAllSame: '几份标注完全一致，已直接采用。', moDiffer: '这一句的 Smatch F：{f}（文档级 {d}）',
+  moProgress: '已定 {done}/{n} 句', moMerge: '合并进 {base}…', moAgreement: '一致性（AnCast++，{n} 句）', moPair: '比较', moSent: '句级图', moModal: '情态', moTemporal: '时间', moCoref: '共指', moComp: '综合', moSame: '完全一致的句子', moSentF: '这一句的 AnCast F', moAncast: 'AnCast++（Sun & Xue 2024）的 F：句级图是带标签关系的 F；情态、时间、共指按文档算；综合是四项合在一起。',
+  moSentence: '第 {n} 句', moAllSame: '几份标注完全一致，已直接采用。', moDiffer: '这一句的 AnCast F：{f}（概念 {c}）', moNoGraph: '有一份标注这一句没有图。',
   moUse: '用这一份', moUsed: '✓ 现在用的是这一份', moOpenPr: 'pull request #{n}', moDocLevel: '文档级标注',
   moDifferences: '差别（{n} 处）', moNoDifferences: '按三元组比，这两份没有差别。', moOnlyA: '只有 {a} 有', moNothing: '（没有）',
   moKind: { node: '节点', concept: '概念', attribute: '属性', alignment: '对齐', role: '关系标签', relation: '关系', top: '根', document: '文档级关系', 'document-label': '文档级关系的标签', unreadable: '读不了' },
@@ -49,8 +49,8 @@ addStrings({
   moSetupDesc: 'Each annotator opens a pull request for the same file with “GitHub ▾ → Submit my annotation”. Here they are fetched and compared sentence by sentence: sentences everybody agrees on are taken as they are; for the others you decide whose to use, or change it yourself; then the version you decided on is merged into the base branch.',
   moFind: 'Find the annotations of this file', moNone: 'No open pull request annotates this file.', moStart: 'Start moderating ({n} annotations)', moNeedTwo: 'Comparing takes at least two annotations.',
   moFetching: 'Fetching #{n} ({login}) …', moComparing: 'Comparing …', moTaking: 'Sentences everybody agrees on are taken: {k}/{n}', moNoFile: '#{n} has no {path}',
-  moProgress: '{done} of {n} sentences decided', moMerge: 'Merge into {base}…', moAgreement: 'Agreement ({n} sentences)', moPair: 'Compared', moGraphF: 'Sentence graphs, Smatch F', moDocF: 'Document-level relations, F', moSame: 'Identical sentences',
-  moSentence: 'Sentence {n}', moAllSame: 'The annotations are identical; taken as it is.', moDiffer: 'Smatch F of this sentence: {f} (document level {d})',
+  moProgress: '{done} of {n} sentences decided', moMerge: 'Merge into {base}…', moAgreement: 'Agreement (AnCast++, {n} sentences)', moPair: 'Compared', moSent: 'Sentence graphs', moModal: 'Modal', moTemporal: 'Temporal', moCoref: 'Coreference', moComp: 'Comprehensive', moSame: 'Identical sentences', moSentF: 'AnCast F of this sentence', moAncast: 'F scores of AnCast++ (Sun & Xue 2024): sentence graphs by labeled relations; modal, temporal and coreference over the document; comprehensive is the four together.',
+  moSentence: 'Sentence {n}', moAllSame: 'The annotations are identical; taken as it is.', moDiffer: 'AnCast F of this sentence: {f} (concepts {c})', moNoGraph: 'One of the annotations has no graph for this sentence.',
   moUse: 'Use this one', moUsed: '✓ This is the one in use', moOpenPr: 'pull request #{n}', moDocLevel: 'Document level',
   moDifferences: 'Differences ({n})', moNoDifferences: 'Compared triple by triple, the two do not differ.', moOnlyA: 'only {a} has it', moNothing: '(nothing)',
   moKind: { node: 'node', concept: 'concept', attribute: 'attribute', alignment: 'alignment', role: 'role', relation: 'relation', top: 'top', document: 'document-level relation', 'document-label': 'document-level label', unreadable: 'cannot be read' },
@@ -63,6 +63,8 @@ addStrings({
 });
 
 const KEEP = 'skillparse_moderation';
+/** AnCast++'s scores of two annotations of a document, as the table shows them. */
+const SCORES = ['sent', 'modal', 'temporal', 'coref', 'comp'];
 const COMPARE = 'compare_annotations';
 const ui = { doc: '', summary: null, opening: null, pulls: null, src: null, busy: '', err: '', detail: null, drawn: '', switching: false, asking: null,
   starting: false, other: false, fields: null };
@@ -81,7 +83,7 @@ function update(fn) {
   return s;
 }
 
-const pct = (x) => (x * 100).toFixed(1);
+const pct = (x) => (x === null || x === undefined ? '–' : (x * 100).toFixed(1));
 const total = () => S.desc?.doc?.sents?.length || 0;
 const hash = (text) => { let n = 0; for (let k = 0; k < text.length; k++) n = (n * 31 + text.charCodeAt(k)) | 0; return n; };
 const resultText = (g) => `${g?.penman || ''}\n${g?.document || ''}`;
@@ -96,6 +98,12 @@ const chosen = (s) => Object.fromEntries(Object.entries(s.taken).map(([k, v]) =>
 const edited = (s) => Object.entries(s.taken).filter(([, v]) => v.edited).map(([k]) => Number(k));
 
 // ------------------------------------------------------------------ setup
+
+/** The annotations compared by AnCast++ in the page's Python (bridge/iaa.py), which needs numpy. */
+async function compare(annotators) {
+  await loadPackages(['numpy']);
+  return py('iaa_open', { annotations: annotators.map((a) => ({ name: a.name, text: a.text })) });
+}
 
 async function find(fields) {
   ui.err = '';
@@ -129,7 +137,7 @@ async function start() {
     ui.busy = t('moComparing');
     render();
     // the comparison first: annotations that are not of the same document stop here
-    const summary = await py('iaa_open', { annotations: annotators.map((a) => ({ name: a.name, text: a.text })) });
+    const summary = await compare(annotators);
     const name = `${path.split('/').pop().replace(/\.umr$/i, '')}.moderated`;
     const res = await importDocument({ name, text: annotators[0].text, fmt: 'umr' });
     docSource(res.id, src);
@@ -172,7 +180,7 @@ async function takeAgreed(summary) {
 
 /** The comparison made again after the page was loaded again; decisions whose work was not kept are dropped. */
 async function reopenComparison(s) {
-  const summary = await py('iaa_open', { annotations: s.annotators.map((a) => ({ name: a.name, text: a.text })) });
+  const summary = await compare(s.annotators);
   const items = await py('items', { w: SENTENCE_WAVE });
   if (Object.keys(s.taken).length && items.every((x) => x.status === 'new')) {
     update((x) => { x.taken = {}; });
@@ -315,9 +323,10 @@ function agreement(s) {
       ui.detail = null; ui.drawn = ''; render();
     } }, names.map((n) => h('option', { value: n, text: n, selected: n === cur }))))) : null;
   return h('details', { class: 'md-agreement', open: true }, h('summary', { text: t('moAgreement', { n: ui.summary.count }) }),
-    h('table', { class: 'legend md-table' }, h('thead', {}, h('tr', {}, h('th', {}), h('th', { text: t('moGraphF') }), h('th', { text: t('moDocF') }), h('th', { text: t('moSame') }))),
+    h('table', { class: 'legend md-table', title: t('moAncast') }, h('thead', {}, h('tr', {}, h('th', {}), SCORES.map((k) => h('th', { text: t(`mo${k[0].toUpperCase()}${k.slice(1)}`) })), h('th', { text: t('moSame') }))),
       h('tbody', {}, ui.summary.pairs.map((p) => h('tr', { class: p.a === a && p.b === b ? 'on' : '' },
-        h('td', { text: `${p.a} · ${p.b}` }), h('td', { text: pct(p.graph.f) }), h('td', { text: pct(p.document.f) }), h('td', { text: `${p.same}/${ui.summary.count}` }))))),
+        h('td', { text: `${p.a} · ${p.b}` }), SCORES.map((k) => h('td', { text: pct(p[k]) })), h('td', { text: `${p.same}/${ui.summary.count}` }))))),
+    h('div', { class: 'note', text: t('moAncast') }),
     pickers);
 }
 
@@ -347,7 +356,7 @@ async function drawMain(el) {
   clear(el, agreement(now),
     h('div', { class: 'fx-title' }, h('strong', { text: t('moSentence', { n: i + 1 }) }), h('span', { class: 'note', text: `/ ${total()}` })),
     h('div', { class: 'fx-sentence', text: S.desc.doc.sents[i]?.text || '' }),
-    h('div', { class: info.same ? 'md-same' : 'note', text: info.same ? t('moAllSame') : t('moDiffer', { f: pct(d.scores.graph.f), d: pct(d.scores.document.f) }) }),
+    h('div', { class: info.same ? 'md-same' : 'note', text: info.same ? t('moAllSame') : d.scores.f === null ? t('moNoGraph') : t('moDiffer', { f: pct(d.scores.f), c: pct(d.scores.concept) }) }),
     h('div', { class: 'md-cols' }, column('a', d.a, d, now, i), column('b', d.b, d, now, i)),
     differences(d, a, b),
     d.differences.length ? remarks(now, i, a, b, differing) : null,
@@ -370,7 +379,7 @@ function drawList(el) {
       return h('li', { 'aria-selected': String(i === S.item), class: tk ? (tk.agreed ? 'seen' : 'made') : 'new', onclick: () => selectItem(i) },
         h('span', { class: 'fx-dot', text: tk ? (tk.agreed ? '✓' : '●') : '○' }),
         h('span', { class: 'fx-num', text: i + 1 }), h('span', { class: 'fx-text', text: x.text }),
-        x.same ? null : h('span', { class: 'md-f', title: t('moGraphF'), text: pct(pair?.sentences[i]?.f ?? 0) }),
+        x.same ? null : h('span', { class: 'md-f', title: t('moSentF'), text: pct(pair?.sentences[i]?.f) }),
         tk && !tk.agreed ? h('span', { class: 'md-by', text: tk.edited ? `${tk.from}✎` : tk.from }) : null);
     })),
     h('div', { class: 'md-leave' }, h('button', { class: 'btn sm ghost', text: t('moLeave'), onclick: () => { ui.other = true; ui.drawn = ''; render(); } })));
@@ -382,8 +391,8 @@ function drawList(el) {
 function mergeBody(s) {
   const lines = [`Adjudicated UMR annotation of \`${umrPath(s.src.path)}\`, made with the SkillParse workbench (Moderate mode).`, '',
     '### Annotations compared', '', ...s.annotators.map((a) => `- ${a.name}: #${a.number} (${a.sha.slice(0, 7)})`), '',
-    '### Agreement', '', '| Pair | Sentence graphs (Smatch F) | Document-level relations (F) | Identical sentences |', '|---|---|---|---|',
-    ...ui.summary.pairs.map((p) => `| ${p.a} · ${p.b} | ${pct(p.graph.f)} | ${pct(p.document.f)} | ${p.same}/${ui.summary.count} |`), '',
+    '### Agreement (AnCast++ F)', '', '| Pair | Sentence | Modal | Temporal | Coreference | Comprehensive | Identical sentences |', '|---|---|---|---|---|---|---|',
+    ...ui.summary.pairs.map((p) => `| ${p.a} · ${p.b} | ${SCORES.map((k) => pct(p[k])).join(' | ')} | ${p.same}/${ui.summary.count} |`), '',
     '### Decisions', ''];
   const by = {};
   let agreed = 0;

@@ -3,7 +3,7 @@
  * The Python side of index.html, in a Web Worker.
  *
  * Loads Pyodide, writes SkillParseUMR's files into its file system under /sp
- * (data/skillparse/MANIFEST.json says which file here holds each path there), unpacks the vendored penman, and answers
+ * (data/skillparse/MANIFEST.json says which file here holds each path there), unpacks the vendored penman and ancast, and answers
  * {id, method, args} messages by calling sp_bridge.call(method, json). The skills run
  * here exactly as they run from the command line; nothing in the page evaluates them.
  *
@@ -12,6 +12,7 @@
 
 const PYODIDE = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/';
 let call = null;
+let pyodide = null;
 
 function progress(text) {
   postMessage({ type: 'progress', text });
@@ -27,6 +28,7 @@ async function boot(base) {
   progress('loading Python (Pyodide) …');
   importScripts(`${PYODIDE}pyodide.js`);
   const py = await loadPyodide({ indexURL: PYODIDE });
+  pyodide = py;
   progress('loading PyYAML …');
   await py.loadPackage(['pyyaml']);
 
@@ -43,7 +45,7 @@ async function boot(base) {
     py.FS.writeFile(dest, texts.get(src));
   }
 
-  progress('unpacking penman …');
+  progress('unpacking penman, ancast …');
   py.FS.mkdirTree('/sp/vendor');
   for (const v of manifest.vendor) {
     const buf = await fetchOk(root + v, 'buffer');
@@ -69,6 +71,11 @@ self.onmessage = async ({ data }) => {
       return;
     }
     if (!call) throw new Error('Python is not loaded yet');
+    if (method === '__packages') {          // a Pyodide package something needs later (numpy, for AnCast)
+      await pyodide.loadPackage(args.names);
+      postMessage({ id, ok: true });
+      return;
+    }
     const res = call(method, args);
     postMessage({ id, ...res });
   } catch (err) {

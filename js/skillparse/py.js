@@ -44,6 +44,14 @@ export async function bootPython() {
   return send('__boot', { base });
 }
 
+/** Pyodide packages loaded when something first needs them (numpy for AnCast): once each. */
+const packages = new Map();
+export function loadPackages(names) {
+  const key = names.join();
+  if (!packages.has(key)) packages.set(key, send('__packages', { names }).catch((err) => { packages.delete(key); throw err; }));
+  return packages.get(key);
+}
+
 export function py(method, args = {}) {
   if (!worker) return Promise.reject(new Error('Python is not loaded'));
   return send(method, args);

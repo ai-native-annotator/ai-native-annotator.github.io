@@ -530,7 +530,7 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 多人标注同一个文件，审定全程用 git。浏览器直接调 `api.github.com`，token 和别的 key 一起存在 `localStorage`（`annotator_secrets.github`），不经过任何服务器。
 
 1. **标注者**（`github-ui.js`）：`openFromGitHub()` 列出仓库某分支上的 `.txt` / `.umr`（git trees），取下来 `importDocument()`，并记下它的来源（`docSource(id)`：`{owner, repo, base, path}`，存在 `skillparse_github_docs`）。`submitAnnotation(src, text)`：有写权限就在原仓库、否则先 fork，在分支 `annotate/<login>/<文件>` 上写 `umrPath(path)`（`a.txt` → `a.umr`），向 `base` 开 pull request；这个分支已有打开的 pull request 时只更新文件。pull request 正文里带一行 `<!-- skillparse-annotation path="…" -->`，审定人靠它找（手工开的 pull request 按它改动的文件找）。
-2. **比较**（`bridge/iaa.py`，`Session.iaa_open(annotations)`）：每两位标注者、每一句，按 Smatch 的办法把两张图的节点配对（`pair_nodes`：先把同概念、同 span 的配上，再爬山，使相同的三元组最多：instance、attribute、relation、top），得到分数（P/R/F）、**差别清单**（`Pair.differences`：只有一边有的节点、概念不同、属性不同、关系标签不同、对齐不同、只有一边有的关系、文档级关系只有一边有或标签不同）和「把 B 的变量改成 A 的名字」的文本（`Pair.renamed`，并排对照用）。文档级关系的两端按全文的配对换成同一套名字再比。
+2. **比较**（`bridge/iaa.py`，`Session.iaa_open(annotations)`）：用 AnCast++（`vendor/ancast-0.1.1`，MIT，原样打包；它要 numpy，页面第一次比较前用 `loadPackages(['numpy'])` 让 Pyodide 取）。每两位标注者建一个 `DocumentMatch`（默认参数），每一句建 AnCast 的 `Sentence` 和 `MatchResolution`（锚定相似的概念、沿邻居传播来配对节点），和 `ancast -s doc` 走同样的步骤，所以数值一样：句级（带标签关系的 F，微平均）、modal、temporal、coref（后两项按闭包）和综合 F；每句另有它自己的 `lbd_fscore`。不用爬山的 Smatch。由它的节点配对（`match_list01`）得到**差别清单**（`Pair.differences`：只有一边有的节点、概念不同、属性不同、关系标签不同、对齐不同、只有一边有的关系、文档级关系只有一边有或标签不同）和「把 B 的变量改成 A 的名字」的文本（`Pair.renamed`，并排对照用）。文档级关系的两端按全文的配对换成同一套名字再比。
 3. **合并版本是一篇普通文档**（`<文件>.moderated`，只有句子）。「用这一份」= `iaa_take(i, name, chosen, keep)`：那位标注者这一句的图、对齐、文档级标注经 `distribute_generated(..., any_order=True)` 放进 wave 0，照常转换成两波的步骤（不要求前面的句子先有）。`chosen` 是其余各句取自谁：这一句的文档级关系里指向别句节点的变量，按配对换成那一句所取标注里的变量，对不上的不带过来（`dropped`）；后面已经取了、又指向这一句的句子按同样办法重放一遍（手动改过的 `keep` 不动）。完全一致的句子开始时直接取第一位的。
 4. **模型的看法**：`user_panel` 的 `compare_annotations`（`panel_start(name, i, pair=[a, b])`，输入里的 `annotations`、`differences` 来自 `iaa.CURRENT.prompt`），回答 `differences`（每处 `{about, a, b, prefer: A | B | either | neither, why}`）和 `summary`。只显示，不改任何东西。
 5. **手动改**：切到专家模式改这一句。审定界面记着每句取来时的文本（`taken[i].mark`），再看到时不一样了就标成「手动改过」。
@@ -549,7 +549,7 @@ GitHub Pages 允许浏览器把每个脚本缓存 10 分钟。网站刚更新时
 | `npm run test:browser -- skillparse-test.js` | 整个流程：启动、确认关卡、提示重跑、Penman、图、修改与 AI 反思、导出、英文流程、Anthropic key、运行动画、刷新后恢复 |
 | `npm run test:browser -- boot-recover-test.js` | 浏览器手里还是旧脚本时（新旧混用，模块图连不上），页面自己把脚本重新取一遍再刷新，然后正常启动 |
 | `npm run test:browser -- modes-test.js` | 专家模式（自动整篇生成、关系归到靠后的句子、按词显示和修改文档级关系、改本句、改全文并跳转、重新生成、下一句）和学徒模式（一步一步、讲解、手改、提示重跑、换句、进文档级） |
-| `npm run test:browser -- github-test.js` | GitHub 流程（GitHub 是脚本里的替身）：填 token、打开仓库里的文件、提交成 pull request（有写权限直接开分支，没有就 fork；再提交是更新）；审定模式找到两份标注、算一致性、一致的句子直接采用、有差别的并排显示并列出差别、模型讲差别；取某一份、换另一份、到专家模式手改；合并进主分支并关闭各自的 pull request；刷新后进度还在 |
+| `npm run test:browser -- github-test.js` | GitHub 流程（GitHub 是脚本里的替身）：填 token、打开仓库里的文件、提交成 pull request（有写权限直接开分支，没有就 fork；再提交是更新）；审定模式找到两份标注、用 AnCast++ 算一致性、一致的句子直接采用、有差别的并排显示并列出差别、模型讲差别；取某一份、换另一份、到专家模式手改；合并进主分支并关闭各自的 pull request；刷新后进度还在 |
 | `npm run test:browser -- skillparse-fullrun-test.js` | 导入、所有句子逐步跑完两波、导出、文本导入、载入已有标注（按词转按字、重跑载入的步骤、按字文件原样载入）、刷新后文档还在 |
 
 浏览器测试里的模型都是 `docs/verification/_skillparse-mocks.js` 里的替身，不需要 key。Pyodide 仍要从 CDN 下载。

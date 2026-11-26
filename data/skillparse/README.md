@@ -18,7 +18,8 @@ bridge/            the page's own Python (below)
 umr/               UMR's list of discourse relations
 docs/              sample documents, sentences only
 resources/         what the tools search; not loaded at boot (below)
-vendor/            penman 1.3.1 (MIT), unpacked into the Python path at boot
+vendor/            penman 1.3.1 (MIT) and ancast 0.1.1 (MIT; the moderate mode's agreement scores),
+                   unpacked into the Python path at boot
 ```
 
 **A procedure is `skills/<lang>/` laid over `skills/shared/`.** In `/sp/` each procedure is one
@@ -70,7 +71,8 @@ engine and the open document's sentences); the model does not see that parameter
   converted to characters; a file aligned by characters is read as it is.
 
 - `iaa.py` compares several people's annotation of the same document (moderate mode): for every two
-  of them the nodes of each sentence are paired as Smatch pairs them, which gives the scores, the
+  of them AnCast++ (vendor/ancast, with numpy from Pyodide) scores the document and pairs the nodes
+  of each sentence, which gives the scores, the
   list of differences, one annotation's text with the other's variable names, and the renaming of
   cross-sentence relations when a sentence is taken from one annotator into the merged document.
 

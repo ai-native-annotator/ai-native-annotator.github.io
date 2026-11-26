@@ -103,7 +103,7 @@ above.
 Settings, kept in this browser). An annotator opens a `.txt` or `.umr` file of a repository,
 annotates it, and submits it as a pull request from a branch of their own (a fork without write
 access). The moderator's page finds the pull requests for the file, computes how much they agree
-(Smatch over paired nodes, and the document-level relations), takes the sentences everybody agrees
+(AnCast++: sentence graphs, modality, temporal relations, coreference), takes the sentences everybody agrees
 on, and shows the others side by side with their differences listed and, on request, explained by
 a model; the moderator takes one annotator's sentence or changes it by hand, and the result is
 merged into the base branch through a pull request that records the comparison and the decisions.
@@ -190,7 +190,7 @@ Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<n
 
 **多人标注，用 git 审定**（顶栏的 GitHub ▾ 和「审定」模式；GitHub token 在设置里填，只存本机）：标注者打开仓库里的
 `.txt` 或 `.umr` 文件，标完提交成自己分支上的 pull request（没有写权限就从 fork 开）。审定人的页面找到这个文件的各个
-pull request，算一致性（节点配对后的 Smatch，以及文档级关系），一致的句子直接采用，有差别的并排显示、列出差别，
+pull request，用 AnCast++ 算一致性（句级图、情态、时间、共指），一致的句子直接采用，有差别的并排显示、列出差别，
 还可以让模型逐处讲解；审定人选某一位的，或者自己改，最后通过一个记录了比较和决定的 pull request 合并进主分支。
 
 **Key 存在哪**：只存本机 `localStorage`，浏览器直连模型服务（OpenRouter、Anthropic、OpenAI、TypeSafe），

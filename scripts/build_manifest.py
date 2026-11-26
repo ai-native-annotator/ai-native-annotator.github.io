@@ -14,7 +14,7 @@ OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
 LOADED = ["bridge", "docs", "engine", "umr", "skills"]      # resources/ is fetched when a tool needs it
 SHARED = "skills/shared/"
 NOT_A_PROCEDURE = ("shared", "tools")
-VENDOR = ["vendor/penman-1.3.1-py3-none-any.whl"]
+VENDOR = ["vendor/penman-1.3.1-py3-none-any.whl", "vendor/ancast-0.1.1-py3-none-any.whl"]
 
 
 def walk(folder):

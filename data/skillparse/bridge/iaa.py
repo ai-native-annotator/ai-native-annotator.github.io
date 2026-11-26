@@ -1,12 +1,14 @@
 """Several people's annotation of the same document, compared (the moderate mode).
 
-Each annotation is a .umr file's text. Two annotations of a sentence are compared the way Smatch
-does it: the nodes of one are paired with the nodes of the other so that as many triples as
-possible are the same (instance, attribute, relation, top), searched by hill climbing from a
-start that pairs nodes of the same concept on the same words. From that pairing come
+Each annotation is a .umr file's text. Two annotations are compared with AnCast++ (Sun and Xue
+2024; umr4nlp/ancast, vendored as it is released, run with its own defaults): for each sentence
+it pairs the concepts of the two graphs by anchoring the ones that are alike and broadcasting
+along their neighbours, and scores the labeled relations; over the document it scores the modal
+dependencies, and the temporal and coreference relations by their closures, and gives a
+comprehensive score. From its pairing of the nodes come
 
-  the scores      matched triples / triples of each side (precision, recall, F), per sentence and
-                  for the document; the same for the document-level relations
+  the scores      per sentence AnCast's labeled relation F; per document its sentence, modal,
+                  temporal, coreference and comprehensive F
   the differences a node only one has, a different concept, attribute, role or alignment, a
                   relation only one has, a document-level relation only one has or labelled differently
   B as A names it B's text with every paired variable renamed to A's, so the two texts can be read
@@ -83,103 +85,67 @@ def doc_text(number, relations):
     return "\n".join(lines) + ")"
 
 
-def pair_nodes(A, B):
-    """{a's variable: b's variable} that makes the most triples the same, and how many are."""
-    na, nb = list(A.concept), list(B.concept)
-    attrs_b = {}
-    for s, r, t in B.attrs:
-        attrs_b.setdefault(s, []).append((r, t))
-    base = {}
-    for a in na:
-        mine = [(r, t) for s, r, t in A.attrs if s == a]
-        row = base[a] = {}
-        for b in nb:
-            left = list(attrs_b.get(b, []))
-            n = 1 if A.concept[a] == B.concept[b] else 0
-            for x in mine:
-                if x in left:
-                    left.remove(x)
-                    n += 1
-            if a == A.top and b == B.top:
-                n += 1
-            row[b] = n
-    rels_b = set(B.rels)
-    incident = {a: [] for a in na}
-    for k, (s, r, t) in enumerate(A.rels):
-        for v in {s, t}:
-            if v in incident:
-                incident[v].append((k, s, r, t))
-
-    def local(nodes, m):
-        n, seen = 0, set()
-        for a in nodes:
-            if m.get(a):
-                n += base[a][m[a]]
-            for rel in incident[a]:
-                if rel[0] in seen:
-                    continue
-                seen.add(rel[0])
-                if m.get(rel[1]) and m.get(rel[3]) and (m[rel[1]], rel[2], m[rel[3]]) in rels_b:
-                    n += 1
-        return n
-
-    # the start: same concept on the same words, then same concept, then same words
-    def likeness(a, b):
-        same_words = a in A.align and A.align.get(a) == B.align.get(b)
-        return (2 if A.concept[a] == B.concept[b] else 0) + (1 if same_words else 0), base[a][b]
-
-    m, taken = {}, set()
-    for score, a, b in sorted(((likeness(a, b), a, b) for a in na for b in nb), key=lambda x: (-x[0][0], -x[0][1], na.index(x[1]), nb.index(x[2]))):
-        if score[0] and a not in m and b not in taken:
-            m[a] = b
-            taken.add(b)
-    for _ in range(4 * (len(na) + 1)):
-        inv = {b: a for a, b in m.items() if b}
-        best = (0, None)
-        for a in na:
-            for b in nb + [None]:
-                old = m.get(a)
-                if old == b:
-                    continue
-                other = inv.get(b) if b else None
-                nodes = [a] + ([other] if other else [])
-                before = local(nodes, m)
-                m[a] = b
-                if other:
-                    m[other] = old
-                gain = local(nodes, m) - before
-                m[a] = old
-                if other:
-                    m[other] = b
-                if gain > best[0]:
-                    best = (gain, (a, b, other, old))
-        if not best[1]:
-            break
-        a, b, other, old = best[1]
-        m[a] = b
-        if other:
-            m[other] = old
-    m = {a: b for a, b in m.items() if b}
-    return m, local(na, m)
+def identical(A, B, m):
+    """Whether two annotations of a sentence are the same graph under the pairing m: every node
+    paired, same concepts, attributes, relations, top and alignment."""
+    if A.error or B.error or len(m) != len(A.concept) or len(A.concept) != len(B.concept) or len(set(m.values())) != len(m):
+        return False
+    if any(A.concept[a] != B.concept[b] or A.align.get(a) != B.align.get(b) for a, b in m.items()):
+        return False
+    if sorted((m[s], r, t) for s, r, t in A.attrs) != sorted(B.attrs):
+        return False
+    if sorted((m[s], r, m[t]) for s, r, t in A.rels) != sorted(B.rels):
+        return False
+    return (m.get(A.top) if A.top else None) == B.top
 
 
-def _f(match, test, gold):
-    p = match / test if test else 1.0
-    r = match / gold if gold else 1.0
-    return {"match": match, "a": test, "b": gold, "p": round(p, 4), "r": round(r, 4),
-            "f": round(2 * p * r / (p + r), 4) if p + r else 0.0}
+def _ancast():
+    """AnCast (umr4nlp/ancast, vendored), which needs numpy."""
+    try:
+        from ancast.document import DocumentMatch, get_edge_list_temp, get_edge_list_coref
+        from ancast.matches import MatchResolution
+        from ancast.sentence import Sentence as AncastSentence
+        from ancast.ops import protected_divide
+    except ImportError as e:
+        raise ValueError("AnCast could not be loaded (%s): it needs numpy" % e)
+    return DocumentMatch, MatchResolution, AncastSentence, get_edge_list_temp, get_edge_list_coref, protected_divide
 
 
 class Pair:
-    """Annotator a's and annotator b's annotation of the document, node by node."""
+    """Annotator a's and annotator b's annotation of the document, compared by AnCast++ (a is its
+    "test" side, b its "gold" side)."""
 
     def __init__(self, sa, sb):
+        DocumentMatch, MatchResolution, AncastSentence, edges_temporal, edges_coref, divide = _ancast()
         self.sa, self.sb = sa, sb
-        self.maps, self.matches = [], []
-        for A, B in zip(sa, sb):
-            m, n = pair_nodes(A, B)
+        self.maps, self.sent = [], []
+        dm = DocumentMatch()                # AnCast's own defaults, as its command line runs
+        for k, (A, B) in enumerate(zip(sa, sb)):
+            res = None
+            if A.concept and B.concept:
+                span = lambda S: {v: "%d-%d" % x for v, x in S.align.items()}  # noqa: E731
+                ta = AncastSentence(sent=" ".join(A.words), semantic_text=A.graph, alignment=span(A), sent_num=k + 1, format="umr")
+                tb = AncastSentence(sent=" ".join(B.words), semantic_text=B.graph, alignment=span(B), sent_num=k + 1, format="umr")
+                if not ta.invalid and not tb.invalid:
+                    res = MatchResolution(ta, tb, Cneighbor=dm.Cneighbor, sense_coefficient=dm.sense_coefficient,
+                                          separate_1_and_2=dm.separate_1_and_2, use_alignment=dm.use_alignment,
+                                          use_smatch_top=dm.use_smatch_top)
+                    dm.add_doct_info(res, test_doc=A.doc, gold_doc=B.doc)
+                    dm.macro_avg(res)
+            m, taken = {}, set()
+            for a, b in (res.match_list01.items() if res else ()):
+                if a in A.concept and b in B.concept and b not in taken:
+                    m[a] = b
+                    taken.add(b)
             self.maps.append(m)
-            self.matches.append(n)
+            self.sent.append({"f": round(float(res.lbd_fscore), 4), "concept": round(float(res.concept_match_fscore), 4)} if res else None)
+        p, r = dm.semantic_metric_precision.compute("lr"), dm.semantic_metric_recall.compute("lr")
+        total = {"sent": divide(2 * p * r, p + r), "modal": dm.calculate_modal()[2],
+                 "temporal": dm.calculate_TCTC("temporal", edges_temporal)[2],
+                 "coref": dm.calculate_TCTC("coref", edges_coref)[2]}
+        p, r = dm.semantic_metric_precision.compute("document"), dm.semantic_metric_recall.compute("document")
+        total["comp"] = divide(2 * p * r, p + r)
+        self.total = {k: round(float(v), 4) for k, v in total.items()}
         self.forward = {a: b for m in self.maps for a, b in m.items()}      # a's variable -> b's, all sentences
         self.back = {b: a for a, b in self.forward.items()}
 
@@ -191,16 +157,14 @@ class Pair:
         return both, [x for x in ra if x not in rb], [x for x in rb if x not in ra]
 
     def same(self, i):
-        A, B, m = self.sa[i], self.sb[i], self.maps[i]
         both, only_a, only_b = self.doc_same(i)
-        return (not A.error and not B.error and self.matches[i] == A.size == B.size and not only_a and not only_b
-                and all(A.align.get(a) == B.align.get(b) for a, b in m.items()))
+        return identical(self.sa[i], self.sb[i], self.maps[i]) and not only_a and not only_b
 
     def scores(self, i):
-        A, B = self.sa[i], self.sb[i]
-        both, only_a, only_b = self.doc_same(i)
-        return {"graph": _f(self.matches[i], A.size, B.size),
-                "document": _f(len(both), len(both) + len(only_a), len(both) + len(only_b)), "same": self.same(i)}
+        """Sentence i: AnCast's labeled relation F of the two graphs and its concept F (None when
+        one side has no graph), and whether the two annotations are the same."""
+        s = self.sent[i] or {"f": None, "concept": None}
+        return {"f": s["f"], "concept": s["concept"], "same": self.same(i)}
 
     def renamed(self, i):
         """B's graph and document-level annotation of sentence i with a's names for the paired variables."""
@@ -322,9 +286,8 @@ class Comparison:
         pairs = []
         for (a, b), p in self.pairs.items():
             per = [p.scores(i) for i in range(self.n)]
-            total = lambda key: _f(sum(s[key]["match"] for s in per), sum(s[key]["a"] for s in per), sum(s[key]["b"] for s in per))  # noqa: E731
-            pairs.append({"a": a, "b": b, "graph": total("graph"), "document": total("document"),
-                          "same": sum(1 for s in per if s["same"]), "sentences": [{"f": s["graph"]["f"], "doc_f": s["document"]["f"], "same": s["same"]} for s in per]})
+            pairs.append({"a": a, "b": b, **p.total, "same": sum(1 for s in per if s["same"]),
+                          "sentences": [{"f": s["f"], "same": s["same"]} for s in per]})
         first = self.sents[self.names[0]]
         return {"names": self.names, "count": self.n, "pairs": pairs,
                 "sentences": [{"text": " ".join(first[i].words), "same": all(p.same(i) for p in self.pairs.values()),

@@ -6,8 +6,9 @@
  *      submits: a branch annotate/<login>/<file> with the .umr, and a pull request to the base branch.
  *   2. A second annotator, without write access, does the same through a fork; submitting again
  *      updates the same pull request.
- *   3. The moderator finds both pull requests, and the page compares them: agreement (Smatch F,
- *      document-level F, identical sentences); sentences everybody agrees on are taken as they are.
+ *   3. The moderator finds both pull requests, and the page compares them with AnCast++ (sentence,
+ *      modal, temporal, coreference and comprehensive F; identical sentences); sentences everybody
+ *      agrees on are taken as they are.
  *   4. A sentence that differs shows the two annotations side by side with the differing lines
  *      marked, the list of differences, and what a model says about them.
  *   5. The moderator takes one annotator's sentence, or changes it by hand (expert mode), and
@@ -242,8 +243,11 @@ function fakeGitHub() {
   await page.waitForSelector('.md-main .md-cols', { timeout: 120000 });
   await settled();
   const table = await page.$$eval('.md-agreement tbody tr', (r) => r.map((x) => [...x.querySelectorAll('td')].map((c) => c.textContent).join(' | ')));
-  check('the agreement of the two: Smatch F of the graphs, F of the document-level relations, identical sentences',
-    table.length === 1 && /^alice · bob \| \d\d\.\d \| \d\d\.\d \| 2\/3$/.test(table[0]) && !/100\.0 \| 100\.0/.test(table[0]), table.join(' || '));
+  const heads = await page.$$eval('.md-agreement thead th', (h) => h.map((x) => x.textContent).join('|'));
+  const cells = (table[0] || '').split(' | ');
+  check('the agreement of the two by AnCast++: sentence graphs, modal, temporal, coreference, comprehensive; and the identical sentences',
+    heads === '|句级图|情态|时间|共指|综合|完全一致的句子' && table.length === 1 && cells[0] === 'alice · bob' && cells.slice(1, 6).every((c) => /^\d+\.\d$/.test(c))
+      && Number(cells[1]) < 100 && Number(cells[1]) > 50 && cells[2] === '100.0' && Number(cells[4]) < 100 && Number(cells[5]) < 100 && cells[6] === '2/3', `${heads} || ${table.join(' || ')}`);
   const list = await page.$$eval('.md-list .fx-sentences li', (e) => e.map((x) => `${x.className}:${x.textContent}`));
   check('sentences everybody agrees on are taken as they are; the one that differs is open, with its F',
     /^seen:✓1/.test(list[0]) && /^new:○2.*\d\d\.\d$/.test(list[1]) && /^seen:✓3/.test(list[2]), list.join(' || '));
@@ -307,7 +311,7 @@ function fakeGitHub() {
     /已合并：pull request #3/.test(merged) && mergePull?.merged && /^adjudicate\/docs-turtle-\d{8}-\d{6}$/.test(mergePull.branch)
       && /\(s2x \/ 吃-01/.test(main) && /\(s1x \/ 玳-01/.test(main) && /\(s3x \/ 海-01/.test(main) && /:same-event/.test(main), `${merged} · ${mergePull?.branch}`);
   check('its description says what was compared, the agreement, and whose each sentence is',
-    /alice: #1/.test(mergePull.body) && /bob: #2/.test(mergePull.body) && /\| alice · bob \| \d\d\.\d \|/.test(mergePull.body)
+    /alice: #1/.test(mergePull.body) && /bob: #2/.test(mergePull.body) && /AnCast\+\+ F/.test(mergePull.body) && /\| alice · bob \| \d+\.\d \| 100\.0 \|/.test(mergePull.body)
       && /identical in all annotations: 2 sentences/.test(mergePull.body) && /alice, changed by the moderator: sentence 2/.test(mergePull.body), mergePull.body);
   check('the annotators\' pull requests are closed, each with a note that names the merge',
     hub.pulls[0].state === 'closed' && hub.pulls[1].state === 'closed' && !hub.pulls[0].merged
