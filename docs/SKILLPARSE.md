@@ -503,9 +503,9 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 
 ---
 
-## 14. 三种模式（`modes.js`）
+## 14. 几种模式（`modes.js`）
 
-顶栏的 `手动 | 专家 | 学徒` 只换界面，不换数据：三种模式调的是同一批动作（`core.js`），步骤、暂存、导出都是同一份。模式记在 `localStorage`（`skillparse_mode`），地址里的 `?mode=expert` 也行。非手动模式下四栏隐藏（CSS，`body[data-mode]`），`#focus` 里画各自的界面；手动模式的代码和键盘操作不变。
+顶栏的 `手动 | 专家 | 学徒 | 审定` 只换界面，不换数据：三种模式调的是同一批动作（`core.js`），步骤、暂存、导出都是同一份。模式记在 `localStorage`（`skillparse_mode`），地址里的 `?mode=expert` 也行。非手动模式下四栏隐藏（CSS，`body[data-mode]`），`#focus` 里画各自的界面；手动模式的代码和键盘操作不变。
 
 **专家（`mode-expert.js`）**
 
@@ -525,6 +525,18 @@ sent_type ─┬─ discourse ──┬─ relation 不是 none：每个 part �
 
 **一个概念对着几个 token**：节点的对齐本来就是一段（`[首, 尾]`）。`apply_change` 有两个改动专门管这件事：`set_span`（改一个节点对着的字）和 `merge_nodes`（`var` 并进 `into`：边和属性都归 `into`，对齐取两者的并集，可以同时给新概念）。乌兹别克语的轻动词结构（名词 + `qil-` / `et-` / `ber-` / `ol-` / `bo'l-`）在 `uz/predicate`、`uz/umr_generate` 里规定写成一个节点，概念是整个复合词的词干形式，用连字符连起来（`sovg'a-qil`、`qaror-qabul-qil`），对齐盖住全部的词。
 
+**审定（`mode-moderate.js`，`github.js`，`github-ui.js`，`bridge/iaa.py`）**
+
+多人标注同一个文件，审定全程用 git。浏览器直接调 `api.github.com`，token 和别的 key 一起存在 `localStorage`（`annotator_secrets.github`），不经过任何服务器。
+
+1. **标注者**（`github-ui.js`）：`openFromGitHub()` 列出仓库某分支上的 `.txt` / `.umr`（git trees），取下来 `importDocument()`，并记下它的来源（`docSource(id)`：`{owner, repo, base, path}`，存在 `skillparse_github_docs`）。`submitAnnotation(src, text)`：有写权限就在原仓库、否则先 fork，在分支 `annotate/<login>/<文件>` 上写 `umrPath(path)`（`a.txt` → `a.umr`），向 `base` 开 pull request；这个分支已有打开的 pull request 时只更新文件。pull request 正文里带一行 `<!-- skillparse-annotation path="…" -->`，审定人靠它找（手工开的 pull request 按它改动的文件找）。
+2. **比较**（`bridge/iaa.py`，`Session.iaa_open(annotations)`）：每两位标注者、每一句，按 Smatch 的办法把两张图的节点配对（`pair_nodes`：先把同概念、同 span 的配上，再爬山，使相同的三元组最多：instance、attribute、relation、top），得到分数（P/R/F）、**差别清单**（`Pair.differences`：只有一边有的节点、概念不同、属性不同、关系标签不同、对齐不同、只有一边有的关系、文档级关系只有一边有或标签不同）和「把 B 的变量改成 A 的名字」的文本（`Pair.renamed`，并排对照用）。文档级关系的两端按全文的配对换成同一套名字再比。
+3. **合并版本是一篇普通文档**（`<文件>.moderated`，只有句子）。「用这一份」= `iaa_take(i, name, chosen, keep)`：那位标注者这一句的图、对齐、文档级标注经 `distribute_generated(..., any_order=True)` 放进 wave 0，照常转换成两波的步骤（不要求前面的句子先有）。`chosen` 是其余各句取自谁：这一句的文档级关系里指向别句节点的变量，按配对换成那一句所取标注里的变量，对不上的不带过来（`dropped`）；后面已经取了、又指向这一句的句子按同样办法重放一遍（手动改过的 `keep` 不动）。完全一致的句子开始时直接取第一位的。
+4. **模型的看法**：`user_panel` 的 `compare_annotations`（`panel_start(name, i, pair=[a, b])`，输入里的 `annotations`、`differences` 来自 `iaa.CURRENT.prompt`），回答 `differences`（每处 `{about, a, b, prefer: A | B | either | neither, why}`）和 `summary`。只显示，不改任何东西。
+5. **手动改**：切到专家模式改这一句。审定界面记着每句取来时的文本（`taken[i].mark`），再看到时不一样了就标成「手动改过」。
+6. **合并**（`mergeModerated`）：新分支 `adjudicate/<文件>-<时间>` 写入导出的 `.umr`，开 pull request（正文：比较了哪几份、一致性表、每句取自谁），squash 合并进 `base`；再给每位标注者的 pull request 留言并关闭。合并不了（分支保护）时 pull request 留着，界面给出链接。
+7. 取下来的标注、每句的决定、模型的看法存在 `localStorage`（`skillparse_moderation`，按文档名）；刷新后 `iaa_open` 重新比较一次，合并版本的步骤照常从暂存恢复。
+
 ## 15. 网站更新之后页面起不来（`boot-check.js`）
 
 GitHub Pages 允许浏览器把每个脚本缓存 10 分钟。网站刚更新时刷新，可能新旧脚本混用；一个模块引用了旧模块里还没有的名字，整张模块图就连不上，页面画得出来但什么都不运行。`boot-check.js`（普通脚本，模块起不来它也能跑）在页面加载完之后看 `<body>` 有没有 `booted`：没有，就从 `app.js` 起把所有模块绕过缓存重新取一遍（`fetch(..., {cache: 'reload'})`），再刷新，最多两次。
@@ -537,6 +549,7 @@ GitHub Pages 允许浏览器把每个脚本缓存 10 分钟。网站刚更新时
 | `npm run test:browser -- skillparse-test.js` | 整个流程：启动、确认关卡、提示重跑、Penman、图、修改与 AI 反思、导出、英文流程、Anthropic key、运行动画、刷新后恢复 |
 | `npm run test:browser -- boot-recover-test.js` | 浏览器手里还是旧脚本时（新旧混用，模块图连不上），页面自己把脚本重新取一遍再刷新，然后正常启动 |
 | `npm run test:browser -- modes-test.js` | 专家模式（自动整篇生成、关系归到靠后的句子、按词显示和修改文档级关系、改本句、改全文并跳转、重新生成、下一句）和学徒模式（一步一步、讲解、手改、提示重跑、换句、进文档级） |
+| `npm run test:browser -- github-test.js` | GitHub 流程（GitHub 是脚本里的替身）：填 token、打开仓库里的文件、提交成 pull request（有写权限直接开分支，没有就 fork；再提交是更新）；审定模式找到两份标注、算一致性、一致的句子直接采用、有差别的并排显示并列出差别、模型讲差别；取某一份、换另一份、到专家模式手改；合并进主分支并关闭各自的 pull request；刷新后进度还在 |
 | `npm run test:browser -- skillparse-fullrun-test.js` | 导入、所有句子逐步跑完两波、导出、文本导入、载入已有标注（按词转按字、重跑载入的步骤、按字文件原样载入）、刷新后文档还在 |
 
 浏览器测试里的模型都是 `docs/verification/_skillparse-mocks.js` 里的替身，不需要 key。Pyodide 仍要从 CDN 下载。

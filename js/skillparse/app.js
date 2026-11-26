@@ -25,10 +25,13 @@ import './timer.js';
 import { setupModes } from './modes.js';
 import './mode-expert.js';
 import './mode-apprentice.js';
+import './mode-moderate.js';
+import { setupGitHub } from './github-ui.js';
 
 function wire() {
   setupFolding();
   setupModes();
+  setupGitHub();
   document.getElementById('modal-close').addEventListener('click', closeModal);
   document.getElementById('modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('modal').hidden) closeModal(); });

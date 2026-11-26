@@ -99,6 +99,15 @@ a time, with the document-level relations written in words and a chat that chang
 or the whole document. _Apprentice_: one step at a time, each explained. _Manual_: the four panes
 above.
 
+**Several annotators, moderated with git** (GitHub ▾ and the Moderate mode; a GitHub token in
+Settings, kept in this browser). An annotator opens a `.txt` or `.umr` file of a repository,
+annotates it, and submits it as a pull request from a branch of their own (a fork without write
+access). The moderator's page finds the pull requests for the file, computes how much they agree
+(Smatch over paired nodes, and the document-level relations), takes the sentences everybody agrees
+on, and shows the others side by side with their differences listed and, on request, explained by
+a model; the moderator takes one annotator's sentence or changes it by hand, and the result is
+merged into the base branch through a pull request that records the comparison and the decisions.
+
 ## Keys and privacy
 
 There is no server in this project. Model keys (OpenRouter, Anthropic, OpenAI, TypeSafe) live in
@@ -178,6 +187,11 @@ Penman 显示，只看关系和内容：要由下一步展开的部分写成 `<n
 **三种做法**（顶栏：手动 | 专家 | 学徒，是同一份标注的三种界面，随时切换）：专家模式整篇自动生成，
 再一句一句改，文档级关系用词显示，右边的对话可以改本句或改全文；学徒模式一次只看一步，每步有讲解；
 手动模式就是上面说的四栏。
+
+**多人标注，用 git 审定**（顶栏的 GitHub ▾ 和「审定」模式；GitHub token 在设置里填，只存本机）：标注者打开仓库里的
+`.txt` 或 `.umr` 文件，标完提交成自己分支上的 pull request（没有写权限就从 fork 开）。审定人的页面找到这个文件的各个
+pull request，算一致性（节点配对后的 Smatch，以及文档级关系），一致的句子直接采用，有差别的并排显示、列出差别，
+还可以让模型逐处讲解；审定人选某一位的，或者自己改，最后通过一个记录了比较和决定的 pull request 合并进主分支。
 
 **Key 存在哪**：只存本机 `localStorage`，浏览器直连模型服务（OpenRouter、Anthropic、OpenAI、TypeSafe），
 不经过任何服务器（本项目也没有服务器）。标注进度存在同一个浏览器的 IndexedDB 里。

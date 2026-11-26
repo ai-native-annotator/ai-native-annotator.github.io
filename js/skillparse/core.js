@@ -357,17 +357,17 @@ export const panelKey = (i = S.item) => `${S.skillset}|${S.doc}|${i}`;
  * its prompt from the registry entry's input; its tools (call_skill among them) go back to the
  * bridge. Returns the bridge's result ({output, preview, prompt, tool_calls}).
  */
-export async function runPanel(name, i, comment) {
+export async function runPanel(name, i, comment, { pair } = {}) {
   return guarded(async (signal) => {
-    const r = await askPanel(name, i, signal, { comment });
+    const r = await askPanel(name, i, signal, { comment, pair });
     status('');
     return r;
   });
 }
 
 /** One user_panel model skill, asked to the end (its tools and one retry included). */
-async function askPanel(name, i, signal, { comment = '', upto, onTool } = {}) {
-  let r = await py('panel_start', { name, i, comment, ...(upto === undefined ? {} : { upto }) });
+async function askPanel(name, i, signal, { comment = '', upto, onTool, pair } = {}) {
+  let r = await py('panel_start', { name, i, comment, ...(upto === undefined ? {} : { upto }), ...(pair ? { pair } : {}) });
   while (r.need === 'llm') {
     const role = settings().roles[r.role] ? r.role : 'haiku';
     const model = modelFor(role);

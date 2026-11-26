@@ -307,6 +307,22 @@ user_panel:
     emit:
       sentences: list[dict]     # 每句 {index, graph, alignment, document}
 
+  compare_annotations:          # 审定模式：两位标注者对同一句的标注，模型逐处说明差别、哪一边符合规范；只给审定人参考，不改图
+    title: {zh: 比较两份标注, en: Compare two annotations}
+    kind: agent
+    path: compare_annotations
+    role: generate
+    scope: document             # 不在手动模式的右栏里
+    input:
+      sentence: str
+      tokens: str
+      annotations: str          # 两份标注（A、B）：句级图和文档级标注；B 的变量已按对应关系改成 A 的
+      differences: str          # 按三元组比出来的差别清单
+      lang: str
+    emit:
+      differences: list[dict]   # 每处 {about, a, b, prefer: A | B | either | neither, why}
+      summary: str
+
   apply_change:                 # 规则（apply_change/apply_change.py）：把勾选的改动用到这一句的图上；网页再把新图拆回步骤（到 stop 为止）
     title: {zh: 执行改动, en: Apply the changes}
     kind: rule

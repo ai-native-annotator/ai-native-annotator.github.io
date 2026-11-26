@@ -1,5 +1,6 @@
 {
 "files": {
+"bridge/iaa.py": "bridge/iaa.py",
 "bridge/sp_bridge.py": "bridge/sp_bridge.py",
 "bridge/umr_load.py": "bridge/umr_load.py",
 "docs/chinese_umr-0022.umr": "docs/chinese_umr-0022.umr",
@@ -10,6 +11,7 @@
 "engine/umroutputhandler.py": "engine/umroutputhandler.py",
 "skills/REGISTRY.md": "skills/REGISTRY.md",
 "skills/en/apply_change/apply_change.py": "skills/shared/apply_change/apply_change.py",
+"skills/en/compare_annotations/skill.md": "skills/shared/compare_annotations/skill.md",
 "skills/en/convert/convert.py": "skills/shared/convert/convert.py",
 "skills/en/coref/skill.md": "skills/en/coref/skill.md",
 "skills/en/discourse/skill.md": "skills/en/discourse/skill.md",
@@ -32,6 +34,7 @@
 "skills/tools/propbank.py": "skills/tools/propbank.py",
 "skills/tools/search.py": "skills/tools/search.py",
 "skills/uz/apply_change/apply_change.py": "skills/shared/apply_change/apply_change.py",
+"skills/uz/compare_annotations/skill.md": "skills/shared/compare_annotations/skill.md",
 "skills/uz/convert/convert.py": "skills/shared/convert/convert.py",
 "skills/uz/coref/skill.md": "skills/uz/coref/skill.md",
 "skills/uz/discourse/skill.md": "skills/uz/discourse/skill.md",
@@ -53,6 +56,7 @@
 "skills/uz/umr_generate/skill.md": "skills/uz/umr_generate/skill.md",
 "skills/uz/umr_generate_doc/skill.md": "skills/shared/umr_generate_doc/skill.md",
 "skills/zh/apply_change/apply_change.py": "skills/shared/apply_change/apply_change.py",
+"skills/zh/compare_annotations/skill.md": "skills/shared/compare_annotations/skill.md",
 "skills/zh/convert/convert.py": "skills/shared/convert/convert.py",
 "skills/zh/coref/skill.md": "skills/zh/coref/skill.md",
 "skills/zh/discourse/skill.md": "skills/zh/discourse/skill.md",

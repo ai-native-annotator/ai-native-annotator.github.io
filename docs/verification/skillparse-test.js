@@ -288,11 +288,11 @@ async function stepThrough(page, max = 80) {
   const en = await page.$$eval('.tree li .st', (els) => els.map((e) => e.textContent));
   check('the English procedure runs', en.length >= 3 && en.every((s) => s === '✓'), en.join(''));
 
-  // Settings: four parts that fold; no model is chosen there: an Anthropic key makes Haiku go to
+  // Settings: five parts that fold (the GitHub token among them); no model is chosen there: an Anthropic key makes Haiku go to
   // Anthropic directly; Jev goes through TypeSafe or OpenRouter, its key with the others
   await page.click('#btn-settings');
-  check('Settings fold into four parts; the models part has nothing to choose; Jev is TypeSafe or OpenRouter, with no answer-it-yourself',
-    (await page.$$('#modal details.settings-part')).length === 4 && !(await page.$('#modal .settings-models select, #modal .settings-models input'))
+  check('Settings fold into five parts (keys, GitHub, models, Jev, other); the models part has nothing to choose; Jev is TypeSafe or OpenRouter, with no answer-it-yourself',
+    (await page.$$('#modal details.settings-part')).length === 5 && !!(await page.$('#modal #key-github')) && !(await page.$('#modal .settings-models select, #modal .settings-models input'))
     && (await page.$$eval('#modal input[name=jev-via]', (e) => e.map((x) => x.value))).join(',') === 'typesafe,openrouter'
     && !!(await page.$('#modal #key-typesafe')) && !(await page.textContent('#modal')).includes('我自己回答'));
   const rolesBefore = await page.textContent('#modal .settings-roles');

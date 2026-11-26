@@ -1,10 +1,11 @@
 /**
- * The three ways to work on a document. They are views of the same steps and the same export,
+ * The ways to work on a document. They are views of the same steps and the same export,
  * and can be switched at any time:
  *
  *   manual      the four panes: every wave, step, skill file and window by hand (the default)
  *   expert      mode-expert.js: the whole document generated, then corrected sentence by sentence
  *   apprentice  mode-apprentice.js: one step at a time, each explained, wave after wave
+ *   moderate    mode-moderate.js: several annotators' pull requests compared, one version merged
  *
  * The mode is kept in this browser, and `?mode=expert` in the address opens one.
  */
@@ -14,14 +15,14 @@ import { readJson, writeJson } from './local.js';
 import { addStrings } from './i18n.js';
 
 addStrings({
-  modeTitle: '怎么做这篇文档：手动（四栏，什么都能动）、专家（整篇生成，逐句改正）、学徒（一步一步，每步有讲解）',
+  modeTitle: '怎么做这篇文档：手动（四栏，什么都能动）、专家（整篇生成，逐句改正）、学徒（一步一步，每步有讲解）、审定（比较几位标注者的 pull request，合并成一个版本）',
   modeManual: '手动', modeExpert: '专家', modeApprentice: '学徒',
 }, {
-  modeTitle: 'How to work on this document: manual (four panes, everything by hand), expert (the whole document generated, corrected sentence by sentence), apprentice (one step at a time, each explained)',
+  modeTitle: 'How to work on this document: manual (four panes, everything by hand), expert (the whole document generated, corrected sentence by sentence), apprentice (one step at a time, each explained), moderate (several annotators\' pull requests compared and merged into one version)',
   modeManual: 'Manual', modeExpert: 'Expert', modeApprentice: 'Apprentice',
 });
 
-const MODES = ['manual', 'expert', 'apprentice'];
+const MODES = ['manual', 'expert', 'apprentice', 'moderate'];
 const KEY = 'skillparse_mode';
 
 export function setMode(mode) {

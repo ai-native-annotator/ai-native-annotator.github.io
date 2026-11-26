@@ -69,6 +69,11 @@ engine and the open document's sentences); the model does not see that parameter
   go through it (`Loader`), and their steps are treated alike from then on. Word alignments are
   converted to characters; a file aligned by characters is read as it is.
 
+- `iaa.py` compares several people's annotation of the same document (moderate mode): for every two
+  of them the nodes of each sentence are paired as Smatch pairs them, which gives the scores, the
+  list of differences, one annotation's text with the other's variable names, and the renaming of
+  cross-sentence relations when a sentence is taken from one annotator into the merged document.
+
 ## resources/
 
 Not written into the Python file system when the page starts; a tool fetches a file the first

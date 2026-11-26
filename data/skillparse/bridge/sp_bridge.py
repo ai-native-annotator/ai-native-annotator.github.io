@@ -472,12 +472,14 @@ class RegistryEngine:
         if self.partial:
             if not ep:
                 sent = self.doc.sents[i] if i < len(self.doc.sents) else None
-                return {"nodes": [], "table": {"sentence": sent.index, "text": sent.text, "nodes": []}} if sent else None
+                return {"nodes": [], "generated": None, "table": {"sentence": sent.index, "text": sent.text, "nodes": []}} if sent else None
         elif not ep or ep["error"] or any(n["status"] in ("pending", "running") or _unconfirmed(n) for n in ep["nodes"].values()):
             return None
         nodes = sorted(ep["nodes"].values(), key=lambda n: node_key(n["id"]))
         tree = {"nodes": [self._node_dict(n) for n in nodes], "table": self._table(i, nodes)}
         made = next((n.get("output") for n in nodes if n["skill"] == CONVERT and n["status"] == "ok"), None)
+        if self.partial:
+            tree["generated"] = None            # read as it is: wave 0 may not have written this sentence
         if isinstance(made, dict):
             sent = self.doc.sents[i]
             tree["generated"] = {"sentence": sent.index, "text": sent.text, "graph": made.get("graph", ""),
@@ -1023,7 +1025,7 @@ class RegistryEngine:
                                                              n.get("local") or "", n.get("words") or ""))
         return "\n".join(rows)
 
-    def panel_values(self, i, comment="", upto=None, keys=None):
+    def panel_values(self, i, comment="", upto=None, keys=None, pair=None):
         """The values a user_panel skill may take as input (its registry `input` picks them, `keys`):
         about sentence i (sentence, tokens, tree, variables, graph, index), about the whole
         document (document: every sentence with its tokens, graph and alignment), for generating
@@ -1058,12 +1060,18 @@ class RegistryEngine:
             "sentences": lambda: "\n\n".join("### Sentence %d\n\nSentence: %s\nTokens, each with its number: %s"
                                                % (x.index, x.text, numbered(x)) for x in self.doc.sents[i:upto + 1]),
         }
+        if pair:                    # two annotators' annotation of the sentence (moderate mode; iaa.py)
+            import iaa
+            if iaa.CURRENT is None:
+                raise StepError("no annotations are being compared")
+            compared = iaa.CURRENT.prompt(i, *pair)
+            values.update(annotations=lambda: compared["annotations"], differences=lambda: compared["differences"])
         return {k: v() for k, v in values.items() if keys is None or k in keys}
 
     PANEL_VALUES = ("sentence", "tokens", "index", "tree", "variables", "graph", "comment", "lang", "document",
-                    "before", "sentences", "sentence_skill")
+                    "before", "sentences", "sentence_skill", "annotations", "differences")
 
-    def panel_start(self, name, i, comment="", upto=None):
+    def panel_start(self, name, i, comment="", upto=None, pair=None):
         """Run an agent skill of the right pane on sentence i (or, a skill that generates, on
         sentences i..upto): what the page must ask the model."""
         entry = self._panel(name)
@@ -1078,7 +1086,7 @@ class RegistryEngine:
                             % (name, ", ".join(missing), ", ".join(self.PANEL_VALUES)))
         if "sentences" in skill.input:
             self._tokenize(int(i), int(i) if upto is None else int(upto))
-        p = self._agent_prompt(skill, self.panel_values(i, comment, upto, keys=set(skill.input)))
+        p = self._agent_prompt(skill, self.panel_values(i, comment, upto, keys=set(skill.input), pair=pair))
         self.panel_runs[(name, int(i))] = {"name": name, "i": int(i), "prompt": p, "tool_calls": [], "retried": False,
                                           "comment": str(comment or "").strip()}
         return self._panel_request(name, int(i))
@@ -1169,12 +1177,18 @@ class RegistryEngine:
             out.append(dict(it, document="\n".join(lines) + ")"))
         return out
 
-    def distribute_generated(self, sentences, model=None):
+    def distribute_generated(self, sentences, model=None, any_order=False):
         """Several sentences generated in one answer ([{index, graph, alignment, document}], index
         the sentence's number), each put where wave 0 would have put it: its sentence's umr_generate
         step takes it as its output, convert checks it and loads it into the sentence and
         document waves, and both are confirmed. Stops at a sentence that cannot be loaded (the ones
-        after it read it). Returns {"made": [numbers], "errors": [{index, error}]}."""
+        after it read it). Returns {"made": [numbers], "errors": [{index, error}]}.
+
+        any_order: the sentences are not being written from the first on (a moderator takes one
+        annotator's sentence, moderate mode): none waits for the sentences before it."""
+        if any_order:
+            with self._as_they_are():
+                return self.distribute_generated(sentences, model)
         valid = [x for x in sentences or [] if isinstance(x, dict) and str(x.get("index", "")).strip().isdigit()
                  and 1 <= int(x["index"]) <= len(self.doc.sents)]
         items = self._to_later_sentence(sorted(valid, key=lambda x: int(x["index"])))
@@ -2450,6 +2464,46 @@ class Session:
             with open(annotation, encoding="utf-8") as fh:
                 desc["loaded"] = self.engine.loaded = umr_load.load(self.engine, fh.read())
         return desc
+
+    # -- several people's annotation of one document, compared and merged (moderate mode; iaa.py)
+
+    def iaa_open(self, annotations):
+        """[{name, text}], each a .umr file's text: compared; the summary for the page."""
+        import iaa
+        try:
+            iaa.CURRENT = iaa.Comparison(annotations)
+        except ValueError as e:
+            raise StepError(str(e))
+        return iaa.CURRENT.summary()
+
+    def _iaa(self):
+        import iaa
+        if iaa.CURRENT is None:
+            raise StepError("no annotations are being compared")
+        return iaa.CURRENT
+
+    def iaa_sentence(self, i, a, b):
+        return self._iaa().sentence(i, a, b)
+
+    def iaa_take(self, i, name, chosen, keep=()):
+        """Sentence i of the open document becomes `name`'s annotation of it. chosen: {sentence
+        index: the annotator each other sentence was taken from}, by which the relations with other
+        sentences are renamed; a later sentence that has a relation with this one is put in again
+        the same way, unless its index is in `keep` (the moderator changed it by hand). Returns
+        {"made", "errors", "dropped": relations left out, "again": the later sentences put in again}."""
+        cmp_, i = self._iaa(), int(i)
+        chosen = {int(k): v for k, v in (chosen or {}).items() if v}
+        chosen[i] = name
+        keep = {int(k) for k in keep or ()}
+        again = [k for k in sorted(chosen) if k > i and k not in keep and cmp_.mentions(k, chosen[k], i)]
+        made, errors, dropped = [], [], []
+        for k in [i] + again:
+            block = cmp_.block(k, chosen[k], chosen)
+            dropped += ["#%d %s" % (k + 1, x) for x in block.pop("dropped")]
+            res = self.engine.distribute_generated([block], model="annotator: %s" % chosen[k], any_order=True)
+            made += res["made"]
+            errors += res["errors"]
+        return {"made": made, "errors": errors, "dropped": dropped, "again": again}
 
     def read_file(self, path):
         full = os.path.normpath(os.path.join(FS, path))

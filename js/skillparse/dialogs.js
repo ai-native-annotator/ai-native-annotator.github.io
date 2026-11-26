@@ -7,6 +7,7 @@ import { bundle } from './store.js';
 import { putImport, dropWork, workKey } from './save.js';
 import { py } from './py.js';
 import { t } from './i18n.js';
+import { token as githubToken, saveToken as saveGithubToken } from './github.js';
 
 /**
  * Settings, in four parts that fold: the API keys; the models (no choosing here: each role runs
@@ -24,6 +25,7 @@ export function openSettings() {
     h('input', { type: 'radio', name: 'jev-via', value: v, checked: cfg.jev.via === v }), h('span', { text: t(`jevVia.${v}`) }))));
   const jevNote = h('div', { class: 'note' });
   const conc = h('input', { type: 'number', min: 1, max: 20, value: cfg.concurrency, style: 'width:5em', id: 'set-concurrency' });
+  const github = h('input', { type: 'password', value: githubToken(), autocomplete: 'off', id: 'key-github', placeholder: 'github_pat_… / ghp_…' });
 
   // what the keys typed so far reach: each role's model and its service, and every model
   function show() {
@@ -58,11 +60,15 @@ export function openSettings() {
     part(t('keys'),
       h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' },
         keyInputs.map(([p, inp]) => [h('label', { for: inp.id, text: t(`keyNames.${p}`) }), inp]))),
+    part('GitHub',
+      h('div', { class: 'form-grid', style: 'grid-template-columns:max-content 1fr' }, h('label', { for: github.id, text: t('githubToken') }), github),
+      h('div', { class: 'note', text: t('githubTokenNote') })),
     part(t('roles'), models),
     part(t('jevBackend'), jevVia, jevNote),
     part(t('otherSettings'), h('div', { class: 'row' }, h('label', { for: conc.id, text: t('concurrency') }), conc)),
     h('div', { class: 'row' }, h('button', { class: 'btn primary', text: t('saveSettings'), onclick: () => {
       keyInputs.forEach(([p, inp]) => saveKey(p, inp.value));
+      saveGithubToken(github.value);
       saveSettings({
         roles: cfg.roles,
         jev: { ...cfg.jev, via: jevVia.querySelector('input:checked')?.value || 'openrouter' },
@@ -116,22 +122,34 @@ export function openImport() {
       err.textContent = '';
       let res;
       try {
-        res = await py('import_doc', { name: name.value.trim(), text, fmt: chosen(), ...(lang.value ? { lang: lang.value } : {}) });
+        res = await importDocument({ name: name.value.trim(), text, fmt: chosen(), lang: lang.value });
       } catch (e) {
         err.textContent = e.message;
         return;
       }
-      // the open document of this name is replaced: its unsaved changes must not be kept for it
-      if (S.doc === res.id) await forgetChanges();
-      await putImport({ name: res.id, text, fmt: chosen(), lang: lang.value || null });
-      // work kept for an earlier document of this name is not work on this one
-      await Promise.all(SKILLSETS.map((s) => dropWork(workKey(s.id, res.id))));
-      await loadDocs();
       closeModal();
       toast(t('imported', { id: res.id, n: res.sentences }));
       document.dispatchEvent(new CustomEvent('docs-changed', { detail: res.id }));
     } })));
   openModal(t('importTitle'), body, { wide: false });
+}
+
+/** A document put into the page's Python and kept in this browser: {id, sentences, lang}. */
+export async function importDocument({ name, text, fmt, lang = '' }) {
+  const res = await py('import_doc', { name, text, fmt, ...(lang ? { lang } : {}) });
+  // the open document of this name is replaced: its unsaved changes must not be kept for it
+  if (S.doc === res.id) await forgetChanges();
+  await putImport({ name: res.id, text, fmt, lang: lang || null });
+  // work kept for an earlier document of this name is not work on this one
+  await Promise.all(SKILLSETS.map((s) => dropWork(workKey(s.id, res.id))));
+  await loadDocs();
+  return res;
+}
+
+/** An imported document opened, with the procedure of its language; done when it is on screen. */
+export async function openImported(res) {
+  const skillset = (SKILLSETS.find((s) => s.lang === res.lang) || SKILLSETS.find((s) => s.id === S.skillset) || SKILLSETS[0]).id;
+  await reopen(skillset, res.id);
 }
 
 export async function exportAs(kind) {

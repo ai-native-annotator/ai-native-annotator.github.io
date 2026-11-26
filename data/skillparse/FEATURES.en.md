@@ -16,6 +16,20 @@ They are three views of the same annotation; switch at any time, and everything 
 - **Apprentice** (for understanding): nothing is generated ahead. One step is on screen: its piece of the sentence, what it decides, the skill's full instructions, what it looked up, its answer, what it hands on. Enter if it is right; otherwise correct it yourself, or Tab to run it again with a hint. The sentence graphs first, then the document level.
 - **Manual**: the four panes described below, everything by hand.
 
+## 0.5 Several annotators and moderation (GitHub ▾, and Moderate in the toolbar)
+
+Annotations live in a GitHub repository, and moderation is done entirely with git. First put a GitHub token in ⚙ Settings (kept in this browser only, sent only to api.github.com; a fine-grained token for the one repository is best: Contents read and write, Pull requests read and write).
+
+- **An annotator**: "GitHub ▾ → Open a file from GitHub", give the repository (`owner/name`, or paste the file's address), pick a `.txt` (the text) or `.umr` file, and annotate as usual (in any mode). Then "GitHub ▾ → Submit my annotation": the annotation is written to a branch of your own, `annotate/<your login>/<file>`, and a pull request to the base branch is opened. Without write access the repository is forked to your account first and the pull request comes from the fork. Submitting again updates the same pull request. The annotation of `a.txt` is kept as `a.umr` next to it.
+- **The moderator**: switch to Moderate, give the repository and the file, "Find the annotations of this file" lists the open pull requests that annotate it; tick the ones to compare (at least two) and start.
+  - **Agreement**: for every two annotators, the Smatch F of the sentence graphs, the F of the document-level relations, and how many sentences are identical. It is computed as Smatch does: the nodes of the two graphs are paired so that as many triples as possible are the same.
+  - Sentences that are **identical in all annotations are taken as they are**; in the list ✓ is agreed, ○ is open (with the sentence's F), ● is decided (with whose it is).
+  - A sentence that differs: **the two annotations side by side** (the variables of the one on the right renamed to the left one's by the pairing, so the lines can be compared), the lines that differ shaded; below, **the list of differences** (concept, attribute, role, alignment, a node or relation only one has, document-level relations). With more than two annotations, pick the two to compare above.
+  - "Have a model explain these differences": the model picked in the toolbar reads both annotations and the list and says, for each difference, what it is, which side it prefers and on what grounds; it can also go through every sentence that differs at once. It advises; it decides nothing.
+  - Deciding: "Use this one" on either annotation; or use one and then "✎ Change it myself", which opens the sentence in the expert mode (change it on the drawing or in the chat) — back in Moderate the sentence says "taken from …, then changed by hand". When sentence 3 is one annotator's and sentence 5 another's, document-level relations across sentences are rewritten to the corresponding variables by the pairing; the ones that have no counterpart are left out, and you are told.
+  - "Merge into main": the version decided on is written to a new branch `adjudicate/…`, a pull request is opened (its description says which annotations were compared, the agreement table, and whose each sentence is) and merged into the base branch; then the annotators' pull requests are closed with a note (optional). When the base branch is protected and cannot be merged into from here, the pull request stays open to be merged on GitHub.
+  - What was fetched and decided is kept in this browser; after a reload the work goes on.
+
 ## 1. Procedures and waves
 
 - **Three languages**: Chinese (web-zh), English (web-en), Uzbek (web-uz), picked from the document's language.
@@ -96,6 +110,8 @@ They are three views of the same annotation; switch at any time, and everything 
 - **The work record (JSON)**, and **the skill files you edited**.
 
 ## 9. Settings (⚙)
+
+The GitHub token (see 0.5) is here too, kept in this browser only.
 
 Four parts, each of which folds:
 - **API keys**: OpenRouter, Anthropic, OpenAI, TypeSafe (Jev), kept in this browser only.

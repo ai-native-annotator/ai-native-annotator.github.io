@@ -114,8 +114,17 @@ module.exports = function mocks() {
       summary: `${numbers.length} 句的 aspect 都改成 activity。` };
   }
 
+  /** user_panel compare_annotations (moderate mode): one remark, on what the list of differences names first. */
+  function compared(input) {
+    calls.compared = [...(calls.compared || []), input];
+    const first = /\n1\. (\S+) — ([^:]*): A has (.*?); B has (.*)/.exec(input.split('### The differences found by comparing the triples')[1] || '');
+    return { differences: first ? [{ about: first[2], a: first[3], b: first[4], prefer: 'A', why: '测试：A 符合规范。' }] : [],
+      summary: first ? '两份标注有一处差别，建议从 A 开始。' : '两份标注一样。' };
+  }
+
   function emitFor(schema, input = '') {
     if (schema.properties?.sentences) return generatedDoc(input);
+    if (schema.properties?.differences) return compared(input);
     if (input.includes("### The person's comment") && /### Sentence \d+[\s\S]*Alignment:/.test(input)) return globalChange(input);
     if (input.includes("### The person's comment")) return localChange(input);
     if (schema.properties?.document && schema.properties?.graph?.type === 'string') return generated(input);
